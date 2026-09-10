@@ -2,8 +2,8 @@ Les groupes suivent les cinq paliers de mise en service décrits dans `design.md
 
 ## 1. Socle et arbitrages mesurés
 
-- [ ] 1.1 Prototyper la capture vocale sur les deux plateformes candidates et mesurer le délai entre l'appui et le début effectif de l'enregistrement ; retenir la technologie dont la mesure reste sous 300 ms au 95e centile, appareil verrouillé et application non lancée
-- [ ] 1.2 Décider la technologie du socle métier partagé à partir de la mesure 1.1 et consigner l'arbitrage et les chiffres dans `design.md` — Décisions
+- [ ] 1.1 Prototyper la capture vocale sur Android (service de premier plan) et sur Windows (agent résident) et mesurer le délai entre l'appui et le début effectif de l'enregistrement ; retenir la technologie dont la mesure reste sous 300 ms au 95e centile, appareil verrouillé et application non lancée
+- [ ] 1.2 Décider la technologie du socle métier partagé entre Android et Windows à partir de la mesure 1.1, et consigner l'arbitrage et les chiffres dans `design.md` — Décisions
 - [ ] 1.3 Mettre en place le dépôt du produit (structure socle + surfaces), la construction et les tests automatisés ; vérifier qu'une commande unique construit et teste les deux surfaces
 - [ ] 1.4 Définir le schéma des trois couches de données — source immuable, dérivé reconstructible, décidé par l'humain — et vérifier par un test qu'une ré-analyse ne modifie ni la couche source ni la couche humaine
 - [ ] 1.5 Mettre en place le stockage local chiffré et vérifier par un test que les données ne sont pas lisibles sans authentification de l'appareil
@@ -11,8 +11,8 @@ Les groupes suivent les cinq paliers de mise en service décrits dans `design.md
 ## 2. Palier 1 — Capture fiable
 
 - [ ] 2.1 Implémenter la capture vocale par appui long avec écriture durable puis confirmation haptique et sonore ; vérifier par un test que la confirmation n'est jamais émise avant l'écriture effective
-- [ ] 2.2 Implémenter la capture depuis l'écran verrouillé et le widget ; vérifier manuellement le scénario `capture` / « Capture depuis l'écran verrouillé » sur appareil réel
-- [ ] 2.3 Implémenter le raccourci global de capture sur ordinateur avec restitution du focus à l'application précédente ; vérifier le scénario `capture` / « Capture au clavier sur ordinateur »
+- [ ] 2.2 Implémenter la capture Android depuis l'écran verrouillé et le widget d'écran d'accueil ; vérifier manuellement le scénario `capture` / « Capture depuis l'écran verrouillé » sur appareil réel, y compris avec les optimisations de batterie du constructeur actives
+- [ ] 2.3 Implémenter le raccourci clavier global sur Windows via un agent résident, avec restitution du focus à l'application précédente ; vérifier le scénario `capture` / « Capture au clavier sur ordinateur », y compris depuis une application en plein écran
 - [ ] 2.4 Implémenter la capture écrite sans champ obligatoire et vérifier qu'aucune demande de classement n'est présentée
 - [ ] 2.5 Implémenter la capture mains libres depuis un accessoire connecté avec signaux sonores de début et de fin ; vérifier sur écouteurs réels
 - [ ] 2.6 Implémenter la file de captures locale et la reprise après arrêt brutal ; vérifier par un test qui tue le processus pendant un enregistrement que la portion enregistrée est présente et marquée incomplète
@@ -56,17 +56,17 @@ Les groupes suivent les cinq paliers de mise en service décrits dans `design.md
 - [ ] 5.1 Implémenter le moteur de classement combinant poids et échéance comme dimensions distinctes ; vérifier le scénario `priorisation` / « Urgent mais léger »
 - [ ] 5.2 Implémenter la vue Maintenant à trois éléments maximum, chacun avec sa justification en une ligne, sans compteur ni liste complète ; vérifier les deux scénarios de la vue Maintenant
 - [ ] 5.3 Implémenter le créneau protégé pour l'important non urgent et l'enregistrement des renoncements ; vérifier les deux scénarios de créneau de `priorisation`
-- [ ] 5.4 Implémenter la lecture locale de l'agenda et l'adaptation du classement au temps disponible, au lieu et à l'appareil ; vérifier les deux scénarios de contexte d'exécution
+- [ ] 5.4 Implémenter la lecture locale de l'agenda et l'adaptation du classement au temps disponible avant le prochain événement et à l'appareil utilisé ; vérifier les deux scénarios de contexte d'exécution
 - [ ] 5.5 Implémenter la prise en compte de la charge de la journée pour la charge cognitive des éléments proposés ; vérifier le scénario `priorisation` / « Journée dense »
 - [ ] 5.6 Implémenter l'écartement d'un élément sans suppression ni report, et la remontée en Revue après rejets répétés ; vérifier les deux scénarios correspondants
 - [ ] 5.7 Implémenter la détection des éléments dormants de poids fort et leur remontée en Revue ; vérifier le scénario `priorisation` / « Tâche dormante »
-- [ ] 5.8 Implémenter les rappels situés par lieu, personne et événement d'agenda ; vérifier les trois scénarios de rappels situés
+- [ ] 5.8 Implémenter les rappels par déclencheur (personne, événement d'agenda, événement récurrent) et le repli proposé quand l'utilisateur formule un déclencheur de lieu ; vérifier les trois scénarios de `rappels` / « Rappels par déclencheur »
 - [ ] 5.9 Implémenter la formulation des plans en « quand *signal*, je fais *action* » avec préférence au signal sur l'heure ; vérifier le scénario `rappels` / « Signal préféré à l'heure »
-- [ ] 5.10 Implémenter la détection des points de rupture et la file d'opportunité, avec une notification au plus par point de rupture ; vérifier les scénarios de livraison et de regroupement de `rappels`
+- [ ] 5.10 Implémenter la détection des points de rupture à partir de l'agenda et des transitions d'usage de l'appareil, et la file d'opportunité avec une notification au plus par point de rupture ; vérifier les scénarios de livraison et de regroupement de `rappels`
 - [ ] 5.11 Implémenter le court-circuit des rappels critiques et les plages de silence ; vérifier les scénarios « Rappel critique immédiat » et « Plage de silence respectée »
 - [ ] 5.12 Implémenter l'escalade d'un rappel ignoré à répétition vers la Revue ; vérifier le scénario `rappels` / « Rappel ignoré trois fois »
 - [ ] 5.13 Implémenter la relance des engagements et des attentes en Revue ; vérifier le scénario `revue` / « Attente sans nouvelle »
-- [ ] 5.14 Vérifier sur appareil réel que le géorepérage et la lecture d'agenda restent sous le budget d'autonomie fixé, et que la désactivation de chaque signal laisse le produit utilisable
+- [ ] 5.14 Vérifier sur appareil réel que la lecture d'agenda et la détection des transitions restent sous le budget d'autonomie fixé, et que le produit reste utilisable en mode dégradé quand l'accès à l'agenda est refusé
 
 ## 6. Palier 5 — Réunions et remémoration
 
@@ -83,7 +83,7 @@ Les groupes suivent les cinq paliers de mise en service décrits dans `design.md
 
 ## 7. Confiance, données et sortie
 
-- [ ] 7.1 Implémenter le marquage d'une capture comme non transmissible et l'exclusion d'une sphère entière de l'analyse distante ; vérifier par interception réseau qu'aucune donnée marquée ne sort de l'appareil
+- [ ] 7.1 Implémenter le marquage d'une capture comme non transmissible et l'exclusion d'une sphère entière de l'analyse distante ; vérifier par interception réseau qu'aucune donnée marquée ne sort de l'appareil, et qu'aucune permission de localisation n'est demandée
 - [ ] 7.2 Implémenter la reconnaissance vocale embarquée comme repli hors ligne et pour les captures non transmissibles ; vérifier qu'une capture privée est transcrite sans appel réseau
 - [ ] 7.3 Implémenter l'écran indiquant précisément quelles données quittent l'appareil et pour quel traitement ; vérifier que l'information correspond aux appels réellement émis
 - [ ] 7.4 Implémenter l'export intégral en format ouvert et documenté avec liens de traçabilité préservés ; vérifier qu'un export est exploitable sans le produit

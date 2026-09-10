@@ -57,7 +57,7 @@ Le système SHALL réserver dans la journée au moins un créneau dédié à un 
 
 ### Requirement: Adaptation au contexte d'exécution
 
-Le classement SHALL tenir compte du contexte courant — temps disponible avant le prochain événement de l'agenda, lieu, appareil, moment de la journée — et NE DOIT proposer que des éléments réalisables dans ce contexte.
+Le classement SHALL tenir compte du contexte courant — temps disponible avant le prochain événement de l'agenda, appareil utilisé, moment de la journée — et NE DOIT proposer que des éléments réalisables dans ce contexte.
 
 #### Scenario: Créneau court
 
@@ -66,7 +66,7 @@ Le classement SHALL tenir compte du contexte courant — temps disponible avant 
 
 #### Scenario: Contexte inadapté
 
-- **WHEN** un élément requiert un appareil ou un lieu indisponible
+- **WHEN** un élément requiert un appareil indisponible ou une durée supérieure au temps restant
 - **THEN** il n'est pas proposé
 - **AND** il le sera lorsque le contexte le permettra
 

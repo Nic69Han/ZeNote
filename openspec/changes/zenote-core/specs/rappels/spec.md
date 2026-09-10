@@ -1,12 +1,14 @@
 ## Purpose
 
-Faire arriver la bonne information au moment où elle est actionnable — à l'arrivée quelque part, avant de voir quelqu'un, à la fin d'une réunion — plutôt qu'à une heure fixe où elle sera balayée, et sans jamais interrompre au milieu d'une tâche.
+Faire arriver la bonne information au moment où elle est actionnable — avant de voir quelqu'un, à la fin d'une réunion, au premier vrai trou de la journée — plutôt qu'à une heure fixe où elle sera balayée, et sans jamais interrompre au milieu d'une tâche.
 
 ## ADDED Requirements
 
-### Requirement: Rappels situés
+### Requirement: Rappels par déclencheur
 
-Le système SHALL permettre d'attacher un rappel à un signal déclencheur non temporel : un lieu, une personne, un événement d'agenda, une application ouverte, ou une transition de contexte.
+Le système SHALL permettre d'attacher un rappel à un signal déclencheur non temporel : une personne, un événement d'agenda, ou une transition de contexte.
+
+Le système NE DOIT pas utiliser la position géographique de l'appareil comme déclencheur ni la collecter.
 
 #### Scenario: Rappel lié à une personne
 
@@ -14,11 +16,11 @@ Le système SHALL permettre d'attacher un rappel à un signal déclencheur non t
 - **AND** une réunion avec Marc démarre dans l'agenda
 - **THEN** le rappel est présenté juste avant cette réunion
 
-#### Scenario: Rappel lié à un lieu
+#### Scenario: Déclencheur de lieu ramené à un déclencheur disponible
 
-- **WHEN** un rappel est attaché à « en arrivant au bureau »
-- **AND** l'appareil arrive à ce lieu
-- **THEN** le rappel est présenté à l'arrivée
+- **WHEN** l'utilisateur formule un déclencheur de lieu, par exemple « en arrivant au bureau »
+- **THEN** le système propose le déclencheur disponible le plus proche — événement d'agenda à ce lieu, ou première reprise de l'appareil dans la plage habituelle
+- **AND** indique que le déclencheur de position n'est pas disponible
 
 #### Scenario: Rappel lié à un événement récurrent
 
@@ -31,13 +33,13 @@ Le système SHALL formuler chaque plan sous la forme « quand *signal*, je fais 
 
 #### Scenario: Signal préféré à l'heure
 
-- **WHEN** une tâche dépend d'une personne ou d'un lieu identifiable
+- **WHEN** une tâche dépend d'une personne ou d'un événement d'agenda identifiable
 - **THEN** le plan proposé s'appuie sur ce signal
 - **AND** une heure n'est proposée qu'en complément ou en repli
 
 ### Requirement: Livraison aux points de rupture
 
-Le système SHALL livrer les rappels non critiques à un point de rupture de l'activité — fin de réunion, fin de créneau d'agenda, déverrouillage après une pause, changement de lieu — et NE DOIT pas interrompre un créneau de travail concentré identifié.
+Le système SHALL livrer les rappels non critiques à un point de rupture de l'activité — fin de réunion, fin de créneau d'agenda, reprise de l'appareil après une pause — et NE DOIT pas interrompre un créneau de travail concentré identifié.
 
 #### Scenario: Report à la fin de la réunion
 

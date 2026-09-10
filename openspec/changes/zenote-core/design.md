@@ -16,7 +16,7 @@ Le produit n'est pas une liste de fonctionnalités : chaque mécanique répond �
 | **Effet de simple urgence** — à importance égale ou supérieure, on choisit la tâche urgente ([Zhu, Yang & Hsee 2018](https://academic.oup.com/jcr/article-abstract/45/3/673/4847790)) | Trier par échéance reproduit le biais du cerveau au lieu de le corriger | `priorisation` : poids et échéance séparés, créneau protégé pour l'important non urgent |
 | **Le plan ferme la boucle** — un plan quand/où supprime les pensées intrusives aussi bien que l'exécution ([Masicampo & Baumeister 2011](https://users.wfu.edu/masicaej/MasicampoBaumeister2011JPSP.pdf)) | Une tâche sans plan reste une charge mentale ; c'est le plan, pas la note, qui libère | `revue` : aucune tâche ne sort de la Revue sans plan, « un jour » ou suppression |
 | **Intentions d'implémentation** — « quand X, je fais Y » améliore fortement la mémoire prospective, y compris sous forte charge attentionnelle ([Gollwitzer ; McDaniel et al. 2008](http://pham315.pbworks.com/f/McDaniel+2008.pdf)) | Le déclencheur vaut mieux que l'heure | `rappels` : formulation « quand *signal*, je fais *action* » |
-| **Rappels contextuels** — lieu, personne, activité battent l'alarme horaire pour les tâches situées ([Place-Its](https://www.researchgate.net/publication/221568777_Place-Its_A_Study_of_Location-Based_Reminders_on_Mobile_Phones)) | Le signal doit être ancré dans le monde | `rappels` : lieu, personne, événement d'agenda, transition |
+| **Rappels contextuels** — lieu, personne, activité battent l'alarme horaire pour les tâches situées ([Place-Its](https://www.researchgate.net/publication/221568777_Place-Its_A_Study_of_Location-Based_Reminders_on_Mobile_Phones)) | Le signal doit être ancré dans le monde ; à défaut de position, l'agenda en est le meilleur substitut | `rappels` : personne, événement d'agenda, transition (le lieu est reporté hors v1) |
 | **Délestage cognitif** — on externalise selon sa *confiance*, pas selon son besoin réel ([Risko & Gilbert 2016](https://samgilbert.net/pubs/Risko2016TiCS.pdf) ; [Gilbert et al. 2020](https://samgilbert.net/pubs/Gilbert2020JEPG.pdf)) | Le bénéfice ne vient que si l'utilisateur *croit* que rien ne se perdra | `capture` : confirmation après écriture durable, garantie de non-perte |
 | **Coût de l'interruption et résidu attentionnel** — reprise coûteuse, attention qui reste accrochée à la tâche quittée ([Mark et al. 2008](https://ics.uci.edu/~gmark/chi08-mark.pdf) ; [Leroy 2009](https://www.sciencedirect.com/science/article/abs/pii/S0749597809000399)) | Un plan de reprise avant de basculer réduit le résidu | `reunions` : dépose avant, reprise après |
 | **Points de rupture** — une interruption arrivant à une frontière de sous-tâche coûte beaucoup moins ([Iqbal & Bailey](https://dl.acm.org/doi/10.1145/1240624.1240732)) | Différer une notification jusqu'à la transition suivante | `rappels` : livraison aux points de rupture, regroupement |
@@ -58,7 +58,7 @@ Le produit n'est pas une liste de fonctionnalités : chaque mécanique répond �
 
 **Choix.** Trois couches distinctes :
 
-- **Source** (immuable) : audio, transcription brute, horodatage, lieu, contexte d'agenda au moment de la capture.
+- **Source** (immuable) : audio, transcription brute, horodatage, appareil, contexte d'agenda au moment de la capture.
 - **Dérivé** (reconstructible) : transcription nettoyée, éléments extraits, champs déduits, liens vers la mémoire — chacun portant sa version de modèle, sa version de prompt et sa confiance.
 - **Décidé par l'humain** (autorité) : toute correction, validation ou saisie de l'utilisateur, qui prime sur le dérivé et n'est jamais écrasée par une ré-analyse.
 
@@ -88,15 +88,19 @@ Cela réduit le coût — le contexte de mémoire est chargé une fois pour tout
 
 ### 6. Traitement distant par défaut, refus possible par capture
 
-**Choix.** L'analyse s'exécute côté serveur, avec un interrupteur par capture et par sphère. Une capture marquée non transmissible reste capturée, transcrite localement si la plateforme le permet, consultable et recherchable — sans extraction. La reconnaissance vocale embarquée sert de repli hors ligne et pour ces captures.
+**Choix retenu avec l'utilisateur.** L'analyse s'exécute côté serveur, avec un interrupteur par capture et par sphère. Une capture marquée non transmissible reste capturée, transcrite localement si la plateforme le permet, consultable et recherchable — sans extraction. La reconnaissance vocale embarquée sert de repli hors ligne et pour ces captures.
 
 *Alternative écartée* : tout embarqué. Qualité d'extraction et de résolution de contexte insuffisante pour tenir la promesse produit, sur un besoin — comprendre des sous-entendus — qui est justement ce qui demande le plus de capacité.
 
-### 7. Un socle métier partagé, des interfaces natives
+### 7. Android et Windows, un socle métier partagé
 
-**Choix.** Un cœur unique (modèle de données, synchronisation, moteur de priorisation, file de travail) partagé entre les surfaces, avec des interfaces natives à chaque plateforme là où la latence et l'intégration système comptent — capture, widget, écran verrouillé, raccourci global.
+**Choix.** Deux surfaces : **Android** pour la capture (widget, bouton dédié, service de premier plan, contrôle d'écouteur) et **Windows** pour le traitement (raccourci clavier global, Revue, recherche). Un cœur unique — modèle de données, synchronisation, moteur de priorisation, file de travail — partagé entre les deux, avec du code natif là où la latence et l'intégration système comptent.
 
-Le choix précis de technologie (langage du cœur, encapsulation par plateforme) est arbitré à la première tâche d'implémentation, sur un prototype qui mesure la latence de capture. C'est cette mesure, pas une préférence, qui doit trancher.
+Android est une bonne surface de capture : le service de premier plan permet de démarrer l'enregistrement sans passer par une activité, et le système autorise un bouton de capture réellement accessible depuis l'écran verrouillé. Windows n'offre pas d'équivalent au niveau système : le raccourci global doit être porté par un agent résident, et sa disponibilité doit être vérifiée sur le prototype au même titre que la latence.
+
+Le langage du cœur et son mode d'intégration sur les deux plateformes sont arbitrés à la première tâche d'implémentation, sur un prototype qui mesure la latence de capture. C'est cette mesure, pas une préférence, qui tranche.
+
+*Alternative écartée* : une application web installable. Une seule base de code, mais ni écran verrouillé, ni widget, ni raccourci global — la promesse « un geste » disparaît, et avec elle la raison d'être du produit.
 
 ### 8. Modèle de langage : capable par défaut, petit modèle pour le volume
 
@@ -117,7 +121,7 @@ Le choix précis de technologie (langage du cœur, encapsulation par plateforme)
 | **La capture se dégrade** (latence, perte) et le produit perd sa raison d'être | Chemin de capture isolé de tout le reste ; latence et durabilité mesurées à chaque version ; le retour de confirmation vient de l'écriture, pas de l'intention |
 | **Le coût par capture dérape** | Analyse groupée avec contexte partagé ; petit modèle pour le volume ; contexte borné par la sélection pertinence/récence/importance ; coût mesuré par capture dès le premier prototype |
 | **Trop de contexte tue le contexte** (leçon MyLifeBits) | Consolidation par entité ; décroissance des éléments dormants ; refus du journal de vie |
-| **Le lieu et l'agenda en continu épuisent la batterie et inquiètent** | Géorepérage à faible fréquence sur un petit nombre de lieux ; agenda lu en local ; chaque signal désactivable individuellement, le produit restant utilisable sans aucun d'eux |
+| **L'agenda est la seule source externe : s'il manque, les points de rupture et le briefing disparaissent** | Repli sur les transitions d'usage de l'appareil (reprise après inactivité) et sur l'échéance ; l'agenda est lu en local, désactivable, et le produit reste utilisable sans lui, en mode dégradé assumé |
 | **La reconnaissance vocale échoue sur le vocabulaire métier** | Vocabulaire personnel issu de la mémoire ; apprentissage des corrections ; marquage des passages incertains plutôt que fausse certitude |
 | **Divergence de logique entre mobile et bureau** | Moteur de priorisation dans le socle partagé, jamais réimplémenté par surface |
 | **Le produit dérive vers un gestionnaire de projet** | Les non-objectifs du `proposal.md` sont une contrainte de conception : toute demande qui les rouvre passe par un nouveau change |
@@ -140,5 +144,5 @@ Ces points peuvent être tranchés pendant l'implémentation sans remettre en ca
 
 - Le seuil de confiance déclenchant la confirmation doit être calibré sur des captures réelles ; l'ordre de grandeur initial et le mode de réglage sont à déterminer à l'usage.
 - La durée au-delà de laquelle une attente envers un tiers est relancée doit-elle être apprise par personne dès la v1, ou partir d'une valeur unique puis s'affiner ?
-- Le nombre et le rayon des lieux géorepérés utiles avant que le coût en batterie ne dépasse le bénéfice.
+- La définition exacte d'une « reprise de l'appareil après une pause » qui constitue un vrai point de rupture, à calibrer sur l'usage réel.
 - La fréquence de régénération des synthèses par entité, arbitrée entre fraîcheur et coût.
