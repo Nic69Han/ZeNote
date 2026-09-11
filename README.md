@@ -68,6 +68,33 @@ stop caveman       revenir au style normal
 
 Le code, les commits et les PR restent rédigés normalement quel que soit le niveau.
 
+## Le cœur métier
+
+Le socle partagé entre les surfaces vit dans `core/`, en Kotlin Multiplatform. Seule la
+cible JVM est déclarée pour l'instant : elle couvre Android et le poste Windows.
+
+```bash
+./gradlew :core:build      # compile et lance les tests
+./gradlew :core:jvmTest    # les tests seuls
+```
+
+Le modèle de données est en trois couches, et c'est l'invariant qui tient tout :
+
+| Couche | Contenu | Règle |
+|---|---|---|
+| **Source** — `model/Source.kt` | Audio, texte brut, horodatage, contexte d'agenda | Immuable. Rien ne la modifie. |
+| **Dérivé** — `model/Derive.kt` | Ce que le modèle a compris, avec sa confiance et son indice | Reconstructible. Une ré-analyse la remplace intégralement. |
+| **Humain** — `model/Humain.kt` | Ce que l'utilisateur a validé ou corrigé en Revue | Fait autorité. Jamais écrasé par une ré-analyse. |
+
+`store/CaptureStore.kt` fait respecter ces règles ; `model/Resolu.kt` compose les trois
+couches en la vue que les écrans consomment. `priorisation/Priorisation.kt` porte le
+classement de la vue Maintenant.
+
+Deux garanties sont dans le cœur plutôt que dans l'interface, parce qu'elles ne doivent
+dépendre d'aucun écran : **aucun élément sans passage source** (un élément que le modèle
+a inventé ne peut pas être construit) et **aucune analyse distante sur une capture
+marquée privée**.
+
 ## Structure du dépôt
 
 ```

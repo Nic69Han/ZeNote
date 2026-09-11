@@ -5,7 +5,7 @@ Les groupes suivent les cinq paliers de mise en service décrits dans `design.md
 - [ ] 1.1 Prototyper la capture vocale sur Android (service de premier plan) et sur Windows (agent résident) et mesurer le délai entre l'appui et le début effectif de l'enregistrement ; retenir la technologie dont la mesure reste sous 300 ms au 95e centile, appareil verrouillé et application non lancée
 - [ ] 1.2 Décider la technologie du socle métier partagé entre Android et Windows à partir de la mesure 1.1, et consigner l'arbitrage et les chiffres dans `design.md` — Décisions
 - [ ] 1.3 Mettre en place le dépôt du produit (structure socle + surfaces), la construction et les tests automatisés ; vérifier qu'une commande unique construit et teste les deux surfaces
-- [ ] 1.4 Définir le schéma des trois couches de données — source immuable, dérivé reconstructible, décidé par l'humain — et vérifier par un test qu'une ré-analyse ne modifie ni la couche source ni la couche humaine
+- [x] 1.4 Définir le schéma des trois couches de données — source immuable, dérivé reconstructible, décidé par l'humain — et vérifier par un test qu'une ré-analyse ne modifie ni la couche source ni la couche humaine
 - [ ] 1.5 Mettre en place le stockage local chiffré et vérifier par un test que les données ne sont pas lisibles sans authentification de l'appareil
 
 ## 2. Palier 1 — Capture fiable
@@ -53,7 +53,7 @@ Les groupes suivent les cinq paliers de mise en service décrits dans `design.md
 
 ## 5. Palier 4 — Maintenant et rappels
 
-- [ ] 5.1 Implémenter le moteur de classement combinant poids et échéance comme dimensions distinctes ; vérifier le scénario `priorisation` / « Urgent mais léger »
+- [x] 5.1 Implémenter le moteur de classement combinant poids et échéance comme dimensions distinctes ; vérifier le scénario `priorisation` / « Urgent mais léger »
 - [ ] 5.2 Implémenter la vue Maintenant à trois éléments maximum, chacun avec sa justification en une ligne, sans compteur ni liste complète ; vérifier les deux scénarios de la vue Maintenant
 - [ ] 5.3 Implémenter le créneau protégé pour l'important non urgent et l'enregistrement des renoncements ; vérifier les deux scénarios de créneau de `priorisation`
 - [ ] 5.4 Implémenter la lecture locale de l'agenda et l'adaptation du classement au temps disponible avant le prochain événement et à l'appareil utilisé ; vérifier les deux scénarios de contexte d'exécution

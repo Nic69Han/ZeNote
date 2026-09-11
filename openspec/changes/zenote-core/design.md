@@ -98,7 +98,9 @@ Cela réduit le coût — le contexte de mémoire est chargé une fois pour tout
 
 Android est une bonne surface de capture : le service de premier plan permet de démarrer l'enregistrement sans passer par une activité, et le système autorise un bouton de capture réellement accessible depuis l'écran verrouillé. Windows n'offre pas d'équivalent au niveau système : le raccourci global doit être porté par un agent résident, et sa disponibilité doit être vérifiée sur le prototype au même titre que la latence.
 
-Le langage du cœur et son mode d'intégration sur les deux plateformes sont arbitrés à la première tâche d'implémentation, sur un prototype qui mesure la latence de capture. C'est cette mesure, pas une préférence, qui tranche.
+**Langage du cœur : Kotlin Multiplatform, arbitrage provisoire.** Le cœur est écrit en Kotlin dans `core/`, cible JVM déclarée seule pour l'instant — elle couvre Android et le poste Windows. Trois raisons : le service de premier plan Android qui porte la capture est en Kotlin de toute façon, donc zéro passerelle entre le cœur et la surface la plus critique ; les cibles `androidTarget()` et `mingwX64()` s'ajoutent sans toucher à `commonMain` ; et c'est constructible et testable dès aujourd'hui.
+
+Cet arbitrage porte sur le **cœur**, pas sur les surfaces : la mesure de latence de la tâche 1.1 reste ce qui tranche la technologie du chemin de capture sur chaque plateforme, et elle n'a pas encore été faite faute d'appareil. Si elle devait invalider Kotlin côté Android — ce qui serait surprenant — le cœur suivrait.
 
 *Alternative écartée* : une application web installable. Une seule base de code, mais ni écran verrouillé, ni widget, ni raccourci global — la promesse « un geste » disparaît, et avec elle la raison d'être du produit.
 

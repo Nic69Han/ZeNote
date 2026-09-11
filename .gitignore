@@ -14,3 +14,8 @@ coverage/
 
 # Claude Code local overrides (machine-specific, not shared)
 .claude/settings.local.json
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
