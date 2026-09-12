@@ -12,6 +12,13 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: true,
+    commonjsOptions: {
+      // Le cœur Kotlin est publié en CommonJS. Par défaut Rollup ne convertit
+      // que `node_modules/` : sans cette ligne, `vendor/zenote-core` n'exposerait
+      // pas d'export par défaut et la construction échouerait, alors même que les
+      // tests passent (Vite est plus permissif en développement).
+      include: [/vendor\/zenote-core/, /node_modules/],
+    },
   },
   plugins: [
     VitePWA({

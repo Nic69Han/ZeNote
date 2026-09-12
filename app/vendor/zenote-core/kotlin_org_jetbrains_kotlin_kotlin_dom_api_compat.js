@@ -12,4 +12,3 @@
   return _;
 }));
 
-//# sourceMappingURL=kotlin_org_jetbrains_kotlin_kotlin_dom_api_compat.js.map

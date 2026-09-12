@@ -88,3 +88,23 @@ jobs:
         if: steps.presence.outputs.presente == 'oui'
         working-directory: app
         run: npm test -- --run
+
+      # La vérification qui compte : la chaîne complète dans un vrai navigateur,
+      # capture → analyse → Revue → plan → Maintenant, sur l'application construite.
+      - name: Installer Chromium pour la vérification bout en bout
+        if: steps.presence.outputs.presente == 'oui'
+        working-directory: app
+        run: npx playwright install --with-deps chromium
+
+      - name: Vérification bout en bout
+        if: steps.presence.outputs.presente == 'oui'
+        working-directory: app
+        run: node tests/bout-en-bout.mjs
+
+      - name: Conserver les captures d'écran
+        if: always() && steps.presence.outputs.presente == 'oui'
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures-ecran
+          path: app/captures-ecran/
+          if-no-files-found: ignore

@@ -30,7 +30,12 @@ rm -rf "$DESTINATION"
 mkdir -p "$DESTINATION"
 cp "${SORTIE}"/*.js "${SORTIE}"/*.d.ts "${SORTIE}"/package.json "$DESTINATION/"
 # Les cartes de source ne servent qu'au débogage du cœur : inutile de les livrer.
+# Il faut aussi retirer la ligne qui les réclame, sinon l'outillage de la PWA
+# avertit à chaque construction qu'il ne les trouve pas.
 rm -f "$DESTINATION"/*.js.map
+for fichier in "$DESTINATION"/*.js; do
+  sed -i '/^\/\/# sourceMappingURL=/d' "$fichier"
+done
 
 cat <<EOF
 
