@@ -29,7 +29,7 @@ Une case n'est cochée que lorsqu'un test nommé la couvre. Les tâches cochées
 - [ ] 3.4 Implémenter le marquage des passages de faible confiance et vérifier qu'aucun élément structuré n'est créé à partir d'un seul passage incertain
 - [ ] 3.5 Implémenter le vocabulaire personnel et l'apprentissage des corrections de transcription ; vérifier qu'un terme corrigé est correctement transcrit à l'occurrence suivante
 - [ ] 3.6 Implémenter la détection de langue et le traitement des phrases mêlant français et anglais ; vérifier le scénario `transcription` / « Phrase mixte »
-- [ ] 3.7 Implémenter la recherche locale par mots et par personne, disponible hors ligne ; vérifier le scénario `recherche` / « Recherche en mode avion »
+- [x] 3.7 Implémenter la recherche locale par mots et par personne, disponible hors ligne ; vérifier le scénario `recherche` / « Recherche en mode avion »
 - [ ] 3.8 Implémenter la synchronisation entre appareils avec conservation des deux versions en cas de conflit ; vérifier le scénario `donnees` / « Modification concurrente » et que la capture reste instantanée pendant une synchronisation
 
 ## 4. Palier 3 — Compréhension et Revue
