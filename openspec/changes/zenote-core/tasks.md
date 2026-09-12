@@ -87,8 +87,8 @@ Une case n'est cochée que lorsqu'un test nommé la couvre. Les tâches cochées
 
 - [ ] 7.1 Implémenter le marquage d'une capture comme non transmissible et l'exclusion d'une sphère entière de l'analyse distante ; vérifier par interception réseau qu'aucune donnée marquée ne sort de l'appareil, et qu'aucune permission de localisation n'est demandée
 - [ ] 7.2 Implémenter la reconnaissance vocale embarquée comme repli hors ligne et pour les captures non transmissibles ; vérifier qu'une capture privée est transcrite sans appel réseau
-- [ ] 7.3 Implémenter l'écran indiquant précisément quelles données quittent l'appareil et pour quel traitement ; vérifier que l'information correspond aux appels réellement émis
-- [ ] 7.4 Implémenter l'export intégral en format ouvert et documenté avec liens de traçabilité préservés ; vérifier qu'un export est exploitable sans le produit
+- [x] 7.3 Implémenter l'écran indiquant précisément quelles données quittent l'appareil et pour quel traitement ; vérifier que l'information correspond aux appels réellement émis
+- [x] 7.4 Implémenter l'export intégral en format ouvert et documenté avec liens de traçabilité préservés ; vérifier qu'un export est exploitable sans le produit
 - [ ] 7.5 Implémenter la suppression d'une capture, d'une entité et du compte, avec fenêtre d'annulation et propagation distante dans un délai borné ; vérifier les deux scénarios de suppression de `donnees`
 - [ ] 7.6 Implémenter la dégradation gracieuse en cas d'indisponibilité du service d'analyse ; vérifier le scénario `donnees` / « Service d'analyse indisponible »
 

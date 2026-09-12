@@ -77,6 +77,17 @@ const contexte = await navigateur.newContext({
 });
 const page = await contexte.newPage();
 
+// Tout ce que la page tente d'envoyer ailleurs que chez elle. La promesse du produit
+// — l'analyse se fait ici, rien n'est déposé sur un serveur ZeNote — ne vaut que si
+// elle se mesure ; une page peut affirmer n'importe quoi dans son écran de confiance.
+const sorties = [];
+page.on('request', (r) => {
+  const hote = new URL(r.url()).host;
+  if (hote && hote !== `localhost:${PORT}` && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) {
+    sorties.push(`${r.method()} ${r.url()}`);
+  }
+});
+
 const erreurs = [];
 page.on('pageerror', (e) => erreurs.push(String(e)));
 page.on('console', (m) => {
@@ -224,6 +235,12 @@ try {
   const minuteriesVivantes = await page.evaluate(
     () => document.querySelectorAll('.ecran').length,
   );
+  verifier(
+    'aucune donnée ne quitte l’appareil pendant tout le parcours',
+    sorties.length === 0,
+    sorties.slice(0, 3).join(' | ') || 'aucune requête sortante',
+  );
+
   verifier(
     "l'écran quitté est bien démonté",
     minuteriesVivantes === 1,
