@@ -5,10 +5,13 @@ import app.zenote.core.model.Audio
 import app.zenote.core.model.Capture
 import app.zenote.core.model.CaptureId
 import app.zenote.core.model.Deduit
+import app.zenote.core.model.Decision
 import app.zenote.core.model.ElementDerive
+import app.zenote.core.model.ElementResolu
 import app.zenote.core.model.ModeCapture
 import app.zenote.core.model.OrigineAnalyse
 import app.zenote.core.model.Passage
+import app.zenote.core.model.Plan
 import app.zenote.core.model.Poids
 import app.zenote.core.model.TypeElement
 import kotlinx.datetime.Instant
@@ -80,3 +83,67 @@ fun analyseDe(
     texteNettoye = capture.texteBrut,
     elements = elements.toList(),
 )
+
+// ---------------------------------------------------------------------------------
+// Ajouts pour la Revue, les rappels, la mémoire et la recherche.
+// ---------------------------------------------------------------------------------
+
+/** Une information : type non actionnable, donc aucun plan à réclamer en Revue. */
+fun informationBudget(captureId: String = "c-001"): ElementDerive = ElementDerive(
+    captureId = CaptureId(captureId),
+    type = TypeElement.INFORMATION,
+    texte = "Le budget est arbitré en comité",
+    passage = passage("le budget"),
+    poids = Deduit(Poids.MOYEN, 0.9, "cadre les arbitrages de l'équipe"),
+)
+
+/** Une décision arrêtée, pour les fiches d'entité et la recherche. */
+fun decisionPrestataire(captureId: String = "c-001"): ElementDerive = ElementDerive(
+    captureId = CaptureId(captureId),
+    type = TypeElement.DECISION,
+    texte = "Prestataire A écarté : délais annoncés intenables",
+    passage = passage("Faut que"),
+    interlocuteur = Deduit("Karim", 0.95, "nommé explicitement"),
+)
+
+/** Une attente envers un tiers : quelqu'un doit quelque chose à l'utilisateur. */
+fun attenteRetourKarim(
+    captureId: String = "c-001",
+    echeance: LocalDate? = null,
+): ElementDerive = ElementDerive(
+    captureId = CaptureId(captureId),
+    type = TypeElement.ATTENTE,
+    texte = "Retour de Karim sur le planning",
+    passage = passage("le planning"),
+    echeance = echeance?.let { Deduit(it, 0.9, "date annoncée par Karim") },
+    interlocuteur = Deduit("Karim", 0.95, "nommé explicitement"),
+)
+
+/** Une tâche déjà repartie avec un plan : éligible à l'acceptation groupée. */
+fun tachePlanifiee(captureId: String = "c-001"): ElementDerive = ElementDerive(
+    captureId = CaptureId(captureId),
+    type = TypeElement.TACHE,
+    texte = "Envoyer le planning",
+    passage = passage("je lui envoie le planning"),
+    poids = Deduit(Poids.MOYEN, 0.85, "attendu par Karim"),
+    interlocuteur = Deduit("Karim", 0.95, "nommé explicitement"),
+    plan = Deduit(
+        Plan("je vois Karim", "je lui donne le planning"),
+        0.9,
+        "Karim est au point de lundi",
+    ),
+)
+
+/** Une tâche dont l'échéance est incertaine : elle doit être posée en question. */
+fun tacheIncertaine(captureId: String = "c-001"): ElementDerive = ElementDerive(
+    captureId = CaptureId(captureId),
+    type = TypeElement.TACHE,
+    texte = "Relancer sur le budget",
+    passage = passage("pour le budget"),
+    echeance = Deduit(LE_VENDREDI, 0.4, "« bientôt », expression floue"),
+    poids = Deduit(Poids.FAIBLE, 0.8, "relance de courtoisie"),
+)
+
+/** La vue résolue d'un dérivé, décision humaine éventuelle appliquée. */
+fun resolu(derive: ElementDerive, decision: Decision? = null): ElementResolu =
+    ElementResolu.de(derive, decision)

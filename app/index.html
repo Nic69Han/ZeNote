@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr" data-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="ZeNote — capturer en un geste, ranger une fois par jour, savoir quoi faire maintenant." />
+    <meta name="theme-color" content="#16181a" />
+    <link rel="icon" href="/icone.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icone-192.png" />
+    <title>ZeNote</title>
+  </head>
+  <body>
+    <a class="lien-evitement" href="#vue">Aller au contenu</a>
+    <header class="entete">
+      <span class="marque">ZeNote</span>
+      <button id="bascule-theme" class="bouton bouton--discret" type="button">Thème : auto</button>
+    </header>
+
+    <main id="vue" tabindex="-1"></main>
+
+    <nav id="navigation" class="nav" aria-label="Les trois surfaces"></nav>
+
+    <p id="annonces" class="visuellement-cache" role="status" aria-live="polite"></p>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
