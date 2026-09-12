@@ -81,10 +81,14 @@ const CHIFFRES: Record<string, number> = {
 
 /** Enlève les accents et passe en minuscules, pour comparer sans piège. */
 export function normaliser(texte: string): string {
-  return texte
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
+  return (
+    texte
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      // L'apostrophe typographique des transcriptions doit se comparer comme l'autre.
+      .replace(/[\u2019\u02bc]/g, "'")
+  );
 }
 
 /** Dernier jour du mois d'une date ISO. */
