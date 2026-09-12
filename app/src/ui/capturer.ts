@@ -7,7 +7,11 @@
 
 import { Enregistreur, audioDisponible, prechauffer } from '../audio/enregistreur.ts';
 import { retourDebut, retourEchec, retourEcrite } from '../audio/retour.ts';
-import { Transcripteur, transcriptionDisponible } from '../audio/transcription.ts';
+import {
+  Transcripteur,
+  expliquerEchec,
+  transcriptionDisponible,
+} from '../audio/transcription.ts';
 import { capturer, traiterFileAnalyse } from '../services/pipeline.ts';
 import { listerCaptures, type Capture, type Reglages } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
@@ -164,8 +168,24 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
         audio: audio.blob,
         dureeMs: audio.dureeMs,
       });
-      retourEcrite(reglages.sonConfirmation);
-      afficherEtat('CONFIRME', "C'est à moi. Tu peux oublier.");
+      // « Tu peux oublier » est la promesse centrale du produit. La tenir alors que
+      // rien n'a été transcrit serait le pire des mensonges : l'audio est bien gardé,
+      // mais aucun élément n'en sortira, rien n'arrivera en Revue, et l'utilisateur
+      // aurait oublié pour de bon. On dit donc ce qui s'est passé, et pourquoi.
+      if (transcription.texte) {
+        retourEcrite(reglages.sonConfirmation);
+        afficherEtat('CONFIRME', "C'est à moi. Tu peux oublier.");
+      } else {
+        retourEchec(reglages.sonConfirmation);
+        afficherEtat(
+          'ECHEC',
+          transcription.etat === 'INDISPONIBLE'
+            ? 'Audio gardé, mais ce navigateur ne sait pas transcrire. ' +
+                'Écrivez la note, ou réessayez depuis Chrome.'
+            : `Audio gardé, mais rien n'a été transcrit : ` +
+                `${expliquerEchec(transcription.raison)}. Vous pouvez l'écrire.`,
+        );
+      }
       apercu.textContent = '';
       await rafraichirJournal();
       void traiterFileAnalyse();
