@@ -21,6 +21,25 @@ import app.zenote.core.texte.Texte
  *    seule affirmation inventée coûtant plus que dix bonnes réponses.
  */
 
+/**
+ * Le texte d'une capture pas encore structurée, réduit à ce que la recherche lit.
+ *
+ * La recherche n'a besoin ni de l'audio ni du mode de capture. Passer la [Capture]
+ * entière obligerait les surfaces à reconstruire un objet du domaine — avec ses
+ * invariants, comme « une capture vocale référence son audio » — pour une lecture qui
+ * n'en fait rien. Ce type-là, elles peuvent l'écrire honnêtement.
+ */
+data class TexteSource(
+    val captureId: CaptureId,
+    val texte: String,
+    /** Horodatage lisible, tel qu'il sera montré dans la justification. */
+    val quand: String,
+)
+
+/** Ce qu'une capture donne à lire à la recherche. */
+fun Capture.texteSource(): TexteSource =
+    TexteSource(captureId = id, texte = texteBrut, quand = capturedAt.toString())
+
 /** De quoi une réponse se réclame. Toujours rattachable à une capture. */
 data class Citation(
     val captureId: CaptureId,
@@ -70,7 +89,7 @@ object RechercheLocale {
     fun parMots(
         requete: String,
         elements: List<ElementResolu>,
-        captures: List<Capture> = emptyList(),
+        captures: List<TexteSource> = emptyList(),
         reseau: Boolean = false,
         max: Int = MAX_CITATIONS,
     ): Reponse {
@@ -92,14 +111,14 @@ object RechercheLocale {
         // répond : on ne perd pas ce qui n'a pas encore été structuré.
         val dejaCitees = surElements.map { it.second.captureId }.toSet()
         val surCaptures = captures
-            .filter { it.id !in dejaCitees }
-            .map { it to Texte.recouvrement(requete, it.texteBrut) }
+            .filter { it.captureId !in dejaCitees }
+            .map { it to Texte.recouvrement(requete, it.texte) }
             .filter { it.second > 0.0 }
-            .map { (capture, note) ->
+            .map { (source, note) ->
                 note to Citation(
-                    captureId = capture.id,
-                    extrait = capture.texteBrut,
-                    pourquoi = "capture du ${capture.capturedAt} contenant les mots cherchés",
+                    captureId = source.captureId,
+                    extrait = source.texte,
+                    pourquoi = "capture du ${source.quand} contenant les mots cherchés",
                 )
             }
 

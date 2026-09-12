@@ -1,7 +1,10 @@
 /**
- * Le point d'entrée : coquille de l'application et navigation entre les trois écrans.
+ * Le point d'entrée : coquille de l'application et navigation entre les écrans.
  *
- * Trois surfaces, pas une de plus — Capturer, La Revue, Maintenant.
+ * Trois surfaces portent le produit — Capturer, La Revue, Maintenant. Recherche et
+ * Réglages ne s'ajoutent pas à cette liste : on ne les traverse pas dans une journée
+ * de travail, on y va quand on cherche quelque chose ou qu'on veut ses données. Elles
+ * vivent donc en retrait, sous l'en-tête, et non dans la barre du bas.
  */
 
 import './styles/base.css';
@@ -13,14 +16,25 @@ import { el, vider } from './ui/dom.ts';
 import { montrerCapturer } from './ui/capturer.ts';
 import { montrerMaintenant } from './ui/maintenant.ts';
 import { montrerRevue } from './ui/revue.ts';
+import { montrerRecherche } from './ui/recherche.ts';
+import { montrerReglages } from './ui/reglages.ts';
 
-type Onglet = 'capturer' | 'revue' | 'maintenant';
+type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'reglages';
 
+/** Les trois surfaces de la barre du bas : celles d'une journée de travail. */
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: 'capturer', libelle: 'Capturer' },
   { cle: 'revue', libelle: 'La Revue' },
   { cle: 'maintenant', libelle: 'Maintenant' },
 ];
+
+/** Les écrans en retrait, atteints depuis l'en-tête. */
+const ECRANS_RETRAIT: { cle: Onglet; libelle: string }[] = [
+  { cle: 'recherche', libelle: 'Rechercher' },
+  { cle: 'reglages', libelle: 'Vos données' },
+];
+
+const TOUS = [...ONGLETS, ...ECRANS_RETRAIT];
 
 const THEMES: Reglages['theme'][] = ['auto', 'clair', 'sombre'];
 
@@ -43,6 +57,18 @@ async function demarrer(): Promise<void> {
     );
   }
 
+  const retrait = document.getElementById('retrait') as HTMLElement;
+  for (const ecran of ECRANS_RETRAIT) {
+    retrait.append(
+      el('a', {
+        class: 'retrait__lien',
+        href: `#${ecran.cle}`,
+        'data-ecran': ecran.cle,
+        texte: ecran.libelle,
+      }),
+    );
+  }
+
   basculeTheme.textContent = libelleTheme(reglages.theme);
   basculeTheme.addEventListener('click', () => {
     const suivant = THEMES[(THEMES.indexOf(reglages.theme) + 1) % THEMES.length];
@@ -54,7 +80,7 @@ async function demarrer(): Promise<void> {
 
   async function afficher(): Promise<void> {
     const onglet = (location.hash.replace('#', '') || 'capturer') as Onglet;
-    const valide = ONGLETS.some((o) => o.cle === onglet) ? onglet : 'capturer';
+    const valide = TOUS.some((o) => o.cle === onglet) ? onglet : 'capturer';
 
     for (const lien of navigation.querySelectorAll<HTMLAnchorElement>('.nav__lien')) {
       const actif = lien.dataset.onglet === valide;
@@ -63,11 +89,20 @@ async function demarrer(): Promise<void> {
       else lien.removeAttribute('aria-current');
     }
 
+    for (const lien of retrait.querySelectorAll<HTMLAnchorElement>('.retrait__lien')) {
+      const actif = lien.dataset.ecran === valide;
+      lien.classList.toggle('retrait__lien--actif', actif);
+      if (actif) lien.setAttribute('aria-current', 'page');
+      else lien.removeAttribute('aria-current');
+    }
+
     vider(vue);
     document.documentElement.dataset.ecran = valide;
     if (valide === 'capturer') montrerCapturer(vue, reglages);
     else if (valide === 'revue') await montrerRevue(vue);
-    else await montrerMaintenant(vue);
+    else if (valide === 'maintenant') await montrerMaintenant(vue);
+    else if (valide === 'recherche') await montrerRecherche(vue);
+    else await montrerReglages(vue);
   }
 
   window.addEventListener('hashchange', () => void afficher());

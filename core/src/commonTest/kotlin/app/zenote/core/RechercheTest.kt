@@ -5,6 +5,7 @@ import app.zenote.core.model.ElementDerive
 import app.zenote.core.model.Verdict
 import app.zenote.core.recherche.RechercheLocale
 import app.zenote.core.recherche.Reponse
+import app.zenote.core.recherche.texteSource
 import kotlinx.datetime.Instant
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -104,7 +105,7 @@ class RechercheTest {
         val reponse = RechercheLocale.parMots(
             "planning",
             elements = emptyList(),
-            captures = listOf(captureVoiture()),
+            captures = listOf(captureVoiture().texteSource()),
         )
 
         assertTrue(reponse.fondee)
@@ -117,7 +118,7 @@ class RechercheTest {
         val reponse = RechercheLocale.parMots(
             "planning",
             elements = listOf(resolu(engagementPlanning())),
-            captures = listOf(captureVoiture()),
+            captures = listOf(captureVoiture().texteSource()),
         )
 
         assertEquals(1, reponse.citations.size, "l'élément suffit, la capture ferait doublon")
@@ -129,7 +130,7 @@ class RechercheTest {
         val reponse = RechercheLocale.parMots(
             "réservation du van pour le déménagement",
             listOf(resolu(tacheBudget()), resolu(engagementPlanning())),
-            captures = listOf(captureVoiture()),
+            captures = listOf(captureVoiture().texteSource()),
         )
 
         assertFalse(reponse.fondee)

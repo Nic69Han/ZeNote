@@ -4,6 +4,8 @@ export declare namespace app.zenote.core.js {
         maintenant(elementsJson: string, aujourdhui: string): string;
         revue(elementsJson: string, aujourdhui: string): string;
         filtrerAncrage(texteSource: string, elementsJson: string): string;
+        rechercherParMots(requete: string, elementsJson: string, capturesJson: string, reseau: boolean): string;
+        rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
         get version(): string;
     };
 }

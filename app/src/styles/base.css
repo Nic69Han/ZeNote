@@ -291,3 +291,30 @@ main:focus {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Les écrans en retrait : atteints depuis l'en-tête, jamais dans la barre du bas.
+   Y mettre Recherche et Vos données diluerait les trois surfaces du produit. */
+.retrait {
+  display: flex;
+  gap: 0.25rem;
+  margin-inline-start: auto;
+}
+
+.retrait__lien {
+  color: var(--encre-douce);
+  text-decoration: none;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--rayon);
+}
+
+.retrait__lien:hover,
+.retrait__lien:focus-visible {
+  color: var(--encre);
+  background: var(--fond-creux);
+}
+
+.retrait__lien--actif {
+  color: var(--encre);
+  background: var(--fond-creux);
+}

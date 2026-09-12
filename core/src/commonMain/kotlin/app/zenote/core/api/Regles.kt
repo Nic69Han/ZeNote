@@ -13,6 +13,9 @@ import app.zenote.core.model.TypeElement
 import app.zenote.core.model.Verdict
 import app.zenote.core.priorisation.ContexteMaintenant
 import app.zenote.core.priorisation.Priorisation
+import app.zenote.core.recherche.RechercheLocale
+import app.zenote.core.recherche.Reponse
+import app.zenote.core.recherche.TexteSource
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -126,7 +129,74 @@ object Regles {
         )
     }
 
+    /**
+     * Recherche par mots, sur les éléments et sur le texte des captures pas encore
+     * structurées. Rien ne sort de l'appareil : c'est une lecture de ce qui est là.
+     *
+     * @param capturesJson tableau de [CaptureJson] — les captures encore non analysées
+     *   comptent, sinon la recherche mentirait par omission à qui vient de dicter
+     * @param reseau `false` en mode avion : les résultats locaux sont rendus quand même,
+     *   et ce qui est en pause est signalé plutôt que masqué
+     * @return un [ReponseJson]
+     */
+    fun rechercherParMots(
+        requete: String,
+        elementsJson: String,
+        capturesJson: String,
+        reseau: Boolean,
+    ): String {
+        val captures = json
+            .decodeFromString(ListSerializer(CaptureJson.serializer()), capturesJson)
+            .map { TexteSource(CaptureId(it.id), it.texte, it.creeLe) }
+
+        return rendre(
+            RechercheLocale.parMots(
+                requete = requete,
+                elements = decoder(elementsJson).map { it.versResolu() },
+                captures = captures,
+                reseau = reseau,
+            ),
+        )
+    }
+
+    /**
+     * Recherche par personne : ce qui a été promis à quelqu'un, et ce qu'on attend
+     * d'elle. Les éléments clos sont rendus aussi, en le disant.
+     *
+     * @return un [ReponseJson]
+     */
+    fun rechercherParPersonne(
+        personne: String,
+        elementsJson: String,
+        reseau: Boolean,
+    ): String = rendre(
+        RechercheLocale.parPersonne(
+            personne = personne,
+            elements = decoder(elementsJson).map { it.versResolu() },
+            reseau = reseau,
+        ),
+    )
+
     // ------------------------------------------------------------------ interne
+
+    private fun rendre(reponse: Reponse): String = json.encodeToString(
+        ReponseJson.serializer(),
+        ReponseJson(
+            question = reponse.question,
+            enonce = reponse.enonce,
+            fondee = reponse.fondee,
+            citations = reponse.citations.map {
+                CitationJson(
+                    captureId = it.captureId.value,
+                    extrait = it.extrait,
+                    pourquoi = it.pourquoi,
+                    elementId = it.elementId?.value,
+                )
+            },
+            indisponibleHorsLigne = reponse.indisponibleHorsLigne,
+        ),
+    )
+
 
     private fun decoder(elementsJson: String): List<ElementJson> =
         json.decodeFromString(ListSerializer(ElementJson.serializer()), elementsJson)

@@ -85,3 +85,42 @@ data class EcarteJson(
     val texte: String,
     val raison: String,
 )
+
+/**
+ * Une capture telle que la surface la passe à la recherche.
+ *
+ * Réduite à ce que la recherche lit : ni audio, ni mode. La surface n'a donc pas à
+ * reconstruire un objet du domaine pour poser une question.
+ */
+@Serializable
+data class CaptureJson(
+    val id: String,
+    val texte: String,
+    /** Horodatage ISO complet, tel qu'il sera cité dans la justification. */
+    val creeLe: String,
+)
+
+/** Ce dont une réponse de recherche se réclame. Jamais un score. */
+@Serializable
+data class CitationJson(
+    val captureId: String,
+    val extrait: String,
+    val pourquoi: String,
+    val elementId: String? = null,
+)
+
+/**
+ * Une réponse de recherche.
+ *
+ * [fondee] est `false` quand rien ne correspond : [enonce] le dit alors explicitement
+ * et [citations] est vide. Une réponse sans citation ne peut pas exister autrement —
+ * c'est ce qui empêche l'écran d'afficher une affirmation que rien ne porte.
+ */
+@Serializable
+data class ReponseJson(
+    val question: String,
+    val enonce: String,
+    val fondee: Boolean,
+    val citations: List<CitationJson>,
+    val indisponibleHorsLigne: List<String> = emptyList(),
+)
