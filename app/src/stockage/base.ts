@@ -66,17 +66,47 @@ export async function transaction<T>(
   const base = await ouvrir();
   return new Promise<Awaited<T>>((resoudre, rejeter) => {
     const tx = base.transaction(noms, mode);
-    let resultat: T | undefined;
-    try {
-      resultat = travail(noms.map((n) => tx.objectStore(n))) as T;
-    } catch (erreur) {
-      tx.abort();
+    let resultat: Awaited<T> | undefined;
+    let echec: unknown;
+
+    const abandonner = (erreur: unknown) => {
+      echec = erreur;
+      try {
+        tx.abort();
+      } catch {
+        /* la transaction s'est peut-être déjà terminée */
+      }
       rejeter(erreur);
+    };
+
+    let valeur: T | void;
+    try {
+      valeur = travail(noms.map((n) => tx.objectStore(n)));
+    } catch (erreur) {
+      abandonner(erreur);
       return;
     }
-    tx.oncomplete = () => resoudre(resultat as Awaited<T>);
-    tx.onerror = () => rejeter(tx.error ?? new Error('Écriture refusée'));
-    tx.onabort = () => rejeter(tx.error ?? new Error('Transaction interrompue'));
+
+    // Un travail asynchrone (lectures chaînées) est attendu ici, jamais laissé
+    // pendre : une erreur interrompt la transaction au lieu de fuir.
+    if (valeur !== null && typeof (valeur as { then?: unknown })?.then === 'function') {
+      void (valeur as Promise<Awaited<T>>).then(
+        (v) => {
+          resultat = v;
+        },
+        abandonner,
+      );
+    } else {
+      resultat = valeur as Awaited<T>;
+    }
+
+    tx.oncomplete = () => {
+      if (echec === undefined) resoudre(resultat as Awaited<T>);
+    };
+    tx.onerror = () => abandonner(tx.error ?? new Error('Écriture refusée'));
+    tx.onabort = () => {
+      if (echec === undefined) rejeter(tx.error ?? new Error('Transaction interrompue'));
+    };
   });
 }
 

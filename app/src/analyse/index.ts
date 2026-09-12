@@ -102,13 +102,13 @@ export function evaluerPoids(passage: string): {
 export function repererInterlocuteur(
   passage: string,
 ): { nom: string; confiance: number } | null {
-  const fort = /\b(avec|pour|aupr[èe]s de|chez)\s+([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'-]{1,})/u.exec(passage);
-  if (fort && !NON_PRENOMS.has(normaliser(fort[2]))) {
-    return { nom: fort[2], confiance: 0.8 };
+  const fort = /\b(?:avec|pour|aupr[èe]s de|chez)\s+([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]{1,})/u.exec(passage);
+  if (fort && !NON_PRENOMS.has(normaliser(fort[1]))) {
+    return { nom: fort[1], confiance: 0.8 };
   }
-  const faible = /\b([àa]|de|d')\s*([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'-]{1,})/u.exec(passage);
-  if (faible && !NON_PRENOMS.has(normaliser(faible[2]))) {
-    return { nom: faible[2], confiance: 0.6 };
+  const faible = /(?:^|[\s,;])(?:[àa]|de|d['\u2019])\s*([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]{1,})/u.exec(passage);
+  if (faible && !NON_PRENOMS.has(normaliser(faible[1]))) {
+    return { nom: faible[1], confiance: 0.6 };
   }
   return null;
 }

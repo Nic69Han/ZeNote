@@ -70,15 +70,22 @@ class RevueTest {
 
     @Test
     fun `dans un groupe, l'incertain passe devant à urgence égale`() {
-        val elements = listOf(
-            resolu(engagementPlanning()),
-            resolu(tacheIncertaine()),
+        // Deux éléments sans échéance : seule l'incertitude peut les départager.
+        val flou = app.zenote.core.model.ElementDerive(
+            captureId = CaptureId("c-001"),
+            type = app.zenote.core.model.TypeElement.INFORMATION,
+            texte = "Quelque chose à propos du planning",
+            passage = passage("le planning"),
+            poids = app.zenote.core.model.Deduit(Poids.MOYEN, 0.4, "aucun indice de conséquence"),
         )
+        val elements = listOf(resolu(engagementPlanning()), resolu(flou))
 
         val file = FileRevue.file(elements, LE_MARDI)
 
+        assertEquals(Urgence.AUCUNE, file.first().urgence)
+        assertEquals(Urgence.AUCUNE, file.last().urgence)
         assertTrue(file.first().aConfirmer, "Ce qui demande une question passe en premier.")
-        assertEquals("Relancer sur le budget", file.first().element.texte)
+        assertEquals("Quelque chose à propos du planning", file.first().element.texte)
     }
 
     @Test
@@ -264,8 +271,8 @@ class RevueTest {
         val file = FileRevue.file(elements, LE_MARDI)
         val session = SessionRevue.ouvrir(file)
 
-        session.appliquer(Geste.AccepterTelQuel, a)
-        session.appliquer(Geste.AccepterTelQuel, a)
+        session.appliquer(Geste.ClasserUnJour, a)
+        session.appliquer(Geste.ClasserUnJour, a)
         val suivantAttendu = session.courant()?.id
         val etat = session.etat()
 
