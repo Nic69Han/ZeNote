@@ -17,6 +17,16 @@ import {
   transaction,
 } from './base.ts';
 
+/**
+ * L'élément tel qu'il est stocké : le contrat du cœur, plus le seul fait que la
+ * surface a besoin de retenir et que le contrat ne porte pas — la date à laquelle
+ * l'utilisateur a marqué l'élément fait. Ce champ n'est jamais passé aux règles :
+ * un élément fait sort simplement des éléments actifs.
+ */
+export interface ElementStocke extends ElementJson {
+  faitLe?: string | null;
+}
+
 export type SourceCapture = 'VOCALE' | 'ECRITE';
 export type EtatTranscription = 'ABSENTE' | 'EN_COURS' | 'OK' | 'INDISPONIBLE' | 'ECHEC';
 
@@ -105,7 +115,7 @@ export async function remplacerElements(
 ): Promise<void> {
   await transaction([MAGASIN_ELEMENTS], 'readwrite', async ([elements]) => {
     const index = elements.index('captureId');
-    const anciens = await demander<ElementJson[]>(index.getAll(IDBKeyRange.only(captureId)));
+    const anciens = await demander<ElementStocke[]>(index.getAll(IDBKeyRange.only(captureId)));
     const aGarder = anciens.filter((e) => e.verdict !== 'EN_ATTENTE' || e.corrigeParHumain);
     const aGarderIds = new Set(aGarder.map((e) => e.id));
 
@@ -125,26 +135,32 @@ export async function enregistrerElement(element: ElementJson): Promise<void> {
 /** Applique une décision humaine : elle prime et n'est jamais écrasée ensuite. */
 export async function majElement(
   id: string,
-  ajustement: Partial<ElementJson>,
-): Promise<ElementJson> {
+  ajustement: Partial<ElementStocke>,
+): Promise<ElementStocke> {
   return transaction([MAGASIN_ELEMENTS], 'readwrite', async ([elements]) => {
-    const existant = await demander<ElementJson | undefined>(elements.get(id));
+    const existant = await demander<ElementStocke | undefined>(elements.get(id));
     if (!existant) throw new Error(`Élément introuvable : ${id}`);
-    const fusionne: ElementJson = { ...existant, ...ajustement, id: existant.id };
+    const fusionne: ElementStocke = { ...existant, ...ajustement, id: existant.id };
     elements.put(fusionne);
     return fusionne;
   });
 }
 
-export function listerElements(): Promise<ElementJson[]> {
+export function listerElements(): Promise<ElementStocke[]> {
   return transaction([MAGASIN_ELEMENTS], 'readonly', ([elements]) =>
-    demander<ElementJson[]>(elements.getAll()),
+    demander<ElementStocke[]>(elements.getAll()),
   );
 }
 
-export function elementsDeCapture(captureId: string): Promise<ElementJson[]> {
+/** Les éléments encore en jeu : tout sauf ceux que l'utilisateur a marqués faits. */
+export async function listerElementsActifs(): Promise<ElementJson[]> {
+  const tout = await listerElements();
+  return tout.filter((e) => !e.faitLe);
+}
+
+export function elementsDeCapture(captureId: string): Promise<ElementStocke[]> {
   return transaction([MAGASIN_ELEMENTS], 'readonly', ([elements]) =>
-    demander<ElementJson[]>(elements.index('captureId').getAll(IDBKeyRange.only(captureId))),
+    demander<ElementStocke[]>(elements.index('captureId').getAll(IDBKeyRange.only(captureId))),
   );
 }
 
