@@ -53,14 +53,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Un package.json seul ne fait pas une application : Vite a besoin de son
+      # point d'entrée. Tant que `app/index.html` n'existe pas, il n'y a rien à
+      # construire — et dès qu'il existe, ce travail s'exécute pour de bon.
       - name: Y a-t-il une application à construire ?
         id: presence
         run: |
-          if [ -f app/package.json ]; then
+          if [ -f app/index.html ] && [ -f app/package.json ]; then
             echo "presente=oui" >> "$GITHUB_OUTPUT"
           else
             echo "presente=non" >> "$GITHUB_OUTPUT"
-            echo "Pas encore de app/package.json : rien à construire."
+            echo "Pas de point d'entrée app/index.html : application encore en construction."
           fi
 
       - name: Installer Node
