@@ -77,6 +77,19 @@ try {
   await page.goto(`${adresse}/`, { waitUntil: 'networkidle' });
 
   // --- La coquille s'affiche, un seul écran à la fois -----------------------
+  // L'application rend son premier écran après un aller-retour IndexedDB. « networkidle »
+  // dit que le réseau s'est tu, pas que l'application est prête : sur une machine lente,
+  // le constat tombait avant le premier rendu. L'attente est une précondition, pas un
+  // assouplissement — le constat qui suit reste « exactement un écran visible », et
+  // l'absence de rendu échoue maintenant en le disant au lieu de se déguiser.
+  const rendu = await page
+    .locator('.ecran')
+    .first()
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  verifier("l'application rend son premier écran", rendu);
+
   const visibles = await page.locator('.ecran:visible').count();
   verifier('un seul écran visible à la fois', visibles === 1, `${visibles} visible(s)`);
 
