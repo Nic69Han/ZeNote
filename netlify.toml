@@ -12,6 +12,10 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # Playwright ne sert qu'à la vérification bout en bout, jamais à l'application.
+  # Sans cette variable, son script d'installation tente de télécharger un
+  # navigateur pendant la construction chez l'hébergeur — ce qui la fait échouer.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
 
 # L'application tient en une seule page : toute route inconnue retombe dessus.
 [[redirects]]
