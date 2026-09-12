@@ -1,5 +1,7 @@
 Les groupes suivent les cinq paliers de mise en service décrits dans `design.md` — Migration Plan. Chaque palier laisse un produit utilisable seul ; on ne démarre le suivant qu'une fois le précédent tenu sur des usages réels.
 
+Une case n'est cochée que lorsqu'un test nommé la couvre. Les tâches cochées le sont sur deux surfaces : le socle métier partagé, vérifié par les tests du cœur, et l'application web installable livrée en premier, vérifiée dans un vrai navigateur sur le paquet construit. Les surfaces Android et Windows natives, la mesure de latence de capture et l'usage réel de deux semaines restent devant nous : les tâches correspondantes sont volontairement laissées ouvertes.
+
 ## 1. Socle et arbitrages mesurés
 
 - [ ] 1.1 Prototyper la capture vocale sur Android (service de premier plan) et sur Windows (agent résident) et mesurer le délai entre l'appui et le début effectif de l'enregistrement ; retenir la technologie dont la mesure reste sous 300 ms au 95e centile, appareil verrouillé et application non lancée
@@ -13,7 +15,7 @@ Les groupes suivent les cinq paliers de mise en service décrits dans `design.md
 - [ ] 2.1 Implémenter la capture vocale par appui long avec écriture durable puis confirmation haptique et sonore ; vérifier par un test que la confirmation n'est jamais émise avant l'écriture effective
 - [ ] 2.2 Implémenter la capture Android depuis l'écran verrouillé et le widget d'écran d'accueil ; vérifier manuellement le scénario `capture` / « Capture depuis l'écran verrouillé » sur appareil réel, y compris avec les optimisations de batterie du constructeur actives
 - [ ] 2.3 Implémenter le raccourci clavier global sur Windows via un agent résident, avec restitution du focus à l'application précédente ; vérifier le scénario `capture` / « Capture au clavier sur ordinateur », y compris depuis une application en plein écran
-- [ ] 2.4 Implémenter la capture écrite sans champ obligatoire et vérifier qu'aucune demande de classement n'est présentée
+- [x] 2.4 Implémenter la capture écrite sans champ obligatoire et vérifier qu'aucune demande de classement n'est présentée
 - [ ] 2.5 Implémenter la capture mains libres depuis un accessoire connecté avec signaux sonores de début et de fin ; vérifier sur écouteurs réels
 - [ ] 2.6 Implémenter la file de captures locale et la reprise après arrêt brutal ; vérifier par un test qui tue le processus pendant un enregistrement que la portion enregistrée est présente et marquée incomplète
 - [ ] 2.7 Implémenter la gestion des échecs d'écriture (stockage plein, permission refusée) avec signal distinct du succès et action de récupération ; vérifier par des tests sur ces deux cas
@@ -33,53 +35,53 @@ Les groupes suivent les cinq paliers de mise en service décrits dans `design.md
 ## 4. Palier 3 — Compréhension et Revue
 
 - [ ] 4.1 Implémenter le découpage d'une capture longue en segments et la classification d'intention sur les six types ; vérifier le scénario `extraction` / « Capture multi-intentions »
-- [ ] 4.2 Implémenter l'ancrage obligatoire de chaque élément dans son passage source, avec rejet de tout élément non rattachable ; vérifier par un test que la sortie du modèle non ancrée est écartée avant présentation
-- [ ] 4.3 Implémenter le score de confiance par élément et par champ déduit, et le seuil transformant une déduction incertaine en question ; vérifier le scénario `extraction` / « Déduction incertaine posée en question »
+- [x] 4.2 Implémenter l'ancrage obligatoire de chaque élément dans son passage source, avec rejet de tout élément non rattachable ; vérifier par un test que la sortie du modèle non ancrée est écartée avant présentation
+- [x] 4.3 Implémenter le score de confiance par élément et par champ déduit, et le seuil transformant une déduction incertaine en question ; vérifier le scénario `extraction` / « Déduction incertaine posée en question »
 - [ ] 4.4 Implémenter la conversion des expressions temporelles relatives et le refus d'inventer une date sur une expression floue ; vérifier les deux scénarios d'échéance de `extraction`
-- [ ] 4.5 Implémenter la déduction du poids par conséquence sur trois niveaux, avec justification citant l'indice retenu ; vérifier qu'aucun choix de priorité n'est jamais demandé à l'utilisateur
+- [x] 4.5 Implémenter la déduction du poids par conséquence sur trois niveaux, avec justification citant l'indice retenu ; vérifier qu'aucun choix de priorité n'est jamais demandé à l'utilisateur
 - [ ] 4.6 Implémenter la détection des engagements pris et des attentes envers des tiers ; vérifier les deux scénarios correspondants de `extraction`
-- [ ] 4.7 Construire la mémoire d'entités avec création automatique, déduplication et enrichissement ; vérifier qu'une entité déjà connue ne produit pas de doublon
-- [ ] 4.8 Implémenter la récupération de contexte combinant pertinence, récence et importance, avec contexte borné et inspectable ; vérifier que l'historique complet n'est jamais transmis
+- [x] 4.7 Construire la mémoire d'entités avec création automatique, déduplication et enrichissement ; vérifier qu'une entité déjà connue ne produit pas de doublon
+- [x] 4.8 Implémenter la récupération de contexte combinant pertinence, récence et importance, avec contexte borné et inspectable ; vérifier que l'historique complet n'est jamais transmis
 - [ ] 4.9 Implémenter la résolution des références implicites avec candidats classés et question posée sous le seuil ; vérifier les trois scénarios de résolution de `memoire`
 - [ ] 4.10 Implémenter la déduction de sphère et le filtrage à la restitution sans scission du flux de capture ; vérifier les deux scénarios de sphère de `memoire`
-- [ ] 4.11 Implémenter les opérations de correction de la mémoire (fusion, renommage, séparation, suppression) avec propagation et annulation ; vérifier le scénario `memoire` / « Fusion de doublons »
+- [x] 4.11 Implémenter les opérations de correction de la mémoire (fusion, renommage, séparation, suppression) avec propagation et annulation ; vérifier le scénario `memoire` / « Fusion de doublons »
 - [ ] 4.12 Implémenter l'analyse en deux temps — passage court à la transcription, passage approfondi groupé avant la Revue — et mesurer le coût par capture sur un lot réel
-- [ ] 4.13 Implémenter l'écran de Revue avec décision en un geste, acceptation groupée sous confiance haute et annulation ; vérifier les deux scénarios de décision de `revue`
-- [ ] 4.14 Implémenter l'interruption et la reprise de Revue sans perte ; vérifier le scénario `revue` / « Revue interrompue »
-- [ ] 4.15 Implémenter le bouclage du plan : aucune tâche ne sort de la Revue sans plan, classement « un jour » ou suppression ; vérifier le scénario `revue` / « Plan obligatoire »
-- [ ] 4.16 Implémenter l'ordre de présentation en Revue (urgent et incertain d'abord, regroupement par source et par projet) ; vérifier les deux scénarios d'ordre de `revue`
-- [ ] 4.17 Implémenter la gestion de l'arriéré sans pression : regroupement par thème, Revue réduite, aucune notification insistante ; vérifier les deux scénarios de file non traitée de `revue`
+- [x] 4.13 Implémenter l'écran de Revue avec décision en un geste, acceptation groupée sous confiance haute et annulation ; vérifier les deux scénarios de décision de `revue`
+- [x] 4.14 Implémenter l'interruption et la reprise de Revue sans perte ; vérifier le scénario `revue` / « Revue interrompue »
+- [x] 4.15 Implémenter le bouclage du plan : aucune tâche ne sort de la Revue sans plan, classement « un jour » ou suppression ; vérifier le scénario `revue` / « Plan obligatoire »
+- [x] 4.16 Implémenter l'ordre de présentation en Revue (urgent et incertain d'abord, regroupement par source et par projet) ; vérifier les deux scénarios d'ordre de `revue`
+- [x] 4.17 Implémenter la gestion de l'arriéré sans pression : regroupement par thème, Revue réduite, aucune notification insistante ; vérifier les deux scénarios de file non traitée de `revue`
 - [ ] 4.18 Mesurer sur des captures réelles le temps de traitement d'une Revue de charge normale et vérifier qu'il reste sous deux minutes
 
 ## 5. Palier 4 — Maintenant et rappels
 
 - [x] 5.1 Implémenter le moteur de classement combinant poids et échéance comme dimensions distinctes ; vérifier le scénario `priorisation` / « Urgent mais léger »
-- [ ] 5.2 Implémenter la vue Maintenant à trois éléments maximum, chacun avec sa justification en une ligne, sans compteur ni liste complète ; vérifier les deux scénarios de la vue Maintenant
+- [x] 5.2 Implémenter la vue Maintenant à trois éléments maximum, chacun avec sa justification en une ligne, sans compteur ni liste complète ; vérifier les deux scénarios de la vue Maintenant
 - [ ] 5.3 Implémenter le créneau protégé pour l'important non urgent et l'enregistrement des renoncements ; vérifier les deux scénarios de créneau de `priorisation`
 - [ ] 5.4 Implémenter la lecture locale de l'agenda et l'adaptation du classement au temps disponible avant le prochain événement et à l'appareil utilisé ; vérifier les deux scénarios de contexte d'exécution
 - [ ] 5.5 Implémenter la prise en compte de la charge de la journée pour la charge cognitive des éléments proposés ; vérifier le scénario `priorisation` / « Journée dense »
 - [ ] 5.6 Implémenter l'écartement d'un élément sans suppression ni report, et la remontée en Revue après rejets répétés ; vérifier les deux scénarios correspondants
 - [ ] 5.7 Implémenter la détection des éléments dormants de poids fort et leur remontée en Revue ; vérifier le scénario `priorisation` / « Tâche dormante »
-- [ ] 5.8 Implémenter les rappels par déclencheur (personne, événement d'agenda, événement récurrent) et le repli proposé quand l'utilisateur formule un déclencheur de lieu ; vérifier les trois scénarios de `rappels` / « Rappels par déclencheur »
-- [ ] 5.9 Implémenter la formulation des plans en « quand *signal*, je fais *action* » avec préférence au signal sur l'heure ; vérifier le scénario `rappels` / « Signal préféré à l'heure »
-- [ ] 5.10 Implémenter la détection des points de rupture à partir de l'agenda et des transitions d'usage de l'appareil, et la file d'opportunité avec une notification au plus par point de rupture ; vérifier les scénarios de livraison et de regroupement de `rappels`
-- [ ] 5.11 Implémenter le court-circuit des rappels critiques et les plages de silence ; vérifier les scénarios « Rappel critique immédiat » et « Plage de silence respectée »
-- [ ] 5.12 Implémenter l'escalade d'un rappel ignoré à répétition vers la Revue ; vérifier le scénario `rappels` / « Rappel ignoré trois fois »
-- [ ] 5.13 Implémenter la relance des engagements et des attentes en Revue ; vérifier le scénario `revue` / « Attente sans nouvelle »
+- [x] 5.8 Implémenter les rappels par déclencheur (personne, événement d'agenda, événement récurrent) et le repli proposé quand l'utilisateur formule un déclencheur de lieu ; vérifier les trois scénarios de `rappels` / « Rappels par déclencheur »
+- [x] 5.9 Implémenter la formulation des plans en « quand *signal*, je fais *action* » avec préférence au signal sur l'heure ; vérifier le scénario `rappels` / « Signal préféré à l'heure »
+- [x] 5.10 Implémenter la détection des points de rupture à partir de l'agenda et des transitions d'usage de l'appareil, et la file d'opportunité avec une notification au plus par point de rupture ; vérifier les scénarios de livraison et de regroupement de `rappels`
+- [x] 5.11 Implémenter le court-circuit des rappels critiques et les plages de silence ; vérifier les scénarios « Rappel critique immédiat » et « Plage de silence respectée »
+- [x] 5.12 Implémenter l'escalade d'un rappel ignoré à répétition vers la Revue ; vérifier le scénario `rappels` / « Rappel ignoré trois fois »
+- [x] 5.13 Implémenter la relance des engagements et des attentes en Revue ; vérifier le scénario `revue` / « Attente sans nouvelle »
 - [ ] 5.14 Vérifier sur appareil réel que la lecture d'agenda et la détection des transitions restent sous le budget d'autonomie fixé, et que le produit reste utilisable en mode dégradé quand l'accès à l'agenda est refusé
 
 ## 6. Palier 5 — Réunions et remémoration
 
 - [ ] 6.1 Implémenter la dépose avant réunion et la reprise après ; vérifier les deux scénarios de dépose de `reunions`
 - [ ] 6.2 Implémenter le vidage post-réunion pré-contextualisé, reporté au point de rupture si l'utilisateur enchaîne ; vérifier les deux scénarios de vidage
-- [ ] 6.3 Implémenter le briefing avant événement à partir des éléments ouverts liés aux participants ; vérifier les deux scénarios de briefing de `rappels`
+- [x] 6.3 Implémenter le briefing avant événement à partir des éléments ouverts liés aux participants ; vérifier les deux scénarios de briefing de `rappels`
 - [ ] 6.4 Implémenter l'import d'un compte rendu externe avec séparation des engagements de l'utilisateur et de ceux des tiers ; vérifier les deux scénarios d'import de `reunions`
 - [ ] 6.5 Implémenter la confirmation en Revue des engagements extraits d'une réunion avant toute planification de rappel ; vérifier le scénario correspondant
 - [ ] 6.6 Implémenter l'enregistrement de réunion sur action explicite avec indicateur visible, et vérifier qu'aucun audio n'est enregistré sans cette action
 - [ ] 6.7 Implémenter la recherche en langage naturel avec réponse citant ses sources et absence assumée ; vérifier les scénarios de `recherche` sur engagements, décisions et repère temporel flou
 - [ ] 6.8 Implémenter le rappel proactif discret et ignorable du passé pertinent ; vérifier les deux scénarios de rappel proactif
 - [ ] 6.9 Implémenter la consolidation par entité et la décroissance des éléments dormants sans suppression ; vérifier les deux scénarios de consolidation de `memoire`
-- [ ] 6.10 Implémenter les fiches d'entité alimentées automatiquement ; vérifier le scénario `memoire` / « Fiche personne »
+- [x] 6.10 Implémenter les fiches d'entité alimentées automatiquement ; vérifier le scénario `memoire` / « Fiche personne »
 
 ## 7. Confiance, données et sortie
 

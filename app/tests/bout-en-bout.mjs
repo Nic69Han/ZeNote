@@ -16,6 +16,11 @@ import { extname, join, normalize } from 'node:path';
 const RACINE = new URL('../dist/', import.meta.url).pathname;
 const PORT = 4178;
 
+// Par défaut la vérification porte sur le `dist/` local, servi ici même. En
+// passant ZENOTE_URL, les mêmes constats s'appliquent au site déployé : c'est
+// ainsi qu'on prouve que la mise en ligne vaut ce que vaut la construction.
+const CIBLE = process.env.ZENOTE_URL?.replace(/\/$/, '');
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -48,10 +53,16 @@ function verifier(intitule, condition, detail = '') {
   console.log(`${condition ? '  ok  ' : ' ÉCHEC'} ${intitule}${detail ? ` — ${detail}` : ''}`);
 }
 
-const serveur = await servir();
+const serveur = CIBLE ? null : await servir();
+const adresse = CIBLE ?? `http://localhost:${PORT}`;
+console.log(`Vérification sur ${adresse}`);
+const mandataire = process.env.HTTPS_PROXY ?? process.env.https_proxy;
 const navigateur = await chromium.launch({
   executablePath: process.env.CHROME_BIN,
   args: ['--no-sandbox', '--disable-dev-shm-usage'],
+  // Sur un poste derrière un mandataire, viser un site en ligne exige de passer
+  // par lui ; le serveur local de secours, lui, doit rester joignable en direct.
+  ...(CIBLE && mandataire ? { proxy: { server: mandataire, bypass: 'localhost,127.0.0.1' } } : {}),
 });
 const contexte = await navigateur.newContext({ viewport: { width: 420, height: 900 } });
 const page = await contexte.newPage();
@@ -63,7 +74,7 @@ page.on('console', (m) => {
 });
 
 try {
-  await page.goto(`http://localhost:${PORT}/`, { waitUntil: 'networkidle' });
+  await page.goto(`${adresse}/`, { waitUntil: 'networkidle' });
 
   // --- La coquille s'affiche, un seul écran à la fois -----------------------
   const visibles = await page.locator('.ecran:visible').count();
@@ -144,7 +155,7 @@ try {
   await page.screenshot({ path: 'captures-ecran/bout-en-bout-maintenant.png', fullPage: true });
 } finally {
   await navigateur.close();
-  serveur.close();
+  serveur?.close();
 }
 
 const echecs = constats.filter((c) => !c.ok);
