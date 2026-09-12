@@ -1,0 +1,36 @@
+# Déploiement de l'application ZeNote.
+#
+# Aucune chaîne Kotlin n'est nécessaire ici : le cœur est déjà compilé en
+# JavaScript et versionné dans `app/vendor/zenote-core/`. L'hébergeur n'a besoin
+# que de Node. Pour le régénérer après modification de `core/`, lancer
+# `bash scripts/sync-core-js.sh` et committer le résultat.
+
+[build]
+  base = "app"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# L'application tient en une seule page : toute route inconnue retombe dessus.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Le service worker ne doit jamais être servi depuis un cache périmé, sinon une
+# mise à jour de l'application peut rester invisible pendant des heures.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # L'application ne charge rien de tiers et ne transmet aucune donnée : tout
+    # vit dans IndexedDB, sur l'appareil. Ces en-têtes le rendent vérifiable.
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "microphone=(self), geolocation=(), camera=()"
