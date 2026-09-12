@@ -1,7 +1,80 @@
 # ZeNote
 
-Environnement de développement assisté par agent, prêt à l'emploi : **OpenSpec** (workflow
-spec-driven), **RTK** (compression des sorties shell) et **Caveman** (compression des réponses).
+Capturer en un geste, ranger une fois par jour, savoir quoi faire maintenant.
+
+**L'application est en ligne : https://zenote-app.netlify.app**
+Ouvrez-la sur le téléphone, puis « Ajouter à l'écran d'accueil ». Elle s'installe, fonctionne
+hors ligne, et tout reste sur l'appareil.
+
+## Ce que c'est
+
+Un outil de prise de notes pour quelqu'un dont les journées sont pleines de réunions et dont
+la mémoire lâche, au travail comme ailleurs.
+
+Le pari n'est pas de mieux ranger. Il est que deux coûts précis empêchent de noter et de s'y
+retrouver : noter réclame cinq décisions de rangement au pire moment, et regarder une liste
+fait choisir l'urgent contre l'important — le « mere urgency effect » (Zhu, Yang & Hsee, 2018).
+
+Le pivot vient de la mémoire prospective : ce n'est pas la note qui libère l'esprit, c'est le
+plan attaché à la note. Un plan « quand / où » précis fait taire les pensées intrusives d'une
+tâche inachevée aussi complètement que de l'avoir faite (Masicampo & Baumeister, 2011). D'où la
+règle qui tient le produit : **rien ne sort de la Revue sans un plan, un « un jour » assumé, ou
+une suppression.**
+
+## Les trois surfaces
+
+| Surface | Ce qu'on y fait | Ce qu'on n'y fait jamais |
+|---|---|---|
+| **Capturer** | Appuyer, parler ou écrire, c'est déposé | Choisir un dossier, un projet, une priorité |
+| **La Revue** | Trancher ce qui a été compris, une fois par jour | Relire tout l'historique |
+| **Maintenant** | Voir au plus trois choses, chacune justifiée | Compter ce qui reste |
+
+Deux écrans en retrait, atteints depuis l'en-tête : **Rechercher** et **Vos données**. On ne
+les traverse pas dans une journée de travail — les y mettre diluerait les trois surfaces.
+
+## L'essayer en local
+
+```bash
+cd app
+npm ci
+npm run dev          # http://localhost:5173
+```
+
+La capture vocale utilise la reconnaissance vocale du navigateur : elle demande le micro, et
+fonctionne sur Chrome et Edge. La capture écrite fonctionne partout.
+
+```bash
+npm run build                    # construit dist/
+npx vitest run                   # tests unitaires
+node tests/bout-en-bout.mjs      # constats dans un vrai navigateur sur dist/
+ZENOTE_URL=https://… node tests/bout-en-bout.mjs   # les mêmes, sur un site déployé
+```
+
+## La mettre en ligne
+
+```bash
+ZENOTE_CHEMIN_MANDATAIRE="…" bash scripts/deployer.sh
+```
+
+Le script n'envoie que ce que git a enregistré. Ce détour n'est pas cosmétique : l'outil de
+téléversement expédie le répertoire courant tel quel, sans tenir compte de `.gitignore`, et
+emporterait `app/node_modules` — des dépendances compilées pour la machine de développement,
+sur quoi la construction chez l'hébergeur échoue.
+
+## Où sont les décisions
+
+La spécification produit complète, ses dix capacités et le tableau reliant chaque mécanique à
+un résultat de recherche publié vivent dans `openspec/changes/zenote-core/`. Le refus explicite
+de certaines fonctionnalités (pas de lifelog, pas de wiki, pas de collaboration, pas de
+géolocalisation, pas de statistiques de productivité) est dans `proposal.md` : c'est là que se
+lit ce que le produit ne sera pas.
+
+---
+
+# Environnement de développement
+
+Assisté par agent, prêt à l'emploi : **OpenSpec** (workflow spec-driven), **RTK**
+(compression des sorties shell) et **Caveman** (compression des réponses).
 
 ## Installation
 
@@ -70,13 +143,18 @@ Le code, les commits et les PR restent rédigés normalement quel que soit le ni
 
 ## Le cœur métier
 
-Le socle partagé entre les surfaces vit dans `core/`, en Kotlin Multiplatform. Seule la
-cible JVM est déclarée pour l'instant : elle couvre Android et le poste Windows.
+Le socle partagé entre les surfaces vit dans `core/`, en Kotlin Multiplatform, compilé vers
+JVM (Android et Windows demain) et vers JavaScript (la PWA aujourd'hui).
 
 ```bash
-./gradlew :core:build      # compile et lance les tests
-./gradlew :core:jvmTest    # les tests seuls
+./gradlew :core:build          # compile et teste les deux cibles
+./gradlew :core:jvmTest        # les tests JVM seuls
+bash scripts/sync-core-js.sh   # recompile le cœur en JS et le dépose dans app/vendor/
 ```
+
+La PWA n'exécute pas une copie des règles en TypeScript : elle charge le cœur compilé. C'est
+ce qui garantit qu'un même jeu de données donne le même classement sur toutes les surfaces —
+et que les tests du cœur valent pour l'écran.
 
 Le modèle de données est en trois couches, et c'est l'invariant qui tient tout :
 
@@ -105,6 +183,10 @@ marquée privée**.
   skills/caveman/          # skill Caveman
 .rtk/filters.toml          # filtres RTK spécifiques au projet
 openspec/                  # specs et changes
+core/                      # le cœur métier, Kotlin Multiplatform
+app/                       # la PWA : trois surfaces + recherche et données
 scripts/setup-env.sh       # installateur des outils
+scripts/sync-core-js.sh    # cœur Kotlin → JavaScript, déposé dans app/vendor/
+scripts/deployer.sh        # mise en ligne, depuis une copie propre du dépôt
 CLAUDE.md                  # instructions agent (bloc RTK)
 ```
