@@ -85,6 +85,11 @@
   box-sizing: border-box;
 }
 
+/* `hidden` doit gagner contre tout `display` posé plus bas dans la feuille. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
