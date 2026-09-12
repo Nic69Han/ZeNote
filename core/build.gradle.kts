@@ -1,5 +1,6 @@
 plugins {
     kotlin("multiplatform") version "2.1.0"
+    kotlin("plugin.serialization") version "2.1.0"
 }
 
 repositories {
@@ -7,15 +8,26 @@ repositories {
 }
 
 kotlin {
-    // Seule la cible JVM est déclarée pour l'instant : elle couvre Android et le poste
-    // Windows, et c'est la seule que la machine de développement peut construire.
-    // Les cibles `androidTarget()` et `mingwX64()` s'ajouteront ici sans toucher au
-    // code de `commonMain`, une fois le SDK Android disponible (tâches 1.1 et 1.3).
+    // Android et le poste Windows passeront par cette cible ; elle porte aussi les
+    // tests de référence du domaine.
     jvm()
+
+    // Cible navigateur : la PWA consomme exactement le même cœur que les futures
+    // applications natives. La logique de priorisation ne peut donc pas diverger.
+    js(IR) {
+        browser {
+            testTask {
+                useKarma { useChromeHeadless() }
+            }
+        }
+        binaries.library()
+        generateTypeScriptDefinitions()
+    }
 
     sourceSets {
         commonMain.dependencies {
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.1")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
