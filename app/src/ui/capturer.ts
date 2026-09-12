@@ -14,7 +14,15 @@ import { annoncer, el, vider } from './dom.ts';
 
 type Etat = 'REPOS' | 'ENREGISTRE' | 'ECRITURE' | 'CONFIRME' | 'ECHEC';
 
-export function montrerCapturer(racine: HTMLElement, reglages: Reglages): void {
+/**
+ * Monte l'écran Capturer et rend de quoi le démonter proprement.
+ *
+ * Le démontage n'est pas une formalité : quitter l'écran pendant un enregistrement
+ * laissait battre la minuterie sur un écran détaché et abandonnait l'enregistrement
+ * en cours. « Aucune capture perdue » est l'une des trois promesses mesurables du
+ * produit — la perdre en changeant d'onglet la rendait fausse.
+ */
+export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => void {
   const enregistreur = new Enregistreur();
   const transcripteur = new Transcripteur();
   let etat: Etat = 'REPOS';
@@ -277,4 +285,13 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): void {
   void rafraichirJournal();
   // Le micro est préparé à l'avance pour que l'appui suivant démarre sans attendre.
   void prechauffer();
+
+  // On termine l'enregistrement comme si le doigt s'était levé, plutôt que de le jeter
+  // en silence : ce que l'utilisateur a dit est déjà dit, et le perdre parce qu'il a
+  // changé d'écran serait la pire trahison de la promesse de capture. `relacher` ne
+  // fait rien si aucun enregistrement n'est en cours.
+  return () => {
+    arreterChrono();
+    void relacher();
+  };
 }

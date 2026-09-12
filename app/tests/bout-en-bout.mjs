@@ -59,12 +59,22 @@ console.log(`Vérification sur ${adresse}`);
 const mandataire = process.env.HTTPS_PROXY ?? process.env.https_proxy;
 const navigateur = await chromium.launch({
   executablePath: process.env.CHROME_BIN,
-  args: ['--no-sandbox', '--disable-dev-shm-usage'],
+  args: [
+    '--no-sandbox',
+    '--disable-dev-shm-usage',
+    // Un micro simulé, accordé sans question : c'est ce qui rend le chemin vocal
+    // vérifiable ici. Sans lui, la moitié du produit ne serait jamais exercée.
+    '--use-fake-device-for-media-stream',
+    '--use-fake-ui-for-media-stream',
+  ],
   // Sur un poste derrière un mandataire, viser un site en ligne exige de passer
   // par lui ; le serveur local de secours, lui, doit rester joignable en direct.
   ...(CIBLE && mandataire ? { proxy: { server: mandataire, bypass: 'localhost,127.0.0.1' } } : {}),
 });
-const contexte = await navigateur.newContext({ viewport: { width: 420, height: 900 } });
+const contexte = await navigateur.newContext({
+  viewport: { width: 420, height: 900 },
+  permissions: ['microphone'],
+});
 const page = await contexte.newPage();
 
 const erreurs = [];
@@ -166,6 +176,59 @@ try {
   verifier('aucune erreur JavaScript en console', erreurs.length === 0, erreurs.slice(0, 2).join(' | '));
 
   await page.screenshot({ path: 'captures-ecran/bout-en-bout-maintenant.png', fullPage: true });
+
+  // --- Quitter l'écran pendant un enregistrement ne perd rien -----------------
+  // « Aucune capture perdue » est l'une des trois promesses mesurables du produit.
+  // Elle se vérifie là où elle casse : en changeant d'écran, le doigt encore appuyé.
+  const compterCaptures = () =>
+    page.evaluate(async () => {
+      const base = await new Promise((ok, ko) => {
+        const r = indexedDB.open('zenote');
+        r.onsuccess = () => ok(r.result);
+        r.onerror = () => ko(r.error);
+      });
+      return await new Promise((ok, ko) => {
+        const d = base.transaction('captures', 'readonly').objectStore('captures').getAll();
+        d.onsuccess = () => ok(d.result.length);
+        d.onerror = () => ko(d.error);
+      });
+    });
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(500);
+  const avant = await compterCaptures();
+
+  // Le chemin clavier est le même geste que l'appui long : maintenir, puis relâcher.
+  await page.locator('.bouton-capture, #vue button').first().focus();
+  await page.keyboard.down(' ');
+  // Assez long pour que l'enregistreur produise réellement un extrait : en dessous,
+  // c'est le test qui est trop pressé, pas le produit qui perd la capture.
+  await page.waitForTimeout(1600);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.keyboard.up(' ');
+
+  // L'écriture est asynchrone : on attend qu'elle aboutisse plutôt que de parier sur
+  // un délai. Si elle n'aboutit jamais, la boucle rend l'ancien compte et le constat
+  // échoue — c'est bien la capture perdue qui est mesurée, pas la patience du test.
+  let apres = avant;
+  for (let essai = 0; essai < 40 && apres === avant; essai += 1) {
+    await page.waitForTimeout(100);
+    apres = await compterCaptures();
+  }
+  verifier(
+    "quitter l'écran pendant un enregistrement ne perd pas la capture",
+    apres === avant + 1,
+    `${avant} capture(s) avant, ${apres} après`,
+  );
+
+  const minuteriesVivantes = await page.evaluate(
+    () => document.querySelectorAll('.ecran').length,
+  );
+  verifier(
+    "l'écran quitté est bien démonté",
+    minuteriesVivantes === 1,
+    `${minuteriesVivantes} écran(s) dans le document`,
+  );
 } finally {
   await navigateur.close();
   serveur?.close();

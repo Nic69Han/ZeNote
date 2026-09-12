@@ -78,6 +78,13 @@ async function demarrer(): Promise<void> {
     void ecrireReglage('theme', suivant);
   });
 
+  /**
+   * De quoi démonter l'écran courant. Sans cela, un écran qui tient une ressource
+   * vivante — la capture tient le micro et une minuterie — la garde ouverte après
+   * qu'on l'a quitté.
+   */
+  let demonterEcran: (() => void) | undefined;
+
   async function afficher(): Promise<void> {
     const onglet = (location.hash.replace('#', '') || 'capturer') as Onglet;
     const valide = TOUS.some((o) => o.cle === onglet) ? onglet : 'capturer';
@@ -96,9 +103,12 @@ async function demarrer(): Promise<void> {
       else lien.removeAttribute('aria-current');
     }
 
+    demonterEcran?.();
+    demonterEcran = undefined;
+
     vider(vue);
     document.documentElement.dataset.ecran = valide;
-    if (valide === 'capturer') montrerCapturer(vue, reglages);
+    if (valide === 'capturer') demonterEcran = montrerCapturer(vue, reglages);
     else if (valide === 'revue') await montrerRevue(vue);
     else if (valide === 'maintenant') await montrerMaintenant(vue);
     else if (valide === 'recherche') await montrerRecherche(vue);
@@ -106,6 +116,12 @@ async function demarrer(): Promise<void> {
   }
 
   window.addEventListener('hashchange', () => void afficher());
+
+  // Fermeture de l'onglet ou passage en arrière-plan : on tente la même sortie propre.
+  // L'écriture est asynchrone et rien ne garantit qu'elle aboutisse ici — mais tenter
+  // vaut mieux que laisser le micro ouvert et l'enregistrement par terre.
+  window.addEventListener('pagehide', () => demonterEcran?.());
+
   await afficher();
 
   // L'analyse est rejouée en arrière-plan : elle n'est jamais sur le chemin de la capture.

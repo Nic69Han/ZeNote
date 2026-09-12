@@ -3,8 +3,12 @@
 Capturer en un geste, ranger une fois par jour, savoir quoi faire maintenant.
 
 **L'application est en ligne : https://zenote-app.netlify.app**
-Ouvrez-la sur le téléphone, puis « Ajouter à l'écran d'accueil ». Elle s'installe, fonctionne
-hors ligne, et tout reste sur l'appareil.
+Ouvrez-la sur le téléphone, puis « Ajouter à l'écran d'accueil ». Elle s'installe et fonctionne
+hors ligne. Vos notes vivent dans le navigateur, sur l'appareil : il n'y a pas de serveur ZeNote,
+pas de compte, pas de mesure d'audience. Une seule réserve, et elle compte : la **dictée** confie
+l'audio à la reconnaissance vocale du navigateur, qui sur Chrome est un service distant de
+l'éditeur. La capture écrite, elle, n'appelle rien. L'écran « Vos données » détaille tout cela,
+y compris ce qui dérange — le stockage local n'est pas chiffré.
 
 ## Ce que c'est
 
