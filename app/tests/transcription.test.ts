@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Transcripteur, expliquerEchec } from '../src/audio/transcription.ts';
+import { enTexte } from '../src/audio/diagnostic.ts';
 
 /**
  * La transcription a le droit d'échouer — le réseau tombe, le micro est pris, le
@@ -127,5 +128,41 @@ describe('expliquerEchec', () => {
 
   it('dit le silence quand il n’y a aucun code', () => {
     expect(expliquerEchec(undefined)).toMatch(/aucune parole/i);
+  });
+});
+
+describe('enTexte', () => {
+  it('rend un constat recopiable qui porte tout ce qui sert à diagnostiquer', () => {
+    const texte = enTexte(
+      {
+        moteurPresent: true,
+        microPresent: true,
+        autorisation: 'granted',
+        enLigne: false,
+        issue: 'network',
+        explication: expliquerEchec('network'),
+        texte: '',
+      },
+      '2026-09-13 19:54 UTC',
+    );
+
+    // Chacune de ces lignes a déjà manqué au moins une fois pour comprendre une panne.
+    for (const attendu of ['version : 2026-09-13', 'moteur', 'micro', 'autorisation', 'réseau', 'issue : network']) {
+      expect(texte).toContain(attendu);
+    }
+    expect(texte).toContain('hors ligne');
+    expect(texte).toContain('aucun');
+  });
+
+  it('rapporte le texte reconnu quand la dictée a marché', () => {
+    const texte = enTexte(
+      {
+        moteurPresent: true, microPresent: true, autorisation: 'granted', enLigne: true,
+        issue: 'texte reconnu', explication: 'la dictée fonctionne sur cet appareil',
+        texte: 'voir Marc pour le budget',
+      },
+      'v',
+    );
+    expect(texte).toContain('« voir Marc pour le budget »');
   });
 });

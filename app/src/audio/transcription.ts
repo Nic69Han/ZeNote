@@ -55,7 +55,12 @@ export function expliquerEchec(raison: string | undefined): string {
     case 'service-not-allowed':
       return "le micro n'a pas été autorisé pour la reconnaissance vocale";
     case 'audio-capture':
-      return 'le micro était déjà pris par autre chose';
+      // Mesuré : ce code apparaît aussi quand le moteur tourne sans service de
+      // reconnaissance derrière lui, pas seulement quand une autre application tient
+      // le micro. Affirmer la contention serait envoyer l'utilisateur sur une fausse
+      // piste — on nomme les deux causes possibles.
+      return "le moteur n'a pas pu prendre le micro — soit une autre application "
+        + "l'utilise, soit la reconnaissance vocale n'est pas disponible sur cet appareil";
     case 'network':
       return "le service de reconnaissance du navigateur n'a pas pu être joint";
     case 'no-speech':

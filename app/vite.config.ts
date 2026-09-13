@@ -9,6 +9,14 @@ import { VitePWA } from 'vite-plugin-pwa';
  * vivent dans IndexedDB, sur l'appareil.
  */
 export default defineConfig({
+  // L'empreinte de construction, affichée dans « Vos données ». Sans elle, impossible
+  // de savoir si l'appareil qui rapporte une panne exécute déjà le correctif : une
+  // application installée garde sa version en cache jusqu'à la prochaine ouverture.
+  define: {
+    __VERSION_ZENOTE__: JSON.stringify(
+      new Date().toISOString().replace('T', ' ').slice(0, 16) + ' UTC',
+    ),
+  },
   build: {
     target: 'es2022',
     sourcemap: true,

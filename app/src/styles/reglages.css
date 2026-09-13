@@ -182,3 +182,32 @@
 .note-service[data-ton='echec'] {
   color: var(--temoin);
 }
+
+/* Le test de la dictée : une sortie brute, lisible et sélectionnable, parce qu'elle
+   est faite pour être recopiée telle quelle. */
+.bloc--diagnostic .bloc__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+
+.diagnostic__sortie {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  background: var(--fond-creux);
+  color: var(--encre);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.bloc__version {
+  margin-block: 0.6rem 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.78rem;
+}

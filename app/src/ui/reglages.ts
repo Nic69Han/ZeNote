@@ -22,7 +22,12 @@ import {
   type ExportZeNote,
 } from '../services/export.ts';
 import { toutEffacer } from '../stockage/depot.ts';
+import { diagnostiquer, enTexte } from '../audio/diagnostic.ts';
 import { annoncer, el, vider } from './dom.ts';
+
+/** Empreinte de la construction servie, injectée par Vite. */
+const VERSION: string =
+  typeof __VERSION_ZENOTE__ === 'string' ? __VERSION_ZENOTE__ : 'inconnue';
 
 /** Le mot à écrire pour confirmer l'effacement : un clic seul ne doit jamais suffire. */
 const MOT_DE_CONFIRMATION = 'SUPPRIMER';
@@ -128,8 +133,79 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       blocPerimetre(),
       blocExport(donnees, texte),
       blocEffacement(donnees),
+      blocDictee(),
     );
     vue.append(section);
+  }
+
+  // ------------------------------------------------------------ la dictée
+
+  /**
+   * Le test de la dictée, et l'empreinte de la version.
+   *
+   * Une panne de reconnaissance vocale ne se reproduit pas ailleurs : elle tient au
+   * navigateur, à l'appareil, au réseau et aux autorisations de celui qui s'en sert.
+   * Ce bloc permet de la nommer sur place plutôt que de la deviner à distance — et
+   * dit quelle version est réellement exécutée, une application installée gardant la
+   * précédente en cache jusqu'à sa prochaine ouverture.
+   */
+  function blocDictee(): HTMLElement {
+    const sortie = el('pre', { class: 'diagnostic__sortie', hidden: 'hidden' });
+    const bouton = el('button', {
+      class: 'bouton bouton--plein',
+      type: 'button',
+      texte: 'Tester la dictée',
+    }) as HTMLButtonElement;
+
+    bouton.addEventListener('click', () => {
+      bouton.disabled = true;
+      bouton.textContent = 'Parlez maintenant…';
+      sortie.hidden = false;
+      sortie.textContent = 'Test en cours, cinq secondes.';
+      void diagnostiquer()
+        .then((constat) => {
+          sortie.textContent = enTexte(constat, VERSION);
+          annoncer(constat.explication);
+        })
+        .catch((e) => {
+          sortie.textContent = `Le test lui-même a échoué : ${
+            e instanceof Error ? e.message : 'erreur inconnue'
+          }`;
+        })
+        .finally(() => {
+          bouton.disabled = false;
+          bouton.textContent = 'Tester la dictée';
+        });
+    });
+
+    const copier = el('button', {
+      class: 'bouton bouton--discret',
+      type: 'button',
+      texte: 'Copier le résultat',
+    }) as HTMLButtonElement;
+    copier.addEventListener('click', () => {
+      const contenu = sortie.textContent ?? '';
+      if (!contenu) { dire('Lancez d’abord le test.', 'echec'); return; }
+      void navigator.clipboard
+        ?.writeText(contenu)
+        .then(() => dire('Résultat copié.'))
+        .catch(() => dire('Copie refusée par le navigateur — sélectionnez le texte.', 'echec'));
+    });
+
+    return el(
+      'section',
+      { class: 'bloc bloc--diagnostic', 'aria-labelledby': 'titre-dictee' },
+      el('h2', { id: 'titre-dictee', class: 'bloc__titre', texte: 'La dictée fonctionne-t-elle ?' }),
+      el('p', {
+        class: 'bloc__detail',
+        texte:
+          'Ce test lance la reconnaissance vocale seule, sans enregistrement, et dit '
+          + 'exactement ce qu’elle répond. Appuyez, puis dites une phrase.',
+      }),
+      el('div', { class: 'bloc__actions' }, bouton, copier),
+      sortie,
+      el('p', { class: 'bloc__version', texte: `Version installée : ${VERSION}` }),
+    );
   }
 
   // ------------------------------------------------ ce qui quitte l'appareil
