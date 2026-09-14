@@ -33,6 +33,11 @@ une suppression.**
 | **La Revue** | Trancher ce qui a été compris, une fois par jour | Relire tout l'historique |
 | **Maintenant** | Voir au plus trois choses, chacune justifiée | Compter ce qui reste |
 
+Depuis chacun de ces écrans, un repli « source » rend la transcription brute **et
+l'enregistrement d'origine**. C'est le recours quand la reconnaissance vocale se trompe :
+tant que l'audio est atteignable, la note n'est pas perdue, seulement mal lue. La lecture
+démarre au passage de l'élément — position estimée à partir du texte, et dite comme telle.
+
 Deux écrans en retrait, atteints depuis l'en-tête : **Rechercher** et **Vos données**. On ne
 les traverse pas dans une journée de travail — les y mettre diluerait les trois surfaces.
 

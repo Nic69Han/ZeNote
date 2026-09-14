@@ -109,9 +109,9 @@ async function demarrer(): Promise<void> {
     vider(vue);
     document.documentElement.dataset.ecran = valide;
     if (valide === 'capturer') demonterEcran = montrerCapturer(vue, reglages);
-    else if (valide === 'revue') await montrerRevue(vue);
-    else if (valide === 'maintenant') await montrerMaintenant(vue);
-    else if (valide === 'recherche') await montrerRecherche(vue);
+    else if (valide === 'revue') demonterEcran = await montrerRevue(vue);
+    else if (valide === 'maintenant') demonterEcran = await montrerMaintenant(vue);
+    else if (valide === 'recherche') demonterEcran = await montrerRecherche(vue);
     else await montrerReglages(vue);
   }
 

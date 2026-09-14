@@ -20,11 +20,13 @@ import {
   rechercherParQuestionObjets,
   type CaptureJson,
   type CitationJson,
+  type ElementJson,
   type ReponseJson,
 } from '../core/regles.ts';
 import { listerCaptures, listerElements, type Capture } from '../stockage/depot.ts';
 import { aujourdhui } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
+import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 
 /**
  * L'état du réseau au moment de la question : le cœur en déduit seul ce qu'il met en
@@ -51,7 +53,17 @@ function quandLisible(iso: string): string {
   });
 }
 
-export async function montrerRecherche(racine: HTMLElement): Promise<void> {
+export async function montrerRecherche(racine: HTMLElement): Promise<() => void> {
+  /**
+   * Les lecteurs audio posés par les réponses successives. Chacun tient une URL objet
+   * sur un blob : une question suivie d'une autre en laisserait derrière elle.
+   */
+  const lecteurs: Lecteur[] = [];
+
+  function libererLecteurs(): void {
+    for (const lecteur of lecteurs) lecteur.demonter();
+    lecteurs.length = 0;
+  }
   /** La zone de réponse survit aux questions successives : le champ garde sa saisie. */
   const zoneReponse = el('div', {
     class: 'reponse',
@@ -74,19 +86,22 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
     afficher(
       rechercherParQuestionObjets(requete, elements, sources, aujourdhui(), reseauDisponible()),
       captures,
+      elements,
     );
   }
 
   async function parPersonne(personne: string): Promise<void> {
     const [elements, captures] = await Promise.all([listerElements(), listerCaptures()]);
-    afficher(rechercherParPersonneObjets(personne, elements, reseauDisponible()), captures);
+    afficher(rechercherParPersonneObjets(personne, elements, reseauDisponible()), captures, elements);
   }
 
   // ------------------------------------------------------------------- rendu
 
-  function afficher(reponse: ReponseJson, captures: Capture[]): void {
+  function afficher(reponse: ReponseJson, captures: Capture[], elements: ElementJson[]): void {
     const parId = new Map(captures.map((capture) => [capture.id, capture]));
+    const elementsParId = new Map(elements.map((element) => [element.id, element]));
 
+    libererLecteurs();
     vider(zoneReponse);
     zoneReponse.append(
       el('p', { class: 'reponse__question', texte: reponse.question }),
@@ -103,7 +118,13 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
     if (reponse.citations.length > 0) {
       const liste = el('ol', { class: 'citations' });
       for (const citation of reponse.citations) {
-        liste.append(rendreCitation(citation, parId.get(citation.captureId)));
+        liste.append(
+          rendreCitation(
+            citation,
+            parId.get(citation.captureId),
+            citation.elementId ? elementsParId.get(citation.elementId) : undefined,
+          ),
+        );
       }
       zoneReponse.append(liste);
     }
@@ -119,20 +140,39 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
     annoncer(reponse.enonce);
   }
 
-  function rendreCitation(citation: CitationJson, capture: Capture | undefined): HTMLElement {
+  function rendreCitation(
+    citation: CitationJson,
+    capture: Capture | undefined,
+    element: ElementJson | undefined,
+  ): HTMLElement {
     return el(
       'li',
       { class: 'citation', 'data-capture': citation.captureId },
       el('p', { class: 'citation__extrait', texte: citation.extrait }),
       // Le « pourquoi » vient du cœur : c'est une raison, jamais un score.
       el('p', { class: 'citation__pourquoi', texte: citation.pourquoi }),
-      renvoiSource(citation.captureId, capture),
+      renvoiSource(citation.captureId, capture, element),
     );
   }
 
-  /** Le renvoi à la capture source : sans lui, une citation ne se vérifie pas. */
-  function renvoiSource(captureId: string, capture: Capture | undefined): HTMLElement {
-    return el(
+  /**
+   * Le renvoi à la capture source : sans lui, une citation ne se vérifie pas.
+   *
+   * La transcription brute et l'enregistrement d'origine y sont, en une action — et
+   * quand la citation vient d'un élément dont on connaît la position dans l'audio, la
+   * lecture démarre à ce passage (spec `transcription` — « Remonter à l'audio
+   * d'origine »).
+   */
+  function renvoiSource(
+    captureId: string,
+    capture: Capture | undefined,
+    element: ElementJson | undefined,
+  ): HTMLElement {
+    const lecteur = lecteurAudio(capture);
+    lecteurs.push(lecteur);
+
+    const debutMs = element?.debutMs;
+    const detail = el(
       'details',
       { class: 'source' },
       el(
@@ -148,7 +188,21 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
         }),
       ),
       el('p', { class: 'source__texte', texte: capture?.texte ?? '(source introuvable)' }),
-    );
+      lecteur.noeud,
+      lecteur.disponible && typeof debutMs === 'number'
+        ? el('button', {
+            class: 'bouton bouton--ecouter',
+            type: 'button',
+            texte: `Écouter ce passage (vers ${duree(debutMs)})`,
+            onclick: () => lecteur.allerA(debutMs),
+          })
+        : null,
+    ) as HTMLDetailsElement;
+
+    detail.addEventListener('toggle', () => {
+      if (detail.open) lecteur.ouvrir();
+    });
+    return detail;
   }
 
   /**
@@ -264,4 +318,6 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
       }),
     ),
   );
+
+  return libererLecteurs;
 }

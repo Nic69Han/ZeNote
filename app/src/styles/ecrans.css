@@ -243,6 +243,34 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   min-height: 2.25rem;
+  /* Poser `display: flex` sur un `summary` lui retire sa puce de repli : sans le
+     chevron ci-dessous, rien ne dit que la ligne s'ouvre. Safari demande en plus
+     que le marqueur soit explicitement retiré. */
+  list-style: none;
+}
+
+.source__resume::-webkit-details-marker {
+  display: none;
+}
+
+.source__resume::after {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-0.1rem, -0.1rem);
+  transition: transform 120ms ease-out;
+}
+
+.source[open] > .source__resume::after {
+  transform: rotate(-135deg) translate(-0.1rem, -0.1rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .source__resume::after {
+    transition: none;
+  }
 }
 
 .source__texte {
@@ -252,6 +280,45 @@
   border-radius: var(--rayon);
   color: var(--encre-douce);
   font-size: 0.92rem;
+}
+
+/* ------------------------------------------- réécouter l'enregistrement */
+/* L'audio est le dernier recours quand la transcription se trompe. Il est donc
+   présent partout où l'on lit la source, et discret partout : on y va quand on
+   doute, pas à chaque passage. */
+
+.lecteur {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lecteur__audio {
+  width: 100%;
+  max-width: 100%;
+  min-height: 2.25rem;
+}
+
+.lecteur__note,
+.lecteur--absent {
+  margin: 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.lecteur--absent {
+  margin-top: 0.5rem;
+}
+
+.bouton--ecouter {
+  align-self: flex-start;
+  background: transparent;
+  border-color: var(--trait);
+  color: var(--encre-douce);
+  min-height: 2.5rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
 }
 
 .bouton--groupe {

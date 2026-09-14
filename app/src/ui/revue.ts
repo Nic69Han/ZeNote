@@ -24,6 +24,7 @@ import {
   type ElementStocke,
 } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
+import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 
 const LIBELLE_TYPE: Record<ElementJson['type'], string> = {
   TACHE: 'Tâche',
@@ -72,8 +73,19 @@ const LIBELLE_OPTION: Record<string, string> = {
   CLORE: 'C’est réglé',
 };
 
-export async function montrerRevue(racine: HTMLElement): Promise<void> {
+export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   const jour = aujourdhui();
+  /**
+   * Les lecteurs audio posés sur cet écran. Chacun tient une URL objet sur un blob ;
+   * quitter la Revue sans les libérer laisserait les enregistrements en mémoire.
+   */
+  const lecteurs: Lecteur[] = [];
+
+  /** Libère tous les lecteurs posés jusqu'ici. Idempotent. */
+  function libererLecteurs(): void {
+    for (const lecteur of lecteurs) lecteur.demonter();
+    lecteurs.length = 0;
+  }
   /** Dernier lot traité, pour que toute action reste annulable. */
   let dernierLot: { id: string; avant: ElementStocke }[] = [];
 
@@ -128,6 +140,9 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
   }
 
   async function rendre(): Promise<void> {
+    // Chaque rendu repose de nouveaux lecteurs : sans cette libération, décider dix
+    // éléments laisserait dix enregistrements accrochés en mémoire.
+    libererLecteurs();
     const elements = await listerElements();
     const file = revueObjets(elements, jour);
     // Sans ce filtre, clore une relance ne la faisait pas disparaître : l'élément
@@ -245,7 +260,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
     const capture = await lireCapture(captureId);
     const groupe = el('article', { class: 'groupe' });
 
-    groupe.append(enTeteSource(capture, captureId));
+    const source = enTeteSource(capture, captureId);
+    groupe.append(source.noeud);
 
     // L'acceptation groupée n'est proposée que si toutes les déductions sont sûres.
     const toutesSures = entrees.every((e) => !e.aConfirmer);
@@ -261,12 +277,19 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
     }
 
     const liste = el('ul', { class: 'entrees' });
-    for (const entree of entrees) liste.append(rendreEntree(entree, capture));
+    for (const entree of entrees) liste.append(rendreEntree(entree, capture, source));
     groupe.append(liste);
     return groupe;
   }
 
-  function enTeteSource(capture: Capture | undefined, captureId: string): HTMLElement {
+  /**
+   * La source du groupe : la transcription brute, et l'enregistrement d'origine.
+   *
+   * Un groupe de Revue est fait d'une seule capture — c'est ce qui permet de tenir
+   * ici, une fois, ce que chaque élément du groupe partage. Les éléments y renvoient
+   * plutôt que de répéter la transcription sous chacun d'eux.
+   */
+  function enTeteSource(capture: Capture | undefined, captureId: string): SourceGroupe {
     const heure = capture
       ? new Date(capture.creeLe).toLocaleString('fr-FR', {
           day: 'numeric',
@@ -275,6 +298,10 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
           minute: '2-digit',
         })
       : captureId;
+
+    const lecteur = lecteurAudio(capture);
+    lecteurs.push(lecteur);
+
     const detail = el(
       'details',
       { class: 'source' },
@@ -288,11 +315,29 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
         }),
       ),
       el('p', { class: 'source__texte', texte: capture?.texte ?? '(source introuvable)' }),
-    );
-    return detail;
+      lecteur.noeud,
+    ) as HTMLDetailsElement;
+
+    // L'audio n'est chargé qu'au dépliement : voir `lecteurAudio`.
+    detail.addEventListener('toggle', () => {
+      if (detail.open) lecteur.ouvrir();
+    });
+
+    return {
+      noeud: detail,
+      audioDisponible: lecteur.disponible,
+      ecouterA: (ms: number) => {
+        detail.open = true;
+        lecteur.allerA(ms);
+      },
+    };
   }
 
-  function rendreEntree(entree: EntreeRevueJson, capture: Capture | undefined): HTMLElement {
+  function rendreEntree(
+    entree: EntreeRevueJson,
+    capture: Capture | undefined,
+    source: SourceGroupe,
+  ): HTMLElement {
     const e = entree.element;
     const ligne = el('li', { class: 'entree', 'data-type': e.type });
 
@@ -370,15 +415,34 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
 
     zoneAjustement.append(formulaireAjustement(e));
 
+    const ecouter = reecoute(e, source);
     ligne.append(
       badges,
       el('p', { class: 'entree__texte', texte: e.texte }),
       justification,
+      ...(ecouter ? [ecouter] : []),
       zoneActions,
       zonePlan,
       zoneAjustement,
     );
     return ligne;
+  }
+
+  /**
+   * Le renvoi d'un élément vers le moment où il a été dit.
+   *
+   * Trancher demande parfois d'entendre la phrase : une transcription approximative
+   * se juge mal sur le texte seul. La position est estimée à partir de la place du
+   * passage dans le texte — le libellé le dit, il ne promet pas une mesure.
+   */
+  function reecoute(e: ElementJson, source: SourceGroupe): HTMLElement | null {
+    if (!source.audioDisponible || typeof e.debutMs !== 'number') return null;
+    return el('button', {
+      class: 'bouton bouton--ecouter',
+      type: 'button',
+      texte: `Écouter ce passage (vers ${duree(e.debutMs)})`,
+      onclick: () => source.ecouterA(e.debutMs as number),
+    });
   }
 
   function bouton(libelle: string, classe: string, action: () => void): HTMLButtonElement {
@@ -531,4 +595,14 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
   }
 
   await rendre();
+
+  return libererLecteurs;
+}
+
+/** Ce qu'un groupe de Revue offre à ses éléments : sa source, et de quoi la réécouter. */
+interface SourceGroupe {
+  noeud: HTMLElement;
+  audioDisponible: boolean;
+  /** Ouvre la source et lance la lecture à cette position, en millisecondes. */
+  ecouterA: (ms: number) => void;
 }

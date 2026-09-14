@@ -10,8 +10,9 @@
 
 import { maintenantObjets, type ElementJson, type PropositionJson } from '../core/regles.ts';
 import { aujourdhui } from '../services/pipeline.ts';
-import { listerElementsActifs, majElement } from '../stockage/depot.ts';
+import { lireCapture, listerElementsActifs, majElement, type Capture } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
+import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 
 /**
  * Les éléments écartés le sont pour la session en cours seulement : écarter n'est ni
@@ -25,11 +26,33 @@ const LIBELLE_POIDS: Record<string, string> = {
   FORT: 'poids fort',
 };
 
-export async function montrerMaintenant(racine: HTMLElement): Promise<void> {
+export async function montrerMaintenant(racine: HTMLElement): Promise<() => void> {
+  /** Les lecteurs audio posés par le rendu courant, à libérer avant le suivant. */
+  const lecteurs: Lecteur[] = [];
+
+  function libererLecteurs(): void {
+    for (const lecteur of lecteurs) lecteur.demonter();
+    lecteurs.length = 0;
+  }
+
   async function rendre(): Promise<void> {
+    libererLecteurs();
     const actifs = await listerElementsActifs();
     const candidats = actifs.filter((e) => !ecartes.has(e.id));
     const propositions = maintenantObjets(candidats, aujourdhui());
+
+    // Les sources des trois propositions, chargées d'avance : trois lectures, pas une
+    // par rendu de carte, et le rendu reste synchrone.
+    const parElement = new Map(candidats.map((e) => [e.id, e]));
+    const sources = new Map<string, Capture | undefined>();
+    await Promise.all(
+      propositions.map(async (p) => {
+        const captureId = parElement.get(p.elementId)?.captureId;
+        if (captureId && !sources.has(captureId)) {
+          sources.set(captureId, await lireCapture(captureId));
+        }
+      }),
+    );
 
     vider(racine);
     const section = el(
@@ -44,7 +67,14 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<void> {
     } else {
       const liste = el('ol', { class: 'propositions' });
       for (const proposition of propositions) {
-        liste.append(rendreProposition(proposition));
+        const element = parElement.get(proposition.elementId);
+        liste.append(
+          rendreProposition(
+            proposition,
+            element,
+            element ? sources.get(element.captureId) : undefined,
+          ),
+        );
       }
       section.append(liste);
     }
@@ -87,7 +117,11 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<void> {
     return bloc;
   }
 
-  function rendreProposition(p: PropositionJson): HTMLElement {
+  function rendreProposition(
+    p: PropositionJson,
+    element: ElementJson | undefined,
+    capture: Capture | undefined,
+  ): HTMLElement {
     return el(
       'li',
       { class: 'proposition', 'data-poids': p.poidsEffectif },
@@ -102,6 +136,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<void> {
       el('p', { class: 'proposition__texte', texte: p.texte }),
       // La raison dit ce qui se passe si ce n'est pas fait, jamais un score.
       el('p', { class: 'proposition__raison', texte: p.raison }),
+      source(element, capture),
       el(
         'div',
         { class: 'proposition__actions' },
@@ -126,6 +161,46 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<void> {
     );
   }
 
+  /**
+   * La source, repliée.
+   *
+   * Maintenant est l'écran le plus protégé du produit : replié, ce renvoi tient en une
+   * ligne grise. Mais il doit y être — c'est ici qu'on est sur le point de faire la
+   * chose, donc ici qu'un doute sur ce qu'on avait dit se lève (spec `transcription`
+   * — « Remonter à l'audio d'origine »).
+   */
+  function source(element: ElementJson | undefined, capture: Capture | undefined): HTMLElement | null {
+    if (!element) return null;
+
+    const lecteur = lecteurAudio(capture);
+    lecteurs.push(lecteur);
+
+    const detail = el(
+      'details',
+      { class: 'source' },
+      el(
+        'summary',
+        { class: 'source__resume' },
+        el('span', { class: 'source__mode', texte: 'ce que vous aviez dit' }),
+      ),
+      el('p', { class: 'source__texte', texte: capture?.texte ?? '(source introuvable)' }),
+      lecteur.noeud,
+      lecteur.disponible && typeof element.debutMs === 'number'
+        ? el('button', {
+            class: 'bouton bouton--ecouter',
+            type: 'button',
+            texte: `Écouter ce passage (vers ${duree(element.debutMs)})`,
+            onclick: () => lecteur.allerA(element.debutMs as number),
+          })
+        : null,
+    ) as HTMLDetailsElement;
+
+    detail.addEventListener('toggle', () => {
+      if (detail.open) lecteur.ouvrir();
+    });
+    return detail;
+  }
+
   async function marquerFait(p: PropositionJson): Promise<void> {
     await majElement(p.elementId, { faitLe: new Date().toISOString() });
     annoncer('Fait.');
@@ -133,4 +208,6 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<void> {
   }
 
   await rendre();
+
+  return libererLecteurs;
 }

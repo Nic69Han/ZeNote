@@ -238,6 +238,83 @@ try {
     `${restantes} restante(s)`,
   );
 
+  // --- Remonter à l'audio d'origine ------------------------------------------
+  // Spec `transcription` — « Conservation de la source ». C'est le recours quand la
+  // reconnaissance vocale se trompe : tant que l'enregistrement est atteignable, la
+  // note n'est pas perdue, seulement mal lue. L'audio semé ici n'est pas décodable —
+  // ce qui se vérifie est le câblage : chargement différé, puis source posée.
+  await page.evaluate(async () => {
+    const base = await new Promise((ok, ko) => {
+      const r = indexedDB.open('zenote');
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ko(r.error);
+    });
+    await new Promise((ok, ko) => {
+      const t = base.transaction(['captures', 'elements'], 'readwrite');
+      t.objectStore('captures').put({
+        id: 'c-vocale', creeLe: new Date().toISOString(), source: 'VOCALE',
+        texte: 'Rappeler le couvreur pour le devis du toit.', etatTranscription: 'OK',
+        dureeMs: 12000, audio: new Blob([new Uint8Array([26, 69, 223, 163])], { type: 'audio/webm' }),
+        incomplete: false, analysee: true,
+      });
+      t.objectStore('elements').put({
+        id: 'e-vocale', captureId: 'c-vocale', type: 'TACHE',
+        texte: 'Rappeler le couvreur', debutCar: 0, finCar: 20,
+        debutMs: 4000, finMs: 9000, verdict: 'EN_ATTENTE', corrigeParHumain: false,
+      });
+      t.oncomplete = () => ok();
+      t.onerror = () => ko(t.error);
+    });
+  });
+
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(700);
+
+  const groupeVocal = page.locator('.groupe', { hasText: 'couvreur' }).first();
+  const repli = groupeVocal.locator('details.source');
+
+  const avantOuverture = await repli.locator('audio').getAttribute('src');
+  verifier(
+    "l'audio n'est chargé qu'une fois la source ouverte",
+    avantOuverture === null,
+    avantOuverture ?? 'aucune source posée',
+  );
+
+  await repli.locator('summary').click();
+  await page.waitForTimeout(400);
+  const apresOuverture = await repli.locator('audio').getAttribute('src');
+  verifier(
+    "la source ouverte donne accès à l'enregistrement d'origine",
+    typeof apresOuverture === 'string' && apresOuverture.startsWith('blob:'),
+    apresOuverture ?? 'aucune source posée',
+  );
+
+  const libelleEcoute = await groupeVocal.locator('.bouton--ecouter').first().innerText();
+  verifier(
+    'un élément renvoie au moment où il a été dit',
+    /écouter ce passage/i.test(libelleEcoute) && /4 s/.test(libelleEcoute),
+    libelleEcoute,
+  );
+
+  // La source doit être atteignable depuis tout élément dérivé — donc aussi depuis
+  // Maintenant, là où l'on est sur le point de faire la chose.
+  await groupeVocal.locator('.bouton--accepter').first().click();
+  await page.waitForTimeout(400);
+  await groupeVocal.locator('.bouton--plan').first().click();
+  await page.waitForTimeout(600);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(700);
+
+  const carteVocale = page.locator('.proposition', { hasText: 'couvreur' }).first();
+  const sourceDansMaintenant = await carteVocale.locator('details.source').count();
+  verifier(
+    'Maintenant renvoie lui aussi à ce qui avait été dit',
+    sourceDansMaintenant === 1,
+    `${sourceDansMaintenant} renvoi(s)`,
+  );
+
   // --- Retrouver par le moment, pas par les mots -----------------------------
   // Le scénario de la spec `recherche` : « le truc dont j'ai parlé en voiture la
   // semaine dernière ». Aucun de ces mots ne figure dans la capture — c'est le
