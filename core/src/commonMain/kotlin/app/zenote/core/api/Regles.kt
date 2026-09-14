@@ -14,10 +14,16 @@ import app.zenote.core.model.Verdict
 import app.zenote.core.priorisation.ContexteMaintenant
 import app.zenote.core.priorisation.Priorisation
 import app.zenote.core.recherche.RechercheLocale
+import app.zenote.core.revue.Arriere
+import app.zenote.core.revue.FileRevue
+import app.zenote.core.revue.Relance
+import app.zenote.core.revue.Suivi
 import app.zenote.core.recherche.Reponse
 import app.zenote.core.recherche.TexteSource
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 /**
@@ -69,19 +75,25 @@ object Regles {
         val date = LocalDate.parse(aujourdhui)
         val enAttente = decoder(elementsJson).filter { it.verdict == Verdict.EN_ATTENTE.name }
 
-        val entrees = enAttente.map { dto ->
-            val resolu = dto.versResolu()
+        // La file passe d'abord par le domaine : c'est lui qui sait ce qu'une Revue
+        // absorbe, et ce qu'il vaut mieux laisser en file plutôt que de le déverser.
+        val parId = enAttente.associateBy { it.id }
+        val entrees = enAttente.map { FileRevue.entree(it.versResolu(), date) }
+        val reduction = Arriere.revueReduite(entrees)
+
+        val retenues = reduction.retenues.map { entree ->
+            val dto = parId.getValue(entree.id.value)
             EntreeRevueJson(
                 element = dto,
-                aConfirmer = dto.aConfirmer(),
-                planManquant = resolu.planManquant,
-                urgence = Priorisation.urgence(resolu.echeance, date).name,
+                aConfirmer = entree.aConfirmer,
+                planManquant = entree.planAFournir,
+                urgence = entree.urgence.name,
             )
         }
 
         // Les captures sont présentées dans l'ordre de leur entrée la plus pressante ;
         // à l'intérieur d'un groupe, l'urgent puis l'incertain d'abord.
-        val groupes = entrees
+        val groupes = retenues
             .groupBy { it.element.captureId }
             .map { (captureId, dansLeGroupe) ->
                 GroupeRevueJson(
@@ -101,8 +113,58 @@ object Regles {
 
         return json.encodeToString(
             RevueJson.serializer(),
-            RevueJson(groupes = groupes, total = entrees.size),
+            RevueJson(
+                groupes = groupes,
+                total = entrees.size,
+                reduite = reduction.reduite,
+                motifReduction = if (reduction.reduite) reduction.motif else "",
+                demeurentEnFile = reduction.demeurentEnFile.size,
+            ),
         )
+    }
+
+    /**
+     * Ce que la Revue du jour doit remonter d'elle-même : un engagement dont
+     * l'échéance approche, une attente restée sans nouvelle au-delà du délai habituel
+     * de la personne concernée.
+     *
+     * C'est la moitié du produit que l'utilisateur ne peut pas réclamer, puisqu'il l'a
+     * précisément oubliée.
+     *
+     * @param suivisJson tableau de [SuiviJson] — la dernière nouvelle connue par attente
+     * @param delaisJson objet JSON `{ "personne": jours }`, délais habituels observés
+     * @return tableau de [RelanceJson]
+     */
+    fun relances(
+        elementsJson: String,
+        aujourdhui: String,
+        suivisJson: String,
+        delaisJson: String,
+    ): String {
+        val suivis = json
+            .decodeFromString(ListSerializer(SuiviJson.serializer()), suivisJson)
+            .map { Suivi(ElementId(it.elementId), LocalDate.parse(it.derniereNouvelle)) }
+        val delais = json
+            .decodeFromString(MapSerializer(String.serializer(), Int.serializer()), delaisJson)
+
+        val propositions = Relance.aRelancer(
+            elements = decoder(elementsJson).map { it.versResolu() },
+            aujourdhui = LocalDate.parse(aujourdhui),
+            suivis = suivis,
+            delaisObserves = delais,
+        ).map { p ->
+            RelanceJson(
+                elementId = p.element.id.value,
+                texte = p.element.texte,
+                type = p.element.type.name,
+                interlocuteur = p.element.interlocuteur,
+                echeance = p.element.echeance?.toString(),
+                motif = p.motif,
+                options = p.options.map { it.name },
+            )
+        }
+
+        return json.encodeToString(ListSerializer(RelanceJson.serializer()), propositions)
     }
 
     /**

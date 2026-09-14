@@ -188,6 +188,56 @@ try {
 
   await page.screenshot({ path: 'captures-ecran/bout-en-bout-maintenant.png', fullPage: true });
 
+  // --- Une attente sans nouvelle remonte d'elle-même ------------------------
+  // C'est la moitié du produit que l'utilisateur ne peut pas réclamer : il a
+  // précisément oublié ce qu'il attend. Semé directement en base, parce que le
+  // scénario demande une échéance vieille de plusieurs semaines.
+  await page.evaluate(async () => {
+    const base = await new Promise((ok, ko) => {
+      const r = indexedDB.open('zenote');
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ko(r.error);
+    });
+    await new Promise((ok, ko) => {
+      const t = base.transaction(['captures', 'elements'], 'readwrite');
+      t.objectStore('captures').put({
+        id: 'c-attente', creeLe: '2026-01-05T09:00:00.000Z', source: 'ECRITE',
+        texte: "Karim doit m'envoyer le planning", etatTranscription: 'OK',
+        dureeMs: null, audio: null, incomplete: false, analysee: true,
+      });
+      t.objectStore('elements').put({
+        id: 'e-attente', captureId: 'c-attente', type: 'ATTENTE',
+        texte: 'Retour de Karim sur le planning', debutCar: 0, finCar: 20,
+        echeance: '2026-01-10', interlocuteur: 'Karim', verdict: 'ACCEPTE',
+        corrigeParHumain: false,
+      });
+      t.oncomplete = () => ok();
+      t.onerror = () => ko(t.error);
+    });
+  });
+
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(700);
+
+  const relances = await page.locator('.relance').count();
+  verifier('une attente sans nouvelle remonte en Revue', relances >= 1, `${relances} relance(s)`);
+
+  const motifRelance = await page.locator('.relance__motif').first().innerText();
+  verifier(
+    'la relance dit depuis quand, sans reprocher ni supposer un genre',
+    /sans nouvelle/i.test(motifRelance) && !/ elle| lui/.test(motifRelance),
+    motifRelance,
+  );
+
+  await page.locator('.relance .bouton--clore').first().click();
+  await page.waitForTimeout(700);
+  const restantes = await page.locator('.relance').count();
+  verifier(
+    'une relance traitée ne remonte plus',
+    restantes === relances - 1,
+    `${restantes} restante(s)`,
+  );
+
   // --- Quitter l'écran pendant un enregistrement ne perd rien -----------------
   // « Aucune capture perdue » est l'une des trois promesses mesurables du produit.
   // Elle se vérifie là où elle casse : en changeant d'écran, le doigt encore appuyé.

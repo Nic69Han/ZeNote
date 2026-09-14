@@ -47,9 +47,39 @@ export interface EntreeRevueJson {
   urgence: string;
 }
 
+/** Une relance proposée en Revue : le produit se souvient à votre place. */
+export interface RelanceJson {
+  elementId: string;
+  texte: string;
+  /** ENGAGEMENT ou ATTENTE. */
+  type: string;
+  interlocuteur: string | null;
+  echeance: string | null;
+  /** Pourquoi elle remonte maintenant. Jamais un reproche. */
+  motif: string;
+  /** RELANCER, PROLONGER, CLORE. */
+  options: string[];
+}
+
+/** La dernière nouvelle connue sur une attente. */
+export interface SuiviJson {
+  elementId: string;
+  derniereNouvelle: string;
+}
+
 export interface RevueJson {
   groupes: { captureId: string; entrees: EntreeRevueJson[] }[];
+  /** La file entière, y compris ce qui n'est pas présenté aujourd'hui. */
   total: number;
+  /**
+   * `true` quand la file dépassait ce qu'une Revue absorbe. Les groupes ne portent
+   * alors que les entrées retenues : le reste demeure en file, intact.
+   */
+  reduite: boolean;
+  /** La phrase du cœur expliquant la réduction. L'écran ne la réécrit pas. */
+  motifReduction: string;
+  /** Combien d'entrées demeurent en file. Un reste, jamais un retard. */
+  demeurentEnFile: number;
 }
 
 export interface AncrageJson {
@@ -101,6 +131,12 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
   maintenant(elementsJson: string, aujourdhui: string): string;
   revue(elementsJson: string, aujourdhui: string): string;
   filtrerAncrage(texteSource: string, elementsJson: string): string;
+  relances(
+    elementsJson: string,
+    aujourdhui: string,
+    suivisJson: string,
+    delaisJson: string,
+  ): string;
   rechercherParMots(
     requete: string,
     elementsJson: string,
@@ -112,7 +148,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '2';
+export const VERSION_CONTRAT_ATTENDUE = '3';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -140,6 +176,16 @@ export function revue(elementsJson: string, aujourdhui: string): string {
 /** Ancrage : texte source + `ElementJson[]` → `AncrageJson`. */
 export function filtrerAncrage(texteSource: string, elementsJson: string): string {
   return Regles.filtrerAncrage(texteSource, elementsJson);
+}
+
+/** Relances du jour : `ElementJson[]` + `SuiviJson[]` + délais → `RelanceJson[]`. */
+export function relances(
+  elementsJson: string,
+  aujourdhui: string,
+  suivisJson: string,
+  delaisJson: string,
+): string {
+  return Regles.relances(elementsJson, aujourdhui, suivisJson, delaisJson);
 }
 
 /** Recherche par mots : `ElementJson[]` + `CaptureJson[]` → `ReponseJson`. */
@@ -196,4 +242,15 @@ export function rechercherParPersonneObjets(
   return JSON.parse(
     rechercherParPersonne(personne, JSON.stringify(elements), reseau),
   ) as ReponseJson;
+}
+
+export function relancesObjets(
+  elements: ElementJson[],
+  aujourdhui: string,
+  suivis: SuiviJson[] = [],
+  delais: Record<string, number> = {},
+): RelanceJson[] {
+  return JSON.parse(
+    relances(JSON.stringify(elements), aujourdhui, JSON.stringify(suivis), JSON.stringify(delais)),
+  ) as RelanceJson[];
 }

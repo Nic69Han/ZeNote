@@ -7,9 +7,22 @@
  * (`core/regles.ts`), jamais d'un tri refait ici.
  */
 
-import { revueObjets, type ElementJson, type EntreeRevueJson } from '../core/regles.ts';
+import {
+  relancesObjets,
+  revueObjets,
+  type ElementJson,
+  type EntreeRevueJson,
+  type RelanceJson,
+} from '../core/regles.ts';
 import { aujourdhui } from '../services/pipeline.ts';
-import { lireCapture, listerElements, majElement, type Capture } from '../stockage/depot.ts';
+import {
+  lireCapture,
+  listerElements,
+  majElement,
+  suivisDe,
+  type Capture,
+  type ElementStocke,
+} from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 
 const LIBELLE_TYPE: Record<ElementJson['type'], string> = {
@@ -49,14 +62,26 @@ function dateLisible(iso: string): string {
   });
 }
 
+/** De combien de jours « prolonger » repousse une échéance. */
+const JOURS_PROLONGATION = 7;
+
+/** Ce que chaque option du cœur dit à l'écran. */
+const LIBELLE_OPTION: Record<string, string> = {
+  RELANCER: 'J’ai relancé',
+  PROLONGER: 'Laisser du temps',
+  CLORE: 'C’est réglé',
+};
+
 export async function montrerRevue(racine: HTMLElement): Promise<void> {
   const jour = aujourdhui();
   /** Dernier lot traité, pour que toute action reste annulable. */
-  let dernierLot: { id: string; avant: ElementJson }[] = [];
+  let dernierLot: { id: string; avant: ElementStocke }[] = [];
 
+  // Le type stocké, pas seulement le contrat du cœur : une relance touche `relanceLe`
+  // et `faitLe`, que les règles ne connaissent pas et n'ont pas à connaître.
   async function appliquer(
-    element: ElementJson,
-    ajustement: Partial<ElementJson>,
+    element: ElementStocke,
+    ajustement: Partial<ElementStocke>,
     lot = false,
   ): Promise<void> {
     if (!lot) dernierLot = [];
@@ -73,9 +98,42 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
 
   // ------------------------------------------------------------------- rendu
 
+  /**
+   * Relancer, prolonger, clore.
+   *
+   * Les trois font des choses différentes, et c'est voulu : relancer remet seulement
+   * le compteur de silence à zéro, prolonger déplace l'échéance elle-même — ce qui
+   * change aussi la place de l'élément dans Maintenant — et clore le sort des vues
+   * actives. Trois boutons qui feraient la même chose seraient un mensonge poli.
+   */
+  async function surRelance(relance: RelanceJson, option: string): Promise<void> {
+    const elements = await listerElements();
+    const element = elements.find((e) => e.id === relance.elementId);
+    if (!element) return;
+
+    if (option === 'RELANCER') {
+      await appliquer(element, { relanceLe: jour });
+      annoncer('Relance notée. Le compteur repart d’aujourd’hui.');
+    } else if (option === 'PROLONGER') {
+      const repoussee = new Date(`${jour}T00:00:00Z`);
+      repoussee.setUTCDate(repoussee.getUTCDate() + JOURS_PROLONGATION);
+      const nouvelle = repoussee.toISOString().slice(0, 10);
+      await appliquer(element, { echeance: nouvelle, relanceLe: jour, corrigeParHumain: true });
+      annoncer(`Échéance repoussée au ${nouvelle}.`);
+    } else {
+      await appliquer(element, { faitLe: jour });
+      annoncer('Clos. Cela ne remontera plus.');
+    }
+    await rendre();
+  }
+
   async function rendre(): Promise<void> {
     const elements = await listerElements();
     const file = revueObjets(elements, jour);
+    // Sans ce filtre, clore une relance ne la faisait pas disparaître : l'élément
+    // gardait son verdict « accepté » et remontait le lendemain comme la veille.
+    const encoreEnJeu = elements.filter((e) => !e.faitLe);
+    const aRelancer = relancesObjets(encoreEnJeu, jour, suivisDe(encoreEnJeu));
 
     vider(racine);
     const section = el(
@@ -88,7 +146,11 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
       }),
     );
 
-    if (file.total === 0) {
+    // Les relances passent devant la file : ce sont les seules choses que
+    // l'utilisateur ne peut pas réclamer, puisqu'il les a précisément oubliées.
+    if (aRelancer.length > 0) section.append(blocRelances(aRelancer));
+
+    if (file.total === 0 && aRelancer.length === 0) {
       section.append(
         el(
           'div',
@@ -102,6 +164,16 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
       );
       racine.append(section);
       return;
+    }
+
+    if (file.reduite) {
+      section.append(
+        el(
+          'p',
+          { class: 'reduction', role: 'status' },
+          el('span', { class: 'reduction__motif', texte: file.motifReduction }),
+        ),
+      );
     }
 
     for (const groupe of file.groupes) {
@@ -125,6 +197,45 @@ export async function montrerRevue(racine: HTMLElement): Promise<void> {
     }
 
     racine.append(section);
+  }
+
+  /** Le bloc des relances : ce que le produit se rappelle à votre place. */
+  function blocRelances(relances: RelanceJson[]): HTMLElement {
+    const bloc = el(
+      'section',
+      { class: 'relances', 'aria-labelledby': 'titre-relances' },
+      el('h2', {
+        id: 'titre-relances',
+        class: 'relances__titre',
+        texte: relances.length === 1 ? 'Une chose vous attend' : 'Des choses vous attendent',
+      }),
+    );
+
+    for (const relance of relances) {
+      const actions = el('div', { class: 'relance__actions' });
+      for (const option of relance.options) {
+        actions.append(
+          el('button', {
+            class: `bouton bouton--discret bouton--${option.toLowerCase()}`,
+            type: 'button',
+            texte: LIBELLE_OPTION[option] ?? option,
+            onclick: () => void surRelance(relance, option),
+          }),
+        );
+      }
+      bloc.append(
+        el(
+          'article',
+          { class: 'relance', 'data-element': relance.elementId },
+          el('p', { class: 'relance__texte', texte: relance.texte }),
+          // Le motif vient du cœur, tel quel : c'est lui qui sait pourquoi cela
+          // remonte aujourd'hui, et il ne formule jamais de reproche.
+          el('p', { class: 'relance__motif', texte: relance.motif }),
+          actions,
+        ),
+      );
+    }
+    return bloc;
   }
 
   async function rendreGroupe(

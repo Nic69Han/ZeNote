@@ -125,10 +125,17 @@ object Relance {
         val delai = delaiHabituel(element.interlocuteur, delaisObserves)
         if (silence <= delai) return null
         val qui = element.interlocuteur ?: "cette personne"
+        // Deux précautions dans cette phrase. Le délai n'est dit « observé » que s'il
+        // l'a été : le rendre tel quel quand on est retombé sur le repli ferait passer
+        // une valeur par défaut pour une mesure. Et rien n'y désigne la personne par un
+        // genre — un prénom ne le donne pas, et se tromper là-dessus, sur l'écran de
+        // quelqu'un qui relit ses engagements, se remarque.
+        val observe = delaisObserves.keys.any { Texte.memeNom(it, element.interlocuteur ?: "") }
+        val qualifie = if (observe) "au-delà du délai habituel pour $qui" else
+            "au-delà du délai de relance par défaut"
         return PropositionRelance(
             element = element,
-            motif = "sans nouvelle de $qui depuis $silence jours, au-delà du délai " +
-                "habituel observé pour elle ($delai jours)",
+            motif = "sans nouvelle de $qui depuis $silence jours, $qualifie ($delai jours)",
         )
     }
 }

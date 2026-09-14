@@ -25,6 +25,21 @@ import {
  */
 export interface ElementStocke extends ElementJson {
   faitLe?: string | null;
+  /**
+   * La dernière fois qu'on a eu — ou relancé — des nouvelles sur cet élément.
+   *
+   * C'est ce qui empêche une relance de se répéter tous les jours une fois traitée.
+   * Ce champ non plus n'est jamais passé aux règles de classement : il alimente les
+   * suivis, que le cœur lit pour décider ce qui remonte.
+   */
+  relanceLe?: string | null;
+}
+
+/** Les suivis, tels que le cœur les attend, tirés des éléments stockés. */
+export function suivisDe(elements: ElementStocke[]): { elementId: string; derniereNouvelle: string }[] {
+  return elements
+    .filter((e): e is ElementStocke & { relanceLe: string } => Boolean(e.relanceLe))
+    .map((e) => ({ elementId: e.id, derniereNouvelle: e.relanceLe }));
 }
 
 export type SourceCapture = 'VOCALE' | 'ECRITE';

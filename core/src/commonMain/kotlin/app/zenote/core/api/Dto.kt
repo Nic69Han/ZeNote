@@ -67,10 +67,43 @@ data class GroupeRevueJson(
     val entrees: List<EntreeRevueJson>,
 )
 
+/**
+ * Une relance proposée en Revue : un engagement dont l'échéance approche, ou une
+ * attente restée sans nouvelle au-delà du délai habituel de la personne.
+ *
+ * [motif] dit pourquoi elle remonte maintenant. Jamais un reproche, un constat.
+ */
+@Serializable
+data class RelanceJson(
+    val elementId: String,
+    val texte: String,
+    /** ENGAGEMENT ou ATTENTE. */
+    val type: String,
+    val interlocuteur: String? = null,
+    val echeance: String? = null,
+    val motif: String,
+    /** RELANCER, PROLONGER, CLORE. */
+    val options: List<String>,
+)
+
+/** La dernière nouvelle connue sur une attente, telle que la surface la retient. */
+@Serializable
+data class SuiviJson(val elementId: String, val derniereNouvelle: String)
+
 @Serializable
 data class RevueJson(
     val groupes: List<GroupeRevueJson>,
     val total: Int,
+    /**
+     * `true` quand la file dépassait ce qu'une Revue absorbe et a donc été réduite.
+     * Les groupes ne portent alors que les entrées retenues ; le reste demeure en
+     * file, intact — d'où [demeurentEnFile], qui n'est pas un retard mais un reste.
+     */
+    val reduite: Boolean = false,
+    /** La phrase que le cœur propose pour expliquer la réduction. */
+    val motifReduction: String = "",
+    /** Combien d'entrées demeurent en file, non présentées aujourd'hui. */
+    val demeurentEnFile: Int = 0,
 )
 
 @Serializable

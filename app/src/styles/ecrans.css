@@ -524,3 +524,63 @@
   flex: 1 1 auto;
   min-height: 2.75rem;
 }
+
+/* --- Relances -------------------------------------------------------------
+   Ce que le produit se rappelle à votre place. Placé avant la file, et distinct
+   d'elle : ce ne sont pas des éléments à trancher mais des silences à constater. */
+.relances {
+  margin-block: 0 1.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.relances__titre {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.relance + .relance {
+  margin-block-start: 0.85rem;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.relance__texte {
+  margin: 0;
+  font-weight: 600;
+  color: var(--encre);
+}
+
+.relance__motif {
+  margin: 0.2rem 0 0;
+  font-size: 0.86rem;
+  color: var(--encre-douce);
+}
+
+.relance__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block-start: 0.6rem;
+}
+
+.relance__actions .bouton {
+  min-height: var(--cible);
+}
+
+/* La réduction d'arriéré : un constat, jamais un compteur de retard. */
+.reduction {
+  margin-block: 0 1rem;
+  padding: 0.7rem 0.85rem;
+  border-inline-start: 3px solid var(--trait-fort);
+  border-radius: 0 var(--rayon) var(--rayon) 0;
+  background: var(--fond-creux);
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
