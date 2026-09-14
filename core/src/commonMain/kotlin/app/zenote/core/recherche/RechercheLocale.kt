@@ -7,6 +7,7 @@ import app.zenote.core.model.ElementResolu
 import app.zenote.core.model.TypeElement
 import app.zenote.core.model.Verdict
 import app.zenote.core.texte.Texte
+import kotlinx.datetime.LocalDate
 
 /**
  * La recherche locale : par mots et par personne, sur les données présentes, sans réseau.
@@ -34,6 +35,16 @@ data class TexteSource(
     val texte: String,
     /** Horodatage lisible, tel qu'il sera montré dans la justification. */
     val quand: String,
+    /**
+     * Le jour de la capture, tel que l'utilisateur l'a vécu.
+     *
+     * Il est fourni par la surface et non déduit de [quand] : un horodatage est en
+     * temps universel, et une capture de 23 h 30 y tombe le lendemain. Chercher « hier »
+     * ne doit pas dépendre du fuseau de la machine qui a écrit la donnée. Absent, la
+     * capture est simplement hors de portée d'un repère temporel — jamais rattachée
+     * au hasard à une période.
+     */
+    val jour: LocalDate? = null,
 )
 
 /** Ce qu'une capture donne à lire à la recherche. */
@@ -56,12 +67,17 @@ data class Citation(
  *   explicitement qu'il n'y a rien, et [citations] est vide.
  * @param indisponibleHorsLigne les capacités que l'absence de réseau met en pause.
  *   Elles sont signalées, pas masquées.
+ * @param nonPrisEnCompte ce que la question demandait et que le produit ne sait pas
+ *   faire — par construction, pas par panne. Le dire est la seule façon honnête de
+ *   répondre à moitié : sans cette liste, l'utilisateur croit que sa question entière
+ *   a été honorée et lit les résultats de travers.
  */
 data class Reponse(
     val question: String,
     val enonce: String,
     val citations: List<Citation>,
     val indisponibleHorsLigne: List<String> = emptyList(),
+    val nonPrisEnCompte: List<String> = emptyList(),
 ) {
     val fondee: Boolean get() = citations.isNotEmpty()
 }
@@ -133,6 +149,106 @@ object RechercheLocale {
 
         return reponse(requete, citations, indisponibles)
     }
+
+    /**
+     * Recherche par question : les mots, plus le repère temporel qu'elle porte.
+     *
+     * Spec `recherche` — « Repère temporel flou ». « Le truc dont j'ai parlé en voiture
+     * la semaine dernière » ne se cherche pas comme « le truc en voiture semaine
+     * dernière » : les mots du repère sont retirés avant la recherche, sinon
+     * « semaine » ramène tout ce qui parle de semaines.
+     *
+     * Trois cas :
+     *  - aucun repère → la recherche par mots, inchangée ;
+     *  - un repère et des mots → les captures de la période qui portent ces mots ;
+     *  - un repère seul → tout ce qui a été capturé pendant la période. C'est
+     *    exactement ce que quelqu'un veut quand il ne se rappelle que le moment.
+     *
+     * Le contexte de capture évoqué — « en voiture » — n'est jamais deviné : il est
+     * signalé comme non pris en compte. ZeNote n'enregistre pas où l'on était.
+     */
+    fun parQuestion(
+        requete: String,
+        elements: List<ElementResolu>,
+        captures: List<TexteSource> = emptyList(),
+        aujourdhui: LocalDate,
+        reseau: Boolean = false,
+        max: Int = MAX_CITATIONS,
+    ): Reponse {
+        val ecarte = listOfNotNull(
+            RepereTemporel.contexteEvoque(requete)?.let { RepereTemporel.CONTEXTE_INCONNU },
+        )
+        val repere = RepereTemporel.lire(requete, aujourdhui)
+            ?: return parMots(requete, elements, captures, reseau, max).avec(ecarte)
+
+        val dansLaPeriode = captures.filter { it.jour != null && it.jour in repere.periode }
+        val idsPeriode = dansLaPeriode.map { it.captureId }.toSet()
+        val elementsPeriode = elements.filter { it.captureId in idsPeriode }
+        val reste = RepereTemporel.sansRepere(requete, repere)
+
+        val parLesMots =
+            if (reste.isBlank()) null else parMots(reste, elementsPeriode, dansLaPeriode, reseau, max)
+
+        // Quand les mots ne ramènent rien mais que la période, elle, contient quelque
+        // chose, on présente la période entière. La question de la spec est « le truc
+        // dont j'ai parlé la semaine dernière » : « truc » ne figure dans aucune
+        // capture, et c'est bien le point — l'utilisateur ne se rappelle que le moment.
+        // Répondre « rien » alors qu'on a huit captures de cette semaine-là serait faux.
+        val motsMuets = parLesMots == null || parLesMots.citations.isEmpty()
+        val brut =
+            if (motsMuets) tout(dansLaPeriode, elementsPeriode, repere.periode, max) else parLesMots!!
+
+        val enonce = when {
+            brut.citations.isEmpty() -> "Rien de capturé ${repere.periode.libelle}."
+            motsMuets && !reste.isBlank() ->
+                "Aucun de ces mots dans les captures de ${repere.periode.libelle} ; " +
+                    "voici les ${brut.citations.size} qu'elle contient."
+            else -> "${brut.citations.size} élément(s) de ${repere.periode.libelle}, " +
+                "chacun rattaché à sa capture source."
+        }
+
+        return brut.copy(
+            question = requete,
+            enonce = enonce,
+            indisponibleHorsLigne = if (reseau) emptyList() else CAPACITES_RESEAU,
+            nonPrisEnCompte = ecarte,
+        )
+    }
+
+    /** Tout ce qu'une période contient, quand la question ne porte que le moment. */
+    private fun tout(
+        captures: List<TexteSource>,
+        elements: List<ElementResolu>,
+        periode: Periode,
+        max: Int,
+    ): Reponse {
+        val surElements = elements.map { element ->
+            Citation(
+                captureId = element.captureId,
+                extrait = element.texte,
+                pourquoi = "${libelle(element.type)} de ${periode.libelle}",
+                elementId = element.id,
+            )
+        }
+        val dejaCitees = surElements.map { it.captureId }.toSet()
+        val surCaptures = captures
+            .filter { it.captureId !in dejaCitees }
+            .map {
+                Citation(
+                    captureId = it.captureId,
+                    extrait = it.texte,
+                    pourquoi = "capture du ${it.quand}",
+                )
+            }
+
+        val citations = (surElements + surCaptures)
+            .sortedWith(compareBy({ it.captureId.value }, { it.elementId?.value ?: "" }))
+            .take(max)
+        return reponse("", citations, emptyList())
+    }
+
+    private fun Reponse.avec(ecarte: List<String>): Reponse =
+        if (ecarte.isEmpty()) this else copy(nonPrisEnCompte = ecarte)
 
     /**
      * Recherche par personne : ce qui a été promis à quelqu'un, et ce qu'on attend

@@ -3,7 +3,7 @@ package app.zenote.core.js
 import app.zenote.core.api.Regles
 
 /**
- * Le pont vers le navigateur. Six fonctions, un contrat JSON, aucun état.
+ * Le pont vers le navigateur. Sept fonctions, un contrat JSON, aucun état.
  *
  * La PWA détient les données (IndexedDB) et appelle ces règles ; les applications
  * natives appelleront les mêmes, en JVM. C'est ce qui garantit qu'un même jeu de
@@ -41,6 +41,19 @@ object ZeNoteRegles {
         reseau: Boolean,
     ): String = Regles.rechercherParMots(requete, elementsJson, capturesJson, reseau)
 
+    /**
+     * Recherche par question : mots + repère temporel flou → `ReponseJson`.
+     *
+     * `[ElementJson]` + `[CaptureJson]` + date ISO du jour.
+     */
+    fun rechercherParQuestion(
+        requete: String,
+        elementsJson: String,
+        capturesJson: String,
+        aujourdhui: String,
+        reseau: Boolean,
+    ): String = Regles.rechercherParQuestion(requete, elementsJson, capturesJson, aujourdhui, reseau)
+
     /** Recherche par personne : nom + `[ElementJson]` → `ReponseJson`. */
     fun rechercherParPersonne(personne: String, elementsJson: String, reseau: Boolean): String =
         Regles.rechercherParPersonne(personne, elementsJson, reseau)
@@ -48,9 +61,10 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 3 » avec les relances et la Revue réduite : une surface qui attend
-     * cette version et en trouve une plus ancienne parle à un cœur sans ces fonctions,
-     * et doit le dire au lieu de planter à l'appel.
+     * Passée à « 4 » avec la recherche par question — le repère temporel flou et ce
+     * que la réponse déclare ne pas prendre en compte. Une surface qui attend cette
+     * version et en trouve une plus ancienne parle à un cœur sans ces fonctions, et
+     * doit le dire au lieu de planter à l'appel.
      */
-    val version: String = "3"
+    val version: String = "4"
 }

@@ -238,6 +238,69 @@ try {
     `${restantes} restante(s)`,
   );
 
+  // --- Retrouver par le moment, pas par les mots -----------------------------
+  // Le scénario de la spec `recherche` : « le truc dont j'ai parlé en voiture la
+  // semaine dernière ». Aucun de ces mots ne figure dans la capture — c'est le
+  // point même : on ne se rappelle que le moment. Et la moitié qu'on ne sait pas
+  // faire — où l'on était — doit être dite, pas devinée.
+  const jourISO = (d) =>
+    new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+  const maintenantReel = new Date();
+  // Le mercredi de la semaine civile précédente : toujours dans l'intervalle, quel
+  // que soit le jour où le test tourne.
+  const lundiDeCetteSemaine = new Date(maintenantReel);
+  lundiDeCetteSemaine.setDate(
+    maintenantReel.getDate() - ((maintenantReel.getDay() + 6) % 7),
+  );
+  const mercrediDernier = new Date(lundiDeCetteSemaine);
+  mercrediDernier.setDate(lundiDeCetteSemaine.getDate() - 5);
+
+  await page.evaluate(async ([isoAvant, isoAujourdhui]) => {
+    const base = await new Promise((ok, ko) => {
+      const r = indexedDB.open('zenote');
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ko(r.error);
+    });
+    await new Promise((ok, ko) => {
+      const t = base.transaction('captures', 'readwrite');
+      t.objectStore('captures').put({
+        id: 'c-semaine-derniere', creeLe: isoAvant, source: 'ECRITE',
+        texte: 'Le devis du toit, à rappeler.', etatTranscription: 'OK',
+        dureeMs: null, audio: null, incomplete: false, analysee: true,
+      });
+      t.objectStore('captures').put({
+        id: 'c-cette-semaine', creeLe: isoAujourdhui, source: 'ECRITE',
+        texte: 'Penser aux pneus.', etatTranscription: 'OK',
+        dureeMs: null, audio: null, incomplete: false, analysee: true,
+      });
+      t.oncomplete = () => ok();
+      t.onerror = () => ko(t.error);
+    });
+  }, [`${jourISO(mercrediDernier)}T14:00:00`, `${jourISO(maintenantReel)}T09:00:00`]);
+
+  await page.locator('.retrait__lien[data-ecran="recherche"]').click();
+  await page.waitForTimeout(500);
+  await page
+    .locator('.quete--mots .quete__champ')
+    .fill("le truc dont j'ai parlé en voiture la semaine dernière");
+  await page.locator('.quete--mots button[type="submit"]').click();
+  await page.waitForTimeout(700);
+
+  const extraits = await page.locator('.citation__extrait').allInnerTexts();
+  verifier(
+    'une question qui ne donne que le moment retrouve la bonne capture',
+    extraits.length === 1 && /devis du toit/.test(extraits[0]),
+    extraits.join(' | ') || 'aucune citation',
+  );
+
+  const ecartee = await page.locator('.ecartee').count();
+  const texteEcartee = ecartee > 0 ? await page.locator('.ecartee').innerText() : '';
+  verifier(
+    'ce que le produit ne sait pas faire est dit, pas deviné',
+    ecartee === 1 && /position|lieu/i.test(texteEcartee),
+    texteEcartee || 'aucune mention',
+  );
+
   // --- Quitter l'écran pendant un enregistrement ne perd rien -----------------
   // « Aucune capture perdue » est l'une des trois promesses mesurables du produit.
   // Elle se vérifie là où elle casse : en changeant d'écran, le doigt encore appuyé.

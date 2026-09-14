@@ -1,26 +1,29 @@
 /**
  * L'écran Recherche : retrouver sans avoir jamais rangé.
  *
- * Le classement et la décision « rien ne correspond » ne sont pas décidés ici : ils
- * viennent du cœur (`rechercherParMotsObjets`, `rechercherParPersonneObjets`). Cet
- * écran affiche une réponse, il n'en fabrique pas.
+ * Le classement, la lecture du repère temporel et la décision « rien ne correspond »
+ * ne sont pas décidés ici : ils viennent du cœur (`rechercherParQuestionObjets`,
+ * `rechercherParPersonneObjets`). Cet écran affiche une réponse, il n'en fabrique pas.
  *
- * Trois règles tiennent tout le reste (spec `recherche`) :
+ * Quatre règles tiennent tout le reste (spec `recherche`) :
  *  - toute réponse montre ses citations, et chacune renvoie à sa capture source ;
  *  - quand rien ne correspond, l'absence est dite comme le cœur la formule — aucune
  *    reformulation, aucune suggestion « vouliez-vous dire » ;
- *  - ce que le manque de réseau met en pause est signalé, discrètement, jamais masqué.
+ *  - ce que le manque de réseau met en pause est signalé, discrètement, jamais masqué ;
+ *  - ce que la question demandait et que le produit ne sait pas faire est dit aussi.
+ *    Répondre à moitié sans le signaler laisserait lire les résultats de travers.
  */
 
 import '../styles/recherche.css';
 import {
-  rechercherParMotsObjets,
   rechercherParPersonneObjets,
+  rechercherParQuestionObjets,
   type CaptureJson,
   type CitationJson,
   type ReponseJson,
 } from '../core/regles.ts';
 import { listerCaptures, listerElements, type Capture } from '../stockage/depot.ts';
+import { aujourdhui } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 
 /**
@@ -58,15 +61,18 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
 
   // ---------------------------------------------------------------- questions
 
-  async function parMots(requete: string): Promise<void> {
+  async function parQuestion(requete: string): Promise<void> {
     const [elements, captures] = await Promise.all([listerElements(), listerCaptures()]);
     const sources: CaptureJson[] = captures.map((capture) => ({
       id: capture.id,
       texte: capture.texte,
       creeLe: quandLisible(capture.creeLe),
+      // Le jour vécu, pas le jour universel : c'est ce qui rend « hier » juste pour une
+      // capture de 23 h 30. Le cœur ne peut pas le déduire, il ne connaît aucun fuseau.
+      jour: aujourdhui(new Date(capture.creeLe)),
     }));
     afficher(
-      rechercherParMotsObjets(requete, elements, sources, reseauDisponible()),
+      rechercherParQuestionObjets(requete, elements, sources, aujourdhui(), reseauDisponible()),
       captures,
     );
   }
@@ -100,6 +106,10 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
         liste.append(rendreCitation(citation, parId.get(citation.captureId)));
       }
       zoneReponse.append(liste);
+    }
+
+    if (reponse.nonPrisEnCompte.length > 0) {
+      zoneReponse.append(mentionEcartee(reponse.nonPrisEnCompte));
     }
 
     if (reponse.indisponibleHorsLigne.length > 0) {
@@ -138,6 +148,22 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
         }),
       ),
       el('p', { class: 'source__texte', texte: capture?.texte ?? '(source introuvable)' }),
+    );
+  }
+
+  /**
+   * Ce que la question demandait et que le produit ne sait pas faire.
+   *
+   * Ce n'est pas une panne et ça ne reviendra pas : c'est un choix du produit —
+   * ZeNote n'enregistre pas où vous étiez. Le dire vaut mieux que rendre des
+   * résultats en laissant croire que cette moitié de la question a compté.
+   */
+  function mentionEcartee(points: string[]): HTMLElement {
+    return el(
+      'p',
+      { class: 'ecartee' },
+      el('span', { class: 'ecartee__titre', texte: 'Non pris en compte' }),
+      el('span', { class: 'ecartee__detail', texte: points.join(' · ') }),
     );
   }
 
@@ -209,10 +235,10 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
       }),
       entree(
         'mots',
-        'Par mots',
-        'ce que j’ai promis à Karim…',
+        'Par mots ou par moment',
+        'le truc dont j’ai parlé la semaine dernière…',
         'Chercher',
-        (valeur) => parMots(valeur),
+        (valeur) => parQuestion(valeur),
       ),
       entree(
         'personne',
@@ -232,7 +258,9 @@ export async function montrerRecherche(racine: HTMLElement): Promise<void> {
       el('p', { class: 'vide__titre', texte: 'Rien n’a encore été demandé.' }),
       el('p', {
         class: 'vide__detail',
-        texte: 'Par mots ou par personne. Chaque réponse renverra à ses captures.',
+        texte:
+          'Par mots, par moment — « la semaine dernière », « avant-hier » — ou par ' +
+          'personne. Chaque réponse renverra à ses captures.',
       }),
     ),
   );

@@ -36,6 +36,13 @@ une suppression.**
 Deux écrans en retrait, atteints depuis l'en-tête : **Rechercher** et **Vos données**. On ne
 les traverse pas dans une journée de travail — les y mettre diluerait les trois surfaces.
 
+**Rechercher** accepte le moment autant que les mots : « le truc dont j'ai parlé la semaine
+dernière », « avant-hier », « il y a trois jours ». C'est souvent tout ce dont on se souvient
+d'une note. La lecture du repère est locale et lexicale — aucun modèle distant. En revanche
+ZeNote ne sait pas *où* vous étiez : une question qui évoque le contexte de capture (« en
+voiture ») reçoit les captures de la période, et le dit — la moitié qu'il ne sait pas faire
+est déclarée, jamais devinée.
+
 ## L'essayer en local
 
 ```bash

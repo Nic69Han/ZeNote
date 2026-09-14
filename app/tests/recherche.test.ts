@@ -17,8 +17,8 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ElementJson, ReponseJson } from '../src/core/regles.ts';
 import {
-  rechercherParMotsObjets,
   rechercherParPersonneObjets,
+  rechercherParQuestionObjets,
 } from '../src/core/regles.ts';
 import {
   enregistrerCapture,
@@ -34,7 +34,7 @@ vi.mock('../src/core/regles.ts', async (importerVrai) => {
   const vrai = await importerVrai<typeof import('../src/core/regles.ts')>();
   return {
     ...vrai,
-    rechercherParMotsObjets: vi.fn(vrai.rechercherParMotsObjets),
+    rechercherParQuestionObjets: vi.fn(vrai.rechercherParQuestionObjets),
     rechercherParPersonneObjets: vi.fn(vrai.rechercherParPersonneObjets),
   };
 });
@@ -138,7 +138,7 @@ async function demander(racine: NoeudFaux, entree: string, question: string): Pr
 /** Ce que le cœur a réellement renvoyé, pour comparer l'écran à sa source. */
 function reponseRendue(): ReponseJson {
   const appels = [
-    ...vi.mocked(rechercherParMotsObjets).mock.results,
+    ...vi.mocked(rechercherParQuestionObjets).mock.results,
     ...vi.mocked(rechercherParPersonneObjets).mock.results,
   ];
   expect(appels).toHaveLength(1);
@@ -286,7 +286,7 @@ describe('absence assumée', () => {
     unParClasse(formulaire, 'quete__champ').value = '   ';
     formulaire.declencher('submit');
 
-    expect(rechercherParMotsObjets).not.toHaveBeenCalled();
+    expect(rechercherParQuestionObjets).not.toHaveBeenCalled();
     expect(parClasse(racine, 'reponse__enonce')).toHaveLength(0);
   });
 });
@@ -325,7 +325,7 @@ describe('deux entrées distinctes', () => {
 
     await demander(racine, 'personne', 'Karim');
 
-    expect(rechercherParMotsObjets).not.toHaveBeenCalled();
+    expect(rechercherParQuestionObjets).not.toHaveBeenCalled();
     expect(rechercherParPersonneObjets).toHaveBeenCalledTimes(1);
     const [personne, , reseau] = vi.mocked(rechercherParPersonneObjets).mock.calls[0];
     expect(personne).toBe('Karim');
@@ -342,6 +342,107 @@ describe('deux entrées distinctes', () => {
     await demander(racine, 'mots', 'Karim');
 
     expect(rechercherParPersonneObjets).not.toHaveBeenCalled();
-    expect(rechercherParMotsObjets).toHaveBeenCalledTimes(1);
+    expect(rechercherParQuestionObjets).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('repère temporel flou', () => {
+  /**
+   * Un mercredi de référence, pour que « la semaine dernière » désigne un intervalle
+   * connu : du lundi 7 au dimanche 13 septembre 2026. Les captures sont datées en
+   * heure locale — c'est le jour vécu, pas le jour universel, que l'écran transmet.
+   */
+  const MERCREDI = new Date('2026-09-16T10:00:00');
+
+  beforeEach(() => {
+    // Seule l'horloge est figée. Simuler aussi les minuteries arrêterait
+    // fake-indexeddb, qui s'en sert pour livrer ses événements de transaction :
+    // le dépôt ne rendrait plus rien et le test vérifierait le vide.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(MERCREDI);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function semerDeuxSemaines(): Promise<void> {
+    await enregistrerCapture(
+      capture({
+        id: 'cap-avant',
+        creeLe: '2026-09-10T14:00:00',
+        texte: 'Le devis du toit, à rappeler.',
+      }),
+    );
+    await enregistrerCapture(
+      capture({
+        id: 'cap-apres',
+        creeLe: '2026-09-15T09:00:00',
+        texte: 'Penser aux pneus.',
+      }),
+    );
+  }
+
+  it('ne rend que les captures de la période demandée', async () => {
+    await semerDeuxSemaines();
+    const racine = await ecran();
+
+    await demander(racine, 'mots', 'le truc dont j’ai parlé la semaine dernière');
+
+    const citations = parClasse(racine, 'citation');
+    expect(citations).toHaveLength(1);
+    expect(unParClasse(citations[0], 'citation__extrait').textContent).toBe(
+      'Le devis du toit, à rappeler.',
+    );
+    expect(unParClasse(racine, 'reponse__enonce').textContent).toContain('la semaine dernière');
+  });
+
+  it('transmet au cœur le jour vécu de chaque capture, et la date du jour', async () => {
+    await semerDeuxSemaines();
+    const racine = await ecran();
+
+    await demander(racine, 'mots', 'hier');
+
+    const [, , captures, jour] = vi.mocked(rechercherParQuestionObjets).mock.calls[0];
+    expect(jour).toBe('2026-09-16');
+    expect(captures.map((c) => c.jour)).toEqual(['2026-09-15', '2026-09-10']);
+  });
+
+  it('dit que le contexte de capture n’est pas pris en compte, au lieu de le deviner', async () => {
+    await semerDeuxSemaines();
+    const racine = await ecran();
+
+    await demander(racine, 'mots', 'le truc dont j’ai parlé en voiture la semaine dernière');
+
+    const ecartes = reponseRendue().nonPrisEnCompte;
+    expect(ecartes).toHaveLength(1);
+    const mention = unParClasse(racine, 'ecartee');
+    expect(mention.textContent).toContain(ecartes[0]);
+    // Ce n'est pas une panne réseau : les deux mentions ne se confondent pas.
+    expect(mention.textContent).not.toContain('Hors ligne');
+    // Et la moitié qu'on sait faire, on la fait quand même.
+    expect(parClasse(racine, 'citation')).toHaveLength(1);
+  });
+
+  it('n’affiche aucune mention quand rien n’a été écarté', async () => {
+    await semerDeuxSemaines();
+    const racine = await ecran();
+
+    await demander(racine, 'mots', 'devis');
+
+    expect(reponseRendue().nonPrisEnCompte).toEqual([]);
+    expect(parClasse(racine, 'ecartee')).toHaveLength(0);
+  });
+
+  it('ne rattache pas à une période une capture dont le jour est hors de portée', async () => {
+    await enregistrerCapture(
+      capture({ id: 'cap-vieille', creeLe: '2025-01-05T10:00:00', texte: 'Le devis du toit.' }),
+    );
+    const racine = await ecran();
+
+    await demander(racine, 'mots', 'le devis la semaine dernière');
+
+    expect(reponseRendue().fondee).toBe(false);
+    expect(parClasse(racine, 'citation')).toHaveLength(0);
   });
 });

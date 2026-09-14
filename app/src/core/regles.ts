@@ -92,6 +92,15 @@ export interface CaptureJson {
   id: string;
   texte: string;
   creeLe: string;
+  /**
+   * Le jour de la capture vu par son auteur, en ISO (`AAAA-MM-JJ`).
+   *
+   * Distinct de `creeLe`, qui est en temps universel : une capture de 23 h 30 y tombe
+   * le lendemain. Seule l'application sait dans quel fuseau son porteur vit. Absent,
+   * la capture reste hors de portée des questions à repère temporel — elle n'est
+   * jamais rattachée à une période au hasard.
+   */
+  jour?: string | null;
 }
 
 /** Ce dont une réponse de recherche se réclame. Jamais un score. */
@@ -113,6 +122,12 @@ export interface ReponseJson {
   fondee: boolean;
   citations: CitationJson[];
   indisponibleHorsLigne: string[];
+  /**
+   * Ce que la question demandait et que le produit ne sait pas faire — par
+   * construction, pas par panne. L'écran l'affiche : répondre à moitié sans le dire
+   * laisserait croire que la question entière a été honorée.
+   */
+  nonPrisEnCompte: string[];
 }
 
 // ----------------------------------------------------------- le vrai cœur ---
@@ -143,12 +158,19 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
     capturesJson: string,
     reseau: boolean,
   ): string;
+  rechercherParQuestion(
+    requete: string,
+    elementsJson: string,
+    capturesJson: string,
+    aujourdhui: string,
+    reseau: boolean,
+  ): string;
   rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
   readonly version: string;
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '3';
+export const VERSION_CONTRAT_ATTENDUE = '4';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -198,6 +220,20 @@ export function rechercherParMots(
   return Regles.rechercherParMots(requete, elementsJson, capturesJson, reseau);
 }
 
+/**
+ * Recherche par question : les mots, plus le repère temporel qu'elle porte —
+ * « la semaine dernière », « avant-hier », « il y a trois jours ».
+ */
+export function rechercherParQuestion(
+  requete: string,
+  elementsJson: string,
+  capturesJson: string,
+  aujourdhui: string,
+  reseau: boolean,
+): string {
+  return Regles.rechercherParQuestion(requete, elementsJson, capturesJson, aujourdhui, reseau);
+}
+
 /** Recherche par personne : nom + `ElementJson[]` → `ReponseJson`. */
 export function rechercherParPersonne(
   personne: string,
@@ -231,6 +267,24 @@ export function rechercherParMotsObjets(
 ): ReponseJson {
   return JSON.parse(
     rechercherParMots(requete, JSON.stringify(elements), JSON.stringify(captures), reseau),
+  ) as ReponseJson;
+}
+
+export function rechercherParQuestionObjets(
+  requete: string,
+  elements: ElementJson[],
+  captures: CaptureJson[],
+  aujourdhui: string,
+  reseau: boolean,
+): ReponseJson {
+  return JSON.parse(
+    rechercherParQuestion(
+      requete,
+      JSON.stringify(elements),
+      JSON.stringify(captures),
+      aujourdhui,
+      reseau,
+    ),
   ) as ReponseJson;
 }
 

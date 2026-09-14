@@ -78,7 +78,7 @@ Une case n'est cochée que lorsqu'un test nommé la couvre. Les tâches cochées
 - [ ] 6.4 Implémenter l'import d'un compte rendu externe avec séparation des engagements de l'utilisateur et de ceux des tiers ; vérifier les deux scénarios d'import de `reunions`
 - [ ] 6.5 Implémenter la confirmation en Revue des engagements extraits d'une réunion avant toute planification de rappel ; vérifier le scénario correspondant
 - [ ] 6.6 Implémenter l'enregistrement de réunion sur action explicite avec indicateur visible, et vérifier qu'aucun audio n'est enregistré sans cette action
-- [ ] 6.7 Implémenter la recherche en langage naturel avec réponse citant ses sources et absence assumée ; vérifier les scénarios de `recherche` sur engagements, décisions et repère temporel flou
+- [x] 6.7 Implémenter la recherche en langage naturel avec réponse citant ses sources et absence assumée ; vérifier les scénarios de `recherche` sur engagements, décisions et repère temporel flou — lecture du repère faite localement et lexicalement (`RepereTemporel`), sans modèle distant ; le contexte de capture évoqué par la question (« en voiture ») n'est pas honoré mais déclaré non pris en compte, l'arbitrage du produit excluant tout signal de position
 - [ ] 6.8 Implémenter le rappel proactif discret et ignorable du passé pertinent ; vérifier les deux scénarios de rappel proactif
 - [ ] 6.9 Implémenter la consolidation par entité et la décroissance des éléments dormants sans suppression ; vérifier les deux scénarios de consolidation de `memoire`
 - [x] 6.10 Implémenter les fiches d'entité alimentées automatiquement ; vérifier le scénario `memoire` / « Fiche personne »

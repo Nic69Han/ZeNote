@@ -150,3 +150,30 @@
 .hors-ligne__detail {
   flex: 1 1 12rem;
 }
+
+/* --------------------------------- ce que le produit ne sait pas faire */
+/* Même discrétion que la mention hors ligne, mais sans sa couleur de signal :
+   ce n'est pas une panne en cours, c'est une limite assumée du produit. */
+
+.ecartee {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding-top: 0.55rem;
+  border-top: 1px dashed var(--trait);
+  color: var(--encre-tres-douce);
+  font-size: 0.82rem;
+}
+
+.ecartee__titre {
+  flex: none;
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+}
+
+.ecartee__detail {
+  flex: 1 1 12rem;
+}

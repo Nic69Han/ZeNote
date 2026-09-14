@@ -206,20 +206,51 @@ object Regles {
         elementsJson: String,
         capturesJson: String,
         reseau: Boolean,
-    ): String {
-        val captures = json
-            .decodeFromString(ListSerializer(CaptureJson.serializer()), capturesJson)
-            .map { TexteSource(CaptureId(it.id), it.texte, it.creeLe) }
+    ): String = rendre(
+        RechercheLocale.parMots(
+            requete = requete,
+            elements = decoder(elementsJson).map { it.versResolu() },
+            captures = sources(capturesJson),
+            reseau = reseau,
+        ),
+    )
 
-        return rendre(
-            RechercheLocale.parMots(
-                requete = requete,
-                elements = decoder(elementsJson).map { it.versResolu() },
-                captures = captures,
-                reseau = reseau,
-            ),
-        )
-    }
+    /**
+     * Recherche par question : les mots, plus le repère temporel qu'elle porte —
+     * « la semaine dernière », « avant-hier », « il y a trois jours ».
+     *
+     * @return un [ReponseJson]
+     */
+    fun rechercherParQuestion(
+        requete: String,
+        elementsJson: String,
+        capturesJson: String,
+        aujourdhui: String,
+        reseau: Boolean,
+    ): String = rendre(
+        RechercheLocale.parQuestion(
+            requete = requete,
+            elements = decoder(elementsJson).map { it.versResolu() },
+            captures = sources(capturesJson),
+            aujourdhui = LocalDate.parse(aujourdhui),
+            reseau = reseau,
+        ),
+    )
+
+    /** Les captures telles que la recherche les lit. */
+    private fun sources(capturesJson: String): List<TexteSource> = json
+        .decodeFromString(ListSerializer(CaptureJson.serializer()), capturesJson)
+        .map {
+            TexteSource(
+                captureId = CaptureId(it.id),
+                texte = it.texte,
+                quand = it.creeLe,
+                // Une date que la surface n'a pas fournie n'est pas devinée depuis
+                // l'horodatage : elle serait juste la plupart du temps, et fausse le
+                // soir, ce qui est la pire des combinaisons pour une recherche.
+                jour = it.jour?.let(LocalDate::parse),
+            )
+        }
 
     /**
      * Recherche par personne : ce qui a été promis à quelqu'un, et ce qu'on attend
@@ -256,6 +287,7 @@ object Regles {
                 )
             },
             indisponibleHorsLigne = reponse.indisponibleHorsLigne,
+            nonPrisEnCompte = reponse.nonPrisEnCompte,
         ),
     )
 

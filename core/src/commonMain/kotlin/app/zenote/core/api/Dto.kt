@@ -131,6 +131,15 @@ data class CaptureJson(
     val texte: String,
     /** Horodatage ISO complet, tel qu'il sera cité dans la justification. */
     val creeLe: String,
+    /**
+     * Le jour de la capture vu par l'utilisateur, en ISO (`AAAA-MM-JJ`).
+     *
+     * Distinct de [creeLe], qui est en temps universel : une capture de 23 h 30 y tombe
+     * le lendemain. C'est la surface qui sait dans quel fuseau son porteur vit, elle
+     * seule peut le dire. Absent, la capture reste hors de portée des questions à
+     * repère temporel — jamais rattachée à une période au hasard.
+     */
+    val jour: String? = null,
 )
 
 /** Ce dont une réponse de recherche se réclame. Jamais un score. */
@@ -156,4 +165,10 @@ data class ReponseJson(
     val fondee: Boolean,
     val citations: List<CitationJson>,
     val indisponibleHorsLigne: List<String> = emptyList(),
+    /**
+     * Ce que la question demandait et que le produit ne sait pas faire — par
+     * construction, pas par panne. L'écran l'affiche : répondre à moitié sans le dire
+     * laisse croire que la question entière a été honorée.
+     */
+    val nonPrisEnCompte: List<String> = emptyList(),
 )
