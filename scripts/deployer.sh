@@ -31,6 +31,14 @@ trap 'rm -rf "$COPIE"' EXIT
 echo "==> Copie propre de $(git -C "$RACINE" rev-parse --short HEAD)"
 git -C "$RACINE" archive HEAD | tar -x -C "$COPIE"
 
+# La copie exportée n'a pas de `.git` : la construction chez l'hébergeur ne saurait
+# donc pas quel commit elle sert. On le lui écrit, exactement sous la forme que
+# `app/vite.config.ts` lit depuis git quand le dépôt est là — les deux
+# constructions produisent alors les mêmes octets, donc le même nom de fichier, ce
+# qui permet de vérifier que ce qui est en ligne est bien le paquet testé ici.
+git -C "$RACINE" log -1 --format='%h %cd' --date=format:'%Y-%m-%d %H:%M' > "$COPIE/app/.version"
+echo "==> Version servie : $(cat "$COPIE/app/.version")"
+
 echo "==> Téléversement et construction chez l'hébergeur"
 cd "$COPIE"
 npx -y @netlify/mcp@latest --site-id "$SITE" --proxy-path "$ZENOTE_CHEMIN_MANDATAIRE"

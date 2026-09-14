@@ -20,3 +20,6 @@ coverage/
 .kotlin/
 build/
 !gradle/wrapper/gradle-wrapper.jar
+
+# Empreinte du commit, déposée par `scripts/deployer.sh` dans la copie exportée.
+app/.version
