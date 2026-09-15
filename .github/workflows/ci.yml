@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# Une seule exécution par branche : une poussée qui en suit une autre annule la
+# précédente plutôt que de faire la queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coeur:
+    name: Cœur métier (JVM + JS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer le JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Mettre Gradle en cache
+        uses: gradle/actions/setup-gradle@v4
+
+      # Les tests du cœur en cible JS tournent dans Chrome via Karma.
+      - name: Installer Chrome
+        uses: browser-actions/setup-chrome@v1
+        id: chrome
+        with:
+          chrome-version: stable
+
+      - name: Construire et tester le cœur
+        env:
+          CHROME_BIN: ${{ steps.chrome.outputs.chrome-path }}
+        run: ./gradlew :core:build --no-daemon --stacktrace
+
+      - name: Conserver les rapports de test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapports-tests-coeur
+          path: core/build/reports/tests/
+          if-no-files-found: ignore
+
+  application:
+    name: Application (PWA)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Un package.json seul ne fait pas une application : Vite a besoin de son
+      # point d'entrée. Tant que `app/index.html` n'existe pas, il n'y a rien à
+      # construire — et dès qu'il existe, ce travail s'exécute pour de bon.
+      - name: Y a-t-il une application à construire ?
+        id: presence
+        run: |
+          if [ -f app/index.html ] && [ -f app/package.json ]; then
+            echo "presente=oui" >> "$GITHUB_OUTPUT"
+          else
+            echo "presente=non" >> "$GITHUB_OUTPUT"
+            echo "Pas de point d'entrée app/index.html : application encore en construction."
+          fi
+
+      - name: Installer Node
+        if: steps.presence.outputs.presente == 'oui'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Installer les dépendances
+        if: steps.presence.outputs.presente == 'oui'
+        working-directory: app
+        run: npm ci
+
+      - name: Vérifier les types et construire
+        if: steps.presence.outputs.presente == 'oui'
+        working-directory: app
+        run: npm run build
+
+      - name: Tests unitaires
+        if: steps.presence.outputs.presente == 'oui'
+        working-directory: app
+        run: npm test -- --run
+
+      # La vérification qui compte : la chaîne complète dans un vrai navigateur,
+      # capture → analyse → Revue → plan → Maintenant, sur l'application construite.
+      - name: Installer Chromium pour la vérification bout en bout
+        if: steps.presence.outputs.presente == 'oui'
+        working-directory: app
+        run: npx playwright install --with-deps chromium
+
+      - name: Vérification bout en bout
+        if: steps.presence.outputs.presente == 'oui'
+        working-directory: app
+        run: node tests/bout-en-bout.mjs
+
+      - name: Conserver les captures d'écran
+        if: always() && steps.presence.outputs.presente == 'oui'
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures-ecran
+          path: app/captures-ecran/
+          if-no-files-found: ignore

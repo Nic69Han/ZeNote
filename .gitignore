@@ -14,3 +14,12 @@ coverage/
 
 # Claude Code local overrides (machine-specific, not shared)
 .claude/settings.local.json
+
+# Gradle et Kotlin
+.gradle/
+.kotlin/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Empreinte du commit, déposée par `scripts/deployer.sh` dans la copie exportée.
+app/.version

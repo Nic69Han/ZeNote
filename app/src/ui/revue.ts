@@ -1,0 +1,745 @@
+/**
+ * Écran 2 — La Revue.
+ *
+ * Le seul moment où l'on range. Le système montre ce qu'il a compris ; l'utilisateur
+ * accepte, ajuste, reporte, classe « un jour » ou supprime — d'un seul geste par
+ * élément. L'ordre de présentation et le regroupement viennent du cœur
+ * (`core/regles.ts`), jamais d'un tri refait ici.
+ */
+
+import {
+  relancesObjets,
+  revueObjets,
+  type ElementJson,
+  type EntreeRevueJson,
+  type RelanceJson,
+} from '../core/regles.ts';
+import { aujourdhui } from '../services/pipeline.ts';
+import {
+  capturesEnSouffrance,
+  lireCapture,
+  listerElements,
+  majCapture,
+  majElement,
+  supprimerCapture,
+  suivisDe,
+  type Capture,
+  type ElementStocke,
+} from '../stockage/depot.ts';
+import { traiterFileAnalyse } from '../services/pipeline.ts';
+import { annoncer, el, vider } from './dom.ts';
+import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+
+const LIBELLE_TYPE: Record<ElementJson['type'], string> = {
+  TACHE: 'Tâche',
+  ENGAGEMENT: 'Engagement',
+  ATTENTE: 'Attente',
+  INFORMATION: 'Information',
+  DECISION: 'Décision',
+  IDEE: 'Idée',
+};
+
+const LIBELLE_POIDS: Record<'FAIBLE' | 'MOYEN' | 'FORT', string> = {
+  FAIBLE: 'Poids faible',
+  MOYEN: 'Poids moyen',
+  FORT: 'Poids fort',
+};
+
+const LIBELLE_URGENCE: Record<string, string> = {
+  DEPASSEE: 'dépassée',
+  AUJOURD_HUI: "aujourd'hui",
+  DEMAIN: 'demain',
+  CETTE_SEMAINE: 'cette semaine',
+  PLUS_TARD: 'plus tard',
+  AUCUNE: 'sans échéance',
+};
+
+/** Un élément actionnable ne sort pas de la Revue sans plan, « un jour » ou suppression. */
+function actionnable(type: ElementJson['type']): boolean {
+  return type === 'TACHE' || type === 'ENGAGEMENT';
+}
+
+function dateLisible(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+/** De combien de jours « prolonger » repousse une échéance. */
+const JOURS_PROLONGATION = 7;
+
+/** Ce que chaque option du cœur dit à l'écran. */
+const LIBELLE_OPTION: Record<string, string> = {
+  RELANCER: 'J’ai relancé',
+  PROLONGER: 'Laisser du temps',
+  CLORE: 'C’est réglé',
+};
+
+export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
+  const jour = aujourdhui();
+  /**
+   * Les lecteurs audio posés sur cet écran. Chacun tient une URL objet sur un blob ;
+   * quitter la Revue sans les libérer laisserait les enregistrements en mémoire.
+   */
+  const lecteurs: Lecteur[] = [];
+
+  /** Libère tous les lecteurs posés jusqu'ici. Idempotent. */
+  function libererLecteurs(): void {
+    for (const lecteur of lecteurs) lecteur.demonter();
+    lecteurs.length = 0;
+  }
+  /** Dernier lot traité, pour que toute action reste annulable. */
+  let dernierLot: { id: string; avant: ElementStocke }[] = [];
+
+  // Le type stocké, pas seulement le contrat du cœur : une relance touche `relanceLe`
+  // et `faitLe`, que les règles ne connaissent pas et n'ont pas à connaître.
+  async function appliquer(
+    element: ElementStocke,
+    ajustement: Partial<ElementStocke>,
+    lot = false,
+  ): Promise<void> {
+    if (!lot) dernierLot = [];
+    dernierLot.push({ id: element.id, avant: { ...element } });
+    await majElement(element.id, ajustement);
+  }
+
+  async function annulerDernier(): Promise<void> {
+    for (const { id, avant } of dernierLot) await majElement(id, avant);
+    dernierLot = [];
+    annoncer('Action annulée.');
+    await rendre();
+  }
+
+  // ------------------------------------------------------------------- rendu
+
+  /**
+   * Relancer, prolonger, clore.
+   *
+   * Les trois font des choses différentes, et c'est voulu : relancer remet seulement
+   * le compteur de silence à zéro, prolonger déplace l'échéance elle-même — ce qui
+   * change aussi la place de l'élément dans Maintenant — et clore le sort des vues
+   * actives. Trois boutons qui feraient la même chose seraient un mensonge poli.
+   */
+  async function surRelance(relance: RelanceJson, option: string): Promise<void> {
+    const elements = await listerElements();
+    const element = elements.find((e) => e.id === relance.elementId);
+    if (!element) return;
+
+    if (option === 'RELANCER') {
+      await appliquer(element, { relanceLe: jour });
+      annoncer('Relance notée. Le compteur repart d’aujourd’hui.');
+    } else if (option === 'PROLONGER') {
+      const repoussee = new Date(`${jour}T00:00:00Z`);
+      repoussee.setUTCDate(repoussee.getUTCDate() + JOURS_PROLONGATION);
+      const nouvelle = repoussee.toISOString().slice(0, 10);
+      await appliquer(element, { echeance: nouvelle, relanceLe: jour, corrigeParHumain: true });
+      annoncer(`Échéance repoussée au ${nouvelle}.`);
+    } else {
+      await appliquer(element, { faitLe: jour });
+      annoncer('Clos. Cela ne remontera plus.');
+    }
+    await rendre();
+  }
+
+  async function rendre(): Promise<void> {
+    // Chaque rendu repose de nouveaux lecteurs : sans cette libération, décider dix
+    // éléments laisserait dix enregistrements accrochés en mémoire.
+    libererLecteurs();
+    const elements = await listerElements();
+    const file = revueObjets(elements, jour);
+    // Sans ce filtre, clore une relance ne la faisait pas disparaître : l'élément
+    // gardait son verdict « accepté » et remontait le lendemain comme la veille.
+    const encoreEnJeu = elements.filter((e) => !e.faitLe);
+    const aRelancer = relancesObjets(encoreEnJeu, jour, suivisDe(encoreEnJeu));
+    const enSouffrance = await capturesEnSouffrance();
+
+    vider(racine);
+    const section = el(
+      'section',
+      { class: 'ecran ecran--revue', 'aria-labelledby': 'titre-revue' },
+      el('h1', { id: 'titre-revue', class: 'ecran__titre', texte: 'La Revue' }),
+      el('p', {
+        class: 'ecran__sous-titre',
+        texte: 'Une fois par jour. Un geste par élément.',
+      }),
+    );
+
+    // Les captures en souffrance passent avant tout le reste : ce sont des dépôts
+    // dont il ne sortira rien tant que personne ne s'en occupe. Les laisser derrière
+    // la file reviendrait à les enterrer sous ce qui, lui, a bien fonctionné.
+    if (enSouffrance.length > 0) section.append(blocSouffrance(enSouffrance));
+
+    // Les relances passent devant la file : ce sont les seules choses que
+    // l'utilisateur ne peut pas réclamer, puisqu'il les a précisément oubliées.
+    if (aRelancer.length > 0) section.append(blocRelances(aRelancer));
+
+    if (file.total === 0 && aRelancer.length === 0 && enSouffrance.length === 0) {
+      section.append(
+        el(
+          'div',
+          { class: 'vide' },
+          el('p', { class: 'vide__titre', texte: 'Rien à ranger.' }),
+          el('p', {
+            class: 'vide__detail',
+            texte: 'Tout ce qui a été capturé a trouvé sa place. Repassez demain.',
+          }),
+        ),
+      );
+      racine.append(section);
+      return;
+    }
+
+    if (file.reduite) {
+      section.append(
+        el(
+          'p',
+          { class: 'reduction', role: 'status' },
+          el('span', { class: 'reduction__motif', texte: file.motifReduction }),
+        ),
+      );
+    }
+
+    for (const groupe of file.groupes) {
+      section.append(await rendreGroupe(groupe.captureId, groupe.entrees));
+    }
+
+    if (dernierLot.length > 0) {
+      section.append(
+        el(
+          'div',
+          { class: 'annulation', role: 'status' },
+          el('span', { texte: 'Décision enregistrée.' }),
+          el('button', {
+            class: 'bouton bouton--discret',
+            type: 'button',
+            texte: 'Annuler',
+            onclick: () => void annulerDernier(),
+          }),
+        ),
+      );
+    }
+
+    racine.append(section);
+  }
+
+  /** Le bloc des relances : ce que le produit se rappelle à votre place. */
+  /**
+   * Les captures dont rien n'est sorti, et de quoi les rattraper.
+   *
+   * La reconnaissance vocale du navigateur échoue — pas de moteur installé, micro
+   * pris par autre chose, parole trop courte. L'audio, lui, est enregistré et
+   * conservé. Ce bloc est le chemin qui manquait entre les deux : on réécoute, on
+   * écrit ce qu'on avait dit, et la capture repart dans l'analyse comme si la
+   * transcription avait marché.
+   *
+   * Aucun reproche dans ce qui est écrit ici. L'échec n'est pas celui de
+   * l'utilisateur, et la seule chose qui compte est que sa note ne soit pas perdue.
+   */
+  function blocSouffrance(captures: Capture[]): HTMLElement {
+    const bloc = el(
+      'section',
+      { class: 'souffrance', 'aria-labelledby': 'titre-souffrance' },
+      el('h2', {
+        id: 'titre-souffrance',
+        class: 'souffrance__titre',
+        texte:
+          captures.length === 1
+            ? 'Une capture n’a pas pu être lue'
+            : `${captures.length} captures n’ont pas pu être lues`,
+      }),
+      el('p', {
+        class: 'souffrance__explication',
+        // Que l'enregistrement soit intact, le lecteur le dit déjà sous chaque ligne :
+        // le redire ici userait la phrase au lieu de rassurer.
+        texte:
+          'Écoutez, puis écrivez ce que vous aviez dit : la capture rejoindra la ' +
+          'Revue comme les autres.',
+      }),
+    );
+
+    for (const capture of captures) bloc.append(ligneSouffrance(capture));
+    return bloc;
+  }
+
+  function ligneSouffrance(capture: Capture): HTMLElement {
+    const lecteur = lecteurAudio(capture);
+    lecteurs.push(lecteur);
+    // Pas de repli ici : la capture n'a rien d'autre à montrer que son audio, et
+    // demander un geste de plus pour l'atteindre serait ajouter un obstacle là où
+    // l'on vient déjà réparer quelque chose.
+    lecteur.ouvrir();
+
+    const champ = el('textarea', {
+      class: 'champ souffrance__champ',
+      rows: '2',
+      placeholder: 'Ce que vous aviez dit…',
+      'aria-label': 'Ce que vous aviez dit',
+    }) as HTMLTextAreaElement;
+
+    const enregistrer = el('button', {
+      class: 'bouton bouton--plein',
+      type: 'button',
+      texte: 'Enregistrer',
+      onclick: () => void reprendre(capture, champ.value),
+    });
+
+    return el(
+      'article',
+      { class: 'souffrance__ligne', 'data-capture': capture.id },
+      el(
+        'p',
+        { class: 'souffrance__quand' },
+        el('span', {
+          class: 'chiffres',
+          texte: new Date(capture.creeLe).toLocaleString('fr-FR', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        }),
+        el('span', { class: 'souffrance__motif', texte: motifSouffrance(capture) }),
+      ),
+      lecteur.noeud,
+      champ,
+      el(
+        'div',
+        { class: 'souffrance__actions' },
+        enregistrer,
+        el('button', {
+          class: 'bouton bouton--discret bouton--supprimer',
+          type: 'button',
+          texte: 'Supprimer',
+          onclick: () => void jeter(capture),
+        }),
+      ),
+    );
+  }
+
+  /** Pourquoi cette capture est restée là. Un constat, jamais un reproche. */
+  function motifSouffrance(capture: Capture): string {
+    if (capture.incomplete) return 'enregistrement interrompu';
+    if (capture.etatTranscription === 'INDISPONIBLE') return 'ce navigateur ne sait pas transcrire';
+    return 'rien n’a été reconnu';
+  }
+
+  /**
+   * Reprend une capture en souffrance avec le texte écrit à la main.
+   *
+   * La couche source reste vraie : le texte saisi remplace la transcription, qui
+   * était vide, et l'état passe à « OK » parce qu'un humain a fourni ce que la
+   * machine n'a pas su lire. `analysee: false` la remet dans la file d'analyse.
+   */
+  async function reprendre(capture: Capture, saisi: string): Promise<void> {
+    const texte = saisi.trim();
+    if (texte === '') {
+      annoncer('Écrivez d’abord ce que vous aviez dit.');
+      return;
+    }
+    await majCapture(capture.id, { texte, etatTranscription: 'OK', analysee: false });
+    const produits = await traiterFileAnalyse(jour);
+    annoncer(
+      produits > 0 ? 'Capture reprise : elle est dans la Revue.' : 'Capture reprise.',
+    );
+    await rendre();
+  }
+
+  async function jeter(capture: Capture): Promise<void> {
+    await supprimerCapture(capture.id);
+    annoncer('Capture supprimée.');
+    await rendre();
+  }
+
+  function blocRelances(relances: RelanceJson[]): HTMLElement {
+    const bloc = el(
+      'section',
+      { class: 'relances', 'aria-labelledby': 'titre-relances' },
+      el('h2', {
+        id: 'titre-relances',
+        class: 'relances__titre',
+        texte: relances.length === 1 ? 'Une chose vous attend' : 'Des choses vous attendent',
+      }),
+    );
+
+    for (const relance of relances) {
+      const actions = el('div', { class: 'relance__actions' });
+      for (const option of relance.options) {
+        actions.append(
+          el('button', {
+            class: `bouton bouton--discret bouton--${option.toLowerCase()}`,
+            type: 'button',
+            texte: LIBELLE_OPTION[option] ?? option,
+            onclick: () => void surRelance(relance, option),
+          }),
+        );
+      }
+      bloc.append(
+        el(
+          'article',
+          { class: 'relance', 'data-element': relance.elementId },
+          el('p', { class: 'relance__texte', texte: relance.texte }),
+          // Le motif vient du cœur, tel quel : c'est lui qui sait pourquoi cela
+          // remonte aujourd'hui, et il ne formule jamais de reproche.
+          el('p', { class: 'relance__motif', texte: relance.motif }),
+          actions,
+        ),
+      );
+    }
+    return bloc;
+  }
+
+  async function rendreGroupe(
+    captureId: string,
+    entrees: EntreeRevueJson[],
+  ): Promise<HTMLElement> {
+    const capture = await lireCapture(captureId);
+    const groupe = el('article', { class: 'groupe' });
+
+    const source = enTeteSource(capture, captureId);
+    groupe.append(source.noeud);
+
+    // L'acceptation groupée n'est proposée que si toutes les déductions sont sûres.
+    const toutesSures = entrees.every((e) => !e.aConfirmer);
+    if (entrees.length > 1 && toutesSures) {
+      groupe.append(
+        el('button', {
+          class: 'bouton bouton--groupe',
+          type: 'button',
+          texte: `Tout accepter (${entrees.length})`,
+          onclick: () => void accepterGroupe(entrees),
+        }),
+      );
+    }
+
+    const liste = el('ul', { class: 'entrees' });
+    for (const entree of entrees) liste.append(rendreEntree(entree, capture, source));
+    groupe.append(liste);
+    return groupe;
+  }
+
+  /**
+   * La source du groupe : la transcription brute, et l'enregistrement d'origine.
+   *
+   * Un groupe de Revue est fait d'une seule capture — c'est ce qui permet de tenir
+   * ici, une fois, ce que chaque élément du groupe partage. Les éléments y renvoient
+   * plutôt que de répéter la transcription sous chacun d'eux.
+   */
+  function enTeteSource(capture: Capture | undefined, captureId: string): SourceGroupe {
+    const heure = capture
+      ? new Date(capture.creeLe).toLocaleString('fr-FR', {
+          day: 'numeric',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : captureId;
+
+    const lecteur = lecteurAudio(capture);
+    lecteurs.push(lecteur);
+
+    const detail = el(
+      'details',
+      { class: 'source' },
+      el(
+        'summary',
+        { class: 'source__resume' },
+        el('span', { class: 'source__heure chiffres', texte: heure }),
+        el('span', {
+          class: 'source__mode',
+          texte: capture?.source === 'ECRITE' ? 'écrite' : 'dictée',
+        }),
+      ),
+      el('p', { class: 'source__texte', texte: capture?.texte ?? '(source introuvable)' }),
+      lecteur.noeud,
+    ) as HTMLDetailsElement;
+
+    // L'audio n'est chargé qu'au dépliement : voir `lecteurAudio`.
+    detail.addEventListener('toggle', () => {
+      if (detail.open) lecteur.ouvrir();
+    });
+
+    return {
+      noeud: detail,
+      audioDisponible: lecteur.disponible,
+      ecouterA: (ms: number) => {
+        detail.open = true;
+        lecteur.allerA(ms);
+      },
+    };
+  }
+
+  function rendreEntree(
+    entree: EntreeRevueJson,
+    capture: Capture | undefined,
+    source: SourceGroupe,
+  ): HTMLElement {
+    const e = entree.element;
+    const ligne = el('li', { class: 'entree', 'data-type': e.type });
+
+    const badges = el(
+      'div',
+      { class: 'badges' },
+      el('span', { class: 'badge badge--type', texte: LIBELLE_TYPE[e.type] }),
+      e.poids
+        ? el('span', {
+            class: `badge badge--poids badge--poids-${e.poids.toLowerCase()}`,
+            texte: LIBELLE_POIDS[e.poids],
+          })
+        : null,
+      e.echeance
+        ? el('span', {
+            class: 'badge badge--echeance chiffres',
+            texte: `${dateLisible(e.echeance)} · ${LIBELLE_URGENCE[entree.urgence] ?? ''}`,
+          })
+        : null,
+      e.interlocuteur ? el('span', { class: 'badge', texte: e.interlocuteur }) : null,
+      entree.aConfirmer
+        ? el('span', { class: 'badge badge--doute', texte: 'à confirmer' })
+        : null,
+    );
+
+    const justification = el('p', {
+      class: 'entree__indice',
+      texte: e.poidsIndice ? `Poids : ${e.poidsIndice}.` : '',
+    });
+
+    const zoneActions = el('div', { class: 'entree__actions' });
+    const zonePlan = el('div', { class: 'plan', hidden: true });
+    const zoneAjustement = el('div', { class: 'ajustement', hidden: true });
+
+    zoneActions.append(
+      bouton('Accepter', 'bouton--accepter', () => {
+        if (actionnable(e.type) && !e.planDeclencheur) {
+          zonePlan.hidden = false;
+          (zonePlan.querySelector('button') as HTMLButtonElement | null)?.focus();
+        } else {
+          void decider(e, { verdict: 'ACCEPTE' }, 'Accepté.');
+        }
+      }),
+      bouton('Ajuster', 'bouton--ajuster', () => {
+        zoneAjustement.hidden = !zoneAjustement.hidden;
+      }),
+      bouton('Reporter', 'bouton--reporter', () => {
+        annoncer('Reporté à la prochaine Revue.');
+        ligne.classList.add('entree--reportee');
+      }),
+      bouton('Un jour', 'bouton--unjour', () => {
+        void decider(e, { verdict: 'UN_JOUR' }, 'Classé « un jour ».');
+      }),
+      bouton('Supprimer', 'bouton--supprimer', () => {
+        void decider(e, { verdict: 'REJETE' }, 'Supprimé.');
+      }),
+    );
+
+    zonePlan.append(
+      el('p', {
+        class: 'plan__question',
+        texte: 'Quand, ou à quel signal ? Une tâche sans plan reste une charge.',
+      }),
+      ...declencheurs(e, capture).map(({ libelle, valeur }) =>
+        bouton(libelle, 'bouton--plan', () => {
+          void decider(
+            e,
+            { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte },
+            `Accepté — ${valeur}.`,
+          );
+        }),
+      ),
+      champLibrePlan(e),
+    );
+
+    zoneAjustement.append(formulaireAjustement(e));
+
+    const ecouter = reecoute(e, source);
+    ligne.append(
+      badges,
+      el('p', { class: 'entree__texte', texte: e.texte }),
+      justification,
+      ...(ecouter ? [ecouter] : []),
+      zoneActions,
+      zonePlan,
+      zoneAjustement,
+    );
+    return ligne;
+  }
+
+  /**
+   * Le renvoi d'un élément vers le moment où il a été dit.
+   *
+   * Trancher demande parfois d'entendre la phrase : une transcription approximative
+   * se juge mal sur le texte seul. La position est estimée à partir de la place du
+   * passage dans le texte — le libellé le dit, il ne promet pas une mesure.
+   */
+  function reecoute(e: ElementJson, source: SourceGroupe): HTMLElement | null {
+    if (!source.audioDisponible || typeof e.debutMs !== 'number') return null;
+    return el('button', {
+      class: 'bouton bouton--ecouter',
+      type: 'button',
+      texte: `Écouter ce passage (vers ${duree(e.debutMs)})`,
+      onclick: () => source.ecouterA(e.debutMs as number),
+    });
+  }
+
+  function bouton(libelle: string, classe: string, action: () => void): HTMLButtonElement {
+    return el('button', { class: `bouton ${classe}`, type: 'button', texte: libelle, onclick: action });
+  }
+
+  /** Des déclencheurs, pas des heures : « quand X, je fais Y ». */
+  function declencheurs(
+    e: ElementJson,
+    capture: Capture | undefined,
+  ): { libelle: string; valeur: string }[] {
+    const liste = [
+      { libelle: 'Ce soir', valeur: 'ce soir' },
+      { libelle: 'Demain matin', valeur: 'demain matin, au premier créneau' },
+      { libelle: 'Prochain créneau libre', valeur: 'au prochain créneau libre' },
+    ];
+    if (e.interlocuteur) {
+      liste.unshift({
+        libelle: `Quand je vois ${e.interlocuteur}`,
+        valeur: `quand je vois ${e.interlocuteur}`,
+      });
+    }
+    if (capture?.source === 'VOCALE') {
+      liste.push({ libelle: 'Au prochain point', valeur: 'au prochain point d’équipe' });
+    }
+    return liste;
+  }
+
+  function champLibrePlan(e: ElementJson): HTMLElement {
+    const champ = el('input', {
+      class: 'champ',
+      type: 'text',
+      placeholder: 'Ou : quand…',
+      'aria-label': 'Déclencheur libre',
+    });
+    const valider = el('button', {
+      class: 'bouton bouton--plan',
+      type: 'button',
+      texte: 'Poser',
+      onclick: () => {
+        const valeur = champ.value.trim();
+        if (!valeur) return;
+        void decider(
+          e,
+          { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte },
+          `Accepté — ${valeur}.`,
+        );
+      },
+    });
+    return el('div', { class: 'plan__libre' }, champ, valider);
+  }
+
+  /** Seuls les champs déduits sont modifiables, sur un seul écran. */
+  function formulaireAjustement(e: ElementJson): HTMLElement {
+    const type = el('select', { class: 'champ', 'aria-label': 'Type' });
+    for (const [valeur, libelle] of Object.entries(LIBELLE_TYPE)) {
+      type.append(el('option', { value: valeur, selected: valeur === e.type, texte: libelle }));
+    }
+    const echeance = el('input', {
+      class: 'champ chiffres',
+      type: 'date',
+      value: e.echeance ?? '',
+      'aria-label': 'Échéance',
+    });
+    const interlocuteur = el('input', {
+      class: 'champ',
+      type: 'text',
+      value: e.interlocuteur ?? '',
+      placeholder: 'Interlocuteur',
+      'aria-label': 'Interlocuteur',
+    });
+    const groupePoids = el('div', { class: 'poids-choix', role: 'group', 'aria-label': 'Poids' });
+    let poidsChoisi = e.poids ?? 'MOYEN';
+    for (const valeur of ['FAIBLE', 'MOYEN', 'FORT'] as const) {
+      const b = el('button', {
+        class: 'bouton bouton--poids',
+        type: 'button',
+        texte: LIBELLE_POIDS[valeur].replace('Poids ', ''),
+        'aria-pressed': String(poidsChoisi === valeur),
+        onclick: () => {
+          poidsChoisi = valeur;
+          for (const autre of groupePoids.querySelectorAll('button')) {
+            autre.setAttribute('aria-pressed', String(autre === b));
+          }
+        },
+      });
+      groupePoids.append(b);
+    }
+
+    const enregistrer = el('button', {
+      class: 'bouton bouton--plein',
+      type: 'button',
+      texte: 'Enregistrer la correction',
+      onclick: () => {
+        void decider(
+          e,
+          {
+            type: type.value as ElementJson['type'],
+            echeance: echeance.value || null,
+            echeanceConfiance: echeance.value ? 1 : null,
+            echeanceIndice: echeance.value ? 'corrigé à la main' : null,
+            poids: poidsChoisi,
+            poidsConfiance: 1,
+            poidsIndice: 'poids fixé à la main',
+            interlocuteur: interlocuteur.value.trim() || null,
+            interlocuteurConfiance: interlocuteur.value.trim() ? 1 : null,
+            corrigeParHumain: true,
+          },
+          'Correction enregistrée.',
+        );
+      },
+    });
+
+    return el(
+      'div',
+      { class: 'ajustement__grille' },
+      el('label', { class: 'champ__etiquette' }, 'Type', type),
+      el('label', { class: 'champ__etiquette' }, 'Échéance', echeance),
+      el('label', { class: 'champ__etiquette' }, 'Interlocuteur', interlocuteur),
+      el('div', { class: 'champ__etiquette' }, 'Poids', groupePoids),
+      enregistrer,
+    );
+  }
+
+  async function decider(
+    e: ElementJson,
+    ajustement: Partial<ElementJson>,
+    annonce: string,
+  ): Promise<void> {
+    await appliquer(e, ajustement);
+    annoncer(annonce);
+    await rendre();
+  }
+
+  async function accepterGroupe(entrees: EntreeRevueJson[]): Promise<void> {
+    dernierLot = [];
+    for (const entree of entrees) {
+      const e = entree.element;
+      const ajustement: Partial<ElementJson> = actionnable(e.type)
+        ? {
+            verdict: 'ACCEPTE',
+            planDeclencheur: e.planDeclencheur ?? 'au prochain créneau libre',
+            planAction: e.texte,
+          }
+        : { verdict: 'ACCEPTE' };
+      await appliquer(e, ajustement, true);
+    }
+    annoncer(`${entrees.length} éléments acceptés.`);
+    await rendre();
+  }
+
+  await rendre();
+
+  return libererLecteurs;
+}
+
+/** Ce qu'un groupe de Revue offre à ses éléments : sa source, et de quoi la réécouter. */
+interface SourceGroupe {
+  noeud: HTMLElement;
+  audioDisponible: boolean;
+  /** Ouvre la source et lance la lecture à cette position, en millisecondes. */
+  ecouterA: (ms: number) => void;
+}

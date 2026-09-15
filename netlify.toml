@@ -1,0 +1,42 @@
+# Déploiement de l'application ZeNote.
+#
+# Aucune chaîne Kotlin n'est nécessaire ici : le cœur est déjà compilé en
+# JavaScript et versionné dans `app/vendor/zenote-core/`. L'hébergeur n'a besoin
+# que de Node. Pour le régénérer après modification de `core/`, lancer
+# `bash scripts/sync-core-js.sh` et committer le résultat.
+
+[build]
+  base = "app"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # Playwright ne sert qu'à la vérification bout en bout, jamais à l'application.
+  # Inutile donc de laisser son script d'installation télécharger un navigateur
+  # de 400 Mo à chaque construction chez l'hébergeur.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+
+# L'application tient en une seule page : toute route inconnue retombe dessus.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Le service worker ne doit jamais être servi depuis un cache périmé, sinon une
+# mise à jour de l'application peut rester invisible pendant des heures.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # L'application elle-même ne transmet aucune donnée : tout vit dans
+    # IndexedDB, sur l'appareil. Ces en-têtes le rendent vérifiable. À noter :
+    # l'hébergeur injecte dans la page son propre script de supervision, qui ne
+    # fait pas partie de l'application et se désactive dans ses réglages.
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "microphone=(self), geolocation=(), camera=()"
