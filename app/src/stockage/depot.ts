@@ -111,9 +111,46 @@ export function lireCapture(id: string): Promise<Capture | undefined> {
 /** Les captures transcrites qui attendent encore d'être analysées. */
 export async function capturesAAnalyser(): Promise<Capture[]> {
   const tout = await listerCaptures();
+  return tout.filter(analysable).sort((a, b) => a.creeLe.localeCompare(b.creeLe));
+}
+
+/** Une capture qui porte du texte exploitable et n'a pas encore été analysée. */
+function analysable(c: Capture): boolean {
+  return !c.analysee && c.etatTranscription === 'OK' && c.texte.trim() !== '';
+}
+
+/**
+ * Les captures en souffrance : déposées, conservées, mais dont rien ne sortira.
+ *
+ * Une dictée que la reconnaissance vocale n'a pas su lire ne produit aucun texte,
+ * donc aucun élément, donc rien en Revue. L'audio est bien là — mais sans ce relevé
+ * la capture n'apparaît nulle part, et la Revue affiche « rien à ranger » alors que
+ * quelque chose attend. C'est la promesse du produit qui se casse en silence : on a
+ * dit « tu peux oublier », et l'utilisateur aurait oublié pour de bon.
+ *
+ * Une transcription encore en cours n'est pas en souffrance : elle travaille.
+ */
+export async function capturesEnSouffrance(): Promise<Capture[]> {
+  const tout = await listerCaptures();
   return tout
-    .filter((c) => !c.analysee && c.etatTranscription === 'OK' && c.texte.trim() !== '')
-    .sort((a, b) => a.creeLe.localeCompare(b.creeLe));
+    .filter((c) => !c.analysee && c.etatTranscription !== 'EN_COURS' && !analysable(c))
+    .sort((a, b) => b.creeLe.localeCompare(a.creeLe));
+}
+
+/**
+ * Supprime une capture et tout ce qui en découle.
+ *
+ * Le seul endroit du produit où une source disparaît, et il faut que ce soit un geste
+ * explicite de l'utilisateur : la couche source est immuable, pas indestructible.
+ */
+export async function supprimerCapture(id: string): Promise<void> {
+  await transaction([MAGASIN_CAPTURES, MAGASIN_ELEMENTS], 'readwrite', async ([captures, elements]) => {
+    const derives = await demander<ElementStocke[]>(
+      elements.index('captureId').getAll(IDBKeyRange.only(id)),
+    );
+    for (const derive of derives) elements.delete(derive.id);
+    captures.delete(id);
+  });
 }
 
 // ------------------------------------------------------------------ éléments

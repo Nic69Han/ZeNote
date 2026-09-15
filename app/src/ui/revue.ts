@@ -16,13 +16,17 @@ import {
 } from '../core/regles.ts';
 import { aujourdhui } from '../services/pipeline.ts';
 import {
+  capturesEnSouffrance,
   lireCapture,
   listerElements,
+  majCapture,
   majElement,
+  supprimerCapture,
   suivisDe,
   type Capture,
   type ElementStocke,
 } from '../stockage/depot.ts';
+import { traiterFileAnalyse } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 
@@ -149,6 +153,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // gardait son verdict « accepté » et remontait le lendemain comme la veille.
     const encoreEnJeu = elements.filter((e) => !e.faitLe);
     const aRelancer = relancesObjets(encoreEnJeu, jour, suivisDe(encoreEnJeu));
+    const enSouffrance = await capturesEnSouffrance();
 
     vider(racine);
     const section = el(
@@ -161,11 +166,16 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       }),
     );
 
+    // Les captures en souffrance passent avant tout le reste : ce sont des dépôts
+    // dont il ne sortira rien tant que personne ne s'en occupe. Les laisser derrière
+    // la file reviendrait à les enterrer sous ce qui, lui, a bien fonctionné.
+    if (enSouffrance.length > 0) section.append(blocSouffrance(enSouffrance));
+
     // Les relances passent devant la file : ce sont les seules choses que
     // l'utilisateur ne peut pas réclamer, puisqu'il les a précisément oubliées.
     if (aRelancer.length > 0) section.append(blocRelances(aRelancer));
 
-    if (file.total === 0 && aRelancer.length === 0) {
+    if (file.total === 0 && aRelancer.length === 0 && enSouffrance.length === 0) {
       section.append(
         el(
           'div',
@@ -215,6 +225,133 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   }
 
   /** Le bloc des relances : ce que le produit se rappelle à votre place. */
+  /**
+   * Les captures dont rien n'est sorti, et de quoi les rattraper.
+   *
+   * La reconnaissance vocale du navigateur échoue — pas de moteur installé, micro
+   * pris par autre chose, parole trop courte. L'audio, lui, est enregistré et
+   * conservé. Ce bloc est le chemin qui manquait entre les deux : on réécoute, on
+   * écrit ce qu'on avait dit, et la capture repart dans l'analyse comme si la
+   * transcription avait marché.
+   *
+   * Aucun reproche dans ce qui est écrit ici. L'échec n'est pas celui de
+   * l'utilisateur, et la seule chose qui compte est que sa note ne soit pas perdue.
+   */
+  function blocSouffrance(captures: Capture[]): HTMLElement {
+    const bloc = el(
+      'section',
+      { class: 'souffrance', 'aria-labelledby': 'titre-souffrance' },
+      el('h2', {
+        id: 'titre-souffrance',
+        class: 'souffrance__titre',
+        texte:
+          captures.length === 1
+            ? 'Une capture n’a pas pu être lue'
+            : `${captures.length} captures n’ont pas pu être lues`,
+      }),
+      el('p', {
+        class: 'souffrance__explication',
+        // Que l'enregistrement soit intact, le lecteur le dit déjà sous chaque ligne :
+        // le redire ici userait la phrase au lieu de rassurer.
+        texte:
+          'Écoutez, puis écrivez ce que vous aviez dit : la capture rejoindra la ' +
+          'Revue comme les autres.',
+      }),
+    );
+
+    for (const capture of captures) bloc.append(ligneSouffrance(capture));
+    return bloc;
+  }
+
+  function ligneSouffrance(capture: Capture): HTMLElement {
+    const lecteur = lecteurAudio(capture);
+    lecteurs.push(lecteur);
+    // Pas de repli ici : la capture n'a rien d'autre à montrer que son audio, et
+    // demander un geste de plus pour l'atteindre serait ajouter un obstacle là où
+    // l'on vient déjà réparer quelque chose.
+    lecteur.ouvrir();
+
+    const champ = el('textarea', {
+      class: 'champ souffrance__champ',
+      rows: '2',
+      placeholder: 'Ce que vous aviez dit…',
+      'aria-label': 'Ce que vous aviez dit',
+    }) as HTMLTextAreaElement;
+
+    const enregistrer = el('button', {
+      class: 'bouton bouton--plein',
+      type: 'button',
+      texte: 'Enregistrer',
+      onclick: () => void reprendre(capture, champ.value),
+    });
+
+    return el(
+      'article',
+      { class: 'souffrance__ligne', 'data-capture': capture.id },
+      el(
+        'p',
+        { class: 'souffrance__quand' },
+        el('span', {
+          class: 'chiffres',
+          texte: new Date(capture.creeLe).toLocaleString('fr-FR', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+        }),
+        el('span', { class: 'souffrance__motif', texte: motifSouffrance(capture) }),
+      ),
+      lecteur.noeud,
+      champ,
+      el(
+        'div',
+        { class: 'souffrance__actions' },
+        enregistrer,
+        el('button', {
+          class: 'bouton bouton--discret bouton--supprimer',
+          type: 'button',
+          texte: 'Supprimer',
+          onclick: () => void jeter(capture),
+        }),
+      ),
+    );
+  }
+
+  /** Pourquoi cette capture est restée là. Un constat, jamais un reproche. */
+  function motifSouffrance(capture: Capture): string {
+    if (capture.incomplete) return 'enregistrement interrompu';
+    if (capture.etatTranscription === 'INDISPONIBLE') return 'ce navigateur ne sait pas transcrire';
+    return 'rien n’a été reconnu';
+  }
+
+  /**
+   * Reprend une capture en souffrance avec le texte écrit à la main.
+   *
+   * La couche source reste vraie : le texte saisi remplace la transcription, qui
+   * était vide, et l'état passe à « OK » parce qu'un humain a fourni ce que la
+   * machine n'a pas su lire. `analysee: false` la remet dans la file d'analyse.
+   */
+  async function reprendre(capture: Capture, saisi: string): Promise<void> {
+    const texte = saisi.trim();
+    if (texte === '') {
+      annoncer('Écrivez d’abord ce que vous aviez dit.');
+      return;
+    }
+    await majCapture(capture.id, { texte, etatTranscription: 'OK', analysee: false });
+    const produits = await traiterFileAnalyse(jour);
+    annoncer(
+      produits > 0 ? 'Capture reprise : elle est dans la Revue.' : 'Capture reprise.',
+    );
+    await rendre();
+  }
+
+  async function jeter(capture: Capture): Promise<void> {
+    await supprimerCapture(capture.id);
+    annoncer('Capture supprimée.');
+    await rendre();
+  }
+
   function blocRelances(relances: RelanceJson[]): HTMLElement {
     const bloc = el(
       'section',

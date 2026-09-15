@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { ElementJson } from '../src/core/regles.ts';
 import {
   capturesAAnalyser,
+  capturesEnSouffrance,
   elementsDeCapture,
   lireCapture,
   lireReglages,
@@ -17,8 +18,10 @@ import {
   listerElements,
   listerElementsActifs,
   ecrireReglage,
+  majCapture,
   majElement,
   remplacerElements,
+  supprimerCapture,
   toutEffacer,
   type Capture,
 } from '../src/stockage/depot.ts';
@@ -201,5 +204,89 @@ describe('aucune décision demandée à la capture', () => {
       'source',
       'texte',
     ]);
+  });
+});
+
+describe('captures en souffrance', () => {
+  it('relève une dictée que rien n’a transcrite', async () => {
+    const perdue = await capturer({
+      texte: '',
+      source: 'VOCALE',
+      etatTranscription: 'ECHEC',
+      audio: new Blob(['son']),
+    });
+
+    const enSouffrance = await capturesEnSouffrance();
+    expect(enSouffrance.map((c) => c.id)).toEqual([perdue.id]);
+    // Et elle n'est bien pas analysable : c'est tout le problème.
+    expect(await capturesAAnalyser()).toEqual([]);
+  });
+
+  it('ne compte pas comme perdue une capture que l’analyse peut encore prendre', async () => {
+    await capturer({ texte: 'Rappeler Karim', source: 'VOCALE', etatTranscription: 'OK' });
+    expect(await capturesEnSouffrance()).toEqual([]);
+  });
+
+  it('ne compte pas comme perdue une transcription encore en cours', async () => {
+    await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'EN_COURS' });
+    expect(await capturesEnSouffrance()).toEqual([]);
+  });
+
+  it('cesse de la relever une fois reprise à la main et analysée', async () => {
+    const perdue = await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'ECHEC' });
+
+    await majCapture(perdue.id, {
+      texte: 'Rappeler le couvreur',
+      etatTranscription: 'OK',
+      analysee: false,
+    });
+    // Reprise : elle redevient analysable, et sort des captures en souffrance.
+    expect(await capturesEnSouffrance()).toEqual([]);
+    expect((await capturesAAnalyser()).map((c) => c.id)).toEqual([perdue.id]);
+  });
+
+  it('rend les plus récentes d’abord : on reprend ce qu’on vient de dire', async () => {
+    const vieille = await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'ECHEC' });
+    await majCapture(vieille.id, { creeLe: '2026-01-01T09:00:00.000Z' });
+    const recente = await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'ECHEC' });
+
+    const enSouffrance = await capturesEnSouffrance();
+    expect(enSouffrance.map((c) => c.id)).toEqual([recente.id, vieille.id]);
+  });
+});
+
+describe('suppression d’une capture', () => {
+  it('emporte la capture et tout ce qui en découle', async () => {
+    const capture = await capturer({
+      texte: 'Rappeler Karim',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await remplacerElements(capture.id, [
+      {
+        id: 'el-1',
+        captureId: capture.id,
+        type: 'TACHE',
+        texte: 'Rappeler Karim',
+        debutCar: 0,
+        finCar: 14,
+        verdict: 'EN_ATTENTE',
+        corrigeParHumain: false,
+      } as ElementJson,
+    ]);
+
+    await supprimerCapture(capture.id);
+
+    expect(await lireCapture(capture.id)).toBeUndefined();
+    expect(await elementsDeCapture(capture.id)).toEqual([]);
+  });
+
+  it('ne touche pas aux autres captures', async () => {
+    const gardee = await capturer({ texte: 'Garder', source: 'ECRITE', etatTranscription: 'OK' });
+    const jetee = await capturer({ texte: 'Jeter', source: 'ECRITE', etatTranscription: 'OK' });
+
+    await supprimerCapture(jetee.id);
+
+    expect((await listerCaptures()).map((c) => c.id)).toEqual([gardee.id]);
   });
 });

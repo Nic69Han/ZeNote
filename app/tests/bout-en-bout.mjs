@@ -238,6 +238,71 @@ try {
     `${restantes} restante(s)`,
   );
 
+  // --- Une dictée que rien n'a transcrite ne disparaît pas --------------------
+  // C'est le cas réel : la reconnaissance vocale du navigateur ne rend rien, aucun
+  // élément n'est produit, et la Revue affichait « rien à ranger » alors qu'une
+  // capture attendait. La promesse « tu peux oublier » se cassait en silence.
+  await page.evaluate(async () => {
+    const base = await new Promise((ok, ko) => {
+      const r = indexedDB.open('zenote');
+      r.onsuccess = () => ok(r.result);
+      r.onerror = () => ko(r.error);
+    });
+    await new Promise((ok, ko) => {
+      const t = base.transaction('captures', 'readwrite');
+      t.objectStore('captures').put({
+        id: 'c-muette', creeLe: new Date().toISOString(), source: 'VOCALE',
+        texte: '', etatTranscription: 'ECHEC', dureeMs: 6000,
+        audio: new Blob([new Uint8Array([26, 69, 223, 163])], { type: 'audio/webm' }),
+        incomplete: false, analysee: false,
+      });
+      t.oncomplete = () => ok();
+      t.onerror = () => ko(t.error);
+    });
+  });
+
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(700);
+
+  const ligneMuette = page.locator('.souffrance__ligne[data-capture="c-muette"]');
+  verifier(
+    'une dictée non transcrite apparaît en Revue au lieu de disparaître',
+    (await ligneMuette.count()) === 1,
+    `${await ligneMuette.count()} ligne(s)`,
+  );
+
+  const audioMuette = await ligneMuette.locator('audio').getAttribute('src');
+  verifier(
+    "son enregistrement est immédiatement écoutable",
+    typeof audioMuette === 'string' && audioMuette.startsWith('blob:'),
+    audioMuette ?? 'aucune source posée',
+  );
+
+  const motif = await ligneMuette.locator('.souffrance__motif').innerText();
+  verifier(
+    'la raison est dite sans reprocher quoi que ce soit',
+    /reconnu|transcrire|interrompu/i.test(motif) && !/erreur|échec/i.test(motif),
+    motif,
+  );
+
+  await ligneMuette.locator('.souffrance__champ').fill('Relancer le notaire pour la promesse.');
+  await ligneMuette.locator('.bouton--plein').click();
+  await page.waitForTimeout(1200);
+
+  verifier(
+    'reprise à la main, la capture disparaît des captures en souffrance',
+    (await page.locator('.souffrance__ligne[data-capture="c-muette"]').count()) === 0,
+  );
+
+  const reprise = await page.locator('.groupe', { hasText: 'notaire' }).count();
+  verifier(
+    'et rejoint la file de la Revue comme les autres',
+    reprise === 1,
+    `${reprise} groupe(s)`,
+  );
+
   // --- Remonter à l'audio d'origine ------------------------------------------
   // Spec `transcription` — « Conservation de la source ». C'est le recours quand la
   // reconnaissance vocale se trompe : tant que l'enregistrement est atteignable, la

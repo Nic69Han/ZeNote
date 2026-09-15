@@ -33,6 +33,11 @@ une suppression.**
 | **La Revue** | Trancher ce qui a été compris, une fois par jour | Relire tout l'historique |
 | **Maintenant** | Voir au plus trois choses, chacune justifiée | Compter ce qui reste |
 
+Quand la reconnaissance vocale du navigateur ne rend rien, la capture n'est pas perdue et
+ne disparaît pas non plus : elle remonte **en tête de la Revue**, avec son enregistrement
+prêt à écouter et un champ pour écrire ce qui avait été dit. Elle repart alors dans
+l'analyse comme si la transcription avait marché.
+
 Depuis chacun de ces écrans, un repli « source » rend la transcription brute **et
 l'enregistrement d'origine**. C'est le recours quand la reconnaissance vocale se trompe :
 tant que l'audio est atteignable, la note n'est pas perdue, seulement mal lue. La lecture

@@ -651,3 +651,65 @@
   font-size: 0.88rem;
   line-height: 1.5;
 }
+
+/* --- Captures en souffrance ------------------------------------------------
+   Des dépôts dont il ne sortira rien tant que personne ne s'en occupe. Ils
+   passent avant tout le reste, et se distinguent par un liseré — pas par une
+   couleur d'alerte : il n'y a rien de grave, seulement quelque chose à reprendre. */
+.souffrance {
+  margin-block: 0 1.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--trait);
+  border-inline-start: 3px solid var(--encre-tres-douce);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.souffrance__titre {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.souffrance__explication {
+  margin: 0 0 0.85rem;
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+}
+
+.souffrance__ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.souffrance__ligne + .souffrance__ligne {
+  margin-block-start: 0.85rem;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.souffrance__quand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.souffrance__champ {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+}
+
+.souffrance__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
