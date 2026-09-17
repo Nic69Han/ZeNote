@@ -61,6 +61,15 @@ export interface Capture {
   incomplete: boolean;
   /** Vrai quand l'analyse a déjà produit les éléments de cette capture. */
   analysee: boolean;
+  /**
+   * Combien de fois la transcription embarquée a été menée à son terme sur cet
+   * audio — qu'elle ait rendu du texte ou rien.
+   *
+   * Absent ou zéro : pas encore essayée, la file s'en charge. Au-delà : ne pas
+   * recommencer. Sans ce compte, un enregistrement où rien n'est reconnu serait
+   * retranscrit à chaque ouverture, pour rien.
+   */
+  essaisTranscription?: number;
 }
 
 export interface Reglages {
@@ -120,20 +129,41 @@ function analysable(c: Capture): boolean {
 }
 
 /**
+ * Une capture vocale dont l'audio attend la transcription embarquée : pas de texte,
+ * pas encore analysée, et le moteur ne l'a pas encore tentée jusqu'au bout.
+ */
+export function aTranscrire(c: Capture): boolean {
+  return (
+    !c.analysee &&
+    c.source === 'VOCALE' &&
+    c.audio !== null &&
+    c.texte.trim() === '' &&
+    (c.essaisTranscription ?? 0) < 1
+  );
+}
+
+/** Les captures que la transcription embarquée doit traiter, plus anciennes d'abord. */
+export async function capturesATranscrire(): Promise<Capture[]> {
+  const tout = await listerCaptures();
+  return tout.filter(aTranscrire).sort((a, b) => a.creeLe.localeCompare(b.creeLe));
+}
+
+/**
  * Les captures en souffrance : déposées, conservées, mais dont rien ne sortira.
  *
- * Une dictée que la reconnaissance vocale n'a pas su lire ne produit aucun texte,
- * donc aucun élément, donc rien en Revue. L'audio est bien là — mais sans ce relevé
- * la capture n'apparaît nulle part, et la Revue affiche « rien à ranger » alors que
- * quelque chose attend. C'est la promesse du produit qui se casse en silence : on a
- * dit « tu peux oublier », et l'utilisateur aurait oublié pour de bon.
+ * Une dictée où rien n'a été reconnu ne produit aucun texte, donc aucun élément,
+ * donc rien en Revue. L'audio est bien là — mais sans ce relevé la capture
+ * n'apparaît nulle part, et la Revue affiche « rien à ranger » alors que quelque
+ * chose attend. C'est la promesse du produit qui se casse en silence : on a dit
+ * « tu peux oublier », et l'utilisateur aurait oublié pour de bon.
  *
- * Une transcription encore en cours n'est pas en souffrance : elle travaille.
+ * Une capture que la transcription embarquée n'a pas encore tentée n'est pas en
+ * souffrance : elle est en file, et va être lue.
  */
 export async function capturesEnSouffrance(): Promise<Capture[]> {
   const tout = await listerCaptures();
   return tout
-    .filter((c) => !c.analysee && c.etatTranscription !== 'EN_COURS' && !analysable(c))
+    .filter((c) => !c.analysee && !analysable(c) && !aTranscrire(c))
     .sort((a, b) => b.creeLe.localeCompare(a.creeLe));
 }
 

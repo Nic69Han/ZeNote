@@ -8,9 +8,11 @@
 
 import { analyser } from '../analyse/index.ts';
 import { identifiant } from '../analyse/index.ts';
+import { transcrireAudio } from '../audio/transcripteurLocal.ts';
 import type { Capture, EtatTranscription, SourceCapture } from '../stockage/depot.ts';
 import {
   capturesAAnalyser,
+  capturesATranscrire,
   enregistrerCapture,
   majCapture,
   remplacerElements,
@@ -62,6 +64,90 @@ export async function analyserCapture(capture: Capture, jour = aujourdhui()): Pr
   await remplacerElements(capture.id, elements);
   await majCapture(capture.id, { analysee: true });
   return elements.length;
+}
+
+/** Le moteur de transcription, tel que la file l'appelle. Remplaçable dans les tests. */
+export type Transcrire = (audio: Blob, surPartiel?: (texte: string) => void) => Promise<string>;
+
+/**
+ * Transcrit une capture vocale à partir de son audio, et l'écrit.
+ *
+ * Trois issues, et chacune laisse une trace juste :
+ *  - du texte : la capture passe à `OK` et rejoint la file d'analyse ;
+ *  - rien de reconnu : `ECHEC`, l'essai est compté, la Revue la présentera à
+ *    reprendre — avec l'audio ;
+ *  - le moteur n'a pas pu tourner (modèle injoignable, mémoire) : rien n'est compté,
+ *    la file réessaiera à la prochaine occasion. Un audio indéchiffrable, lui, est
+ *    compté comme un échec : le réessayer ne changerait rien.
+ *
+ * @returns `true` si du texte a été obtenu.
+ */
+export async function transcrireCapture(
+  capture: Capture,
+  transcrire: Transcrire = transcrireAudio,
+): Promise<boolean> {
+  if (!capture.audio) return false;
+
+  let texte: string;
+  try {
+    texte = await transcrire(capture.audio);
+  } catch (erreur) {
+    const nom = erreur instanceof Error ? erreur.name : '';
+    // `MoteurIndisponible` : ce navigateur ne peut pas, et ne pourra pas demain.
+    // `EncodingError` : cet audio-là est indéchiffrable, le réessayer ne changerait
+    // rien. Tout le reste est passager, et la file reviendra.
+    if (nom === 'MoteurIndisponible' || nom === 'EncodingError') {
+      await majCapture(capture.id, {
+        etatTranscription: nom === 'MoteurIndisponible' ? 'INDISPONIBLE' : 'ECHEC',
+        essaisTranscription: (capture.essaisTranscription ?? 0) + 1,
+      });
+    }
+    return false;
+  }
+
+  await majCapture(capture.id, {
+    texte,
+    etatTranscription: texte ? 'OK' : 'ECHEC',
+    essaisTranscription: (capture.essaisTranscription ?? 0) + 1,
+  });
+  return texte !== '';
+}
+
+/** Une seule file à la fois : deux passages simultanés transcriraient le même audio deux fois. */
+let fileEnCours: Promise<number> | null = null;
+
+/**
+ * Transcrit ce qui attend, plus ancien d'abord, puis analyse ce qui a du texte.
+ *
+ * C'est le chemin normal d'une capture vocale depuis que la transcription se fait
+ * sur l'appareil : l'appui écrit l'audio, cette file fait le reste. Sûr à rappeler
+ * à tout moment — à l'ouverture, après chaque capture, quand le réseau revient.
+ *
+ * @param surAvancement appelé avec l'identifiant de la capture en cours et le texte
+ *   reconnu jusque-là, pour que l'écran montre le travail sans l'attendre.
+ * @returns le nombre de captures qui ont obtenu du texte.
+ */
+export function traiterFileTranscription(
+  transcrire: Transcrire = transcrireAudio,
+  surAvancement?: (captureId: string, partiel: string) => void,
+): Promise<number> {
+  if (fileEnCours) return fileEnCours;
+  fileEnCours = (async () => {
+    let transcrites = 0;
+    try {
+      for (const capture of await capturesATranscrire()) {
+        const reussi = await transcrireCapture(capture, (audio) =>
+          transcrire(audio, (partiel) => surAvancement?.(capture.id, partiel)),
+        );
+        if (reussi) transcrites += 1;
+      }
+      if (transcrites > 0) await traiterFileAnalyse();
+    } finally {
+      fileEnCours = null;
+    }
+    return transcrites;
+  })();
+  return fileEnCours;
 }
 
 /** Vide la file d'analyse, dans l'ordre de capture. Sûr à rappeler à tout moment. */

@@ -1,46 +1,52 @@
 /**
  * Le diagnostic de la dictée.
  *
- * Il existe parce qu'une panne de reconnaissance vocale ne se reproduit pas ailleurs :
- * elle dépend du navigateur, de l'appareil, du réseau et des autorisations de celui qui
- * l'utilise. Plutôt que de deviner à distance, l'application sait dire ce qui se passe
- * chez elle — et rend un texte que l'on peut recopier tel quel.
+ * Il existe parce qu'une panne ne se reproduit pas ailleurs : elle tient au
+ * navigateur, à l'appareil et aux autorisations de celui qui s'en sert. Plutôt que
+ * de deviner à distance, l'application sait dire ce qui se passe chez elle — et rend
+ * un texte que l'on peut recopier tel quel.
  *
- * Rien n'est transmis : tout ce qui suit est lu sur l'appareil et affiché dessus.
+ * Le test fait exactement ce que fait une capture, mesures en plus : trois secondes
+ * d'enregistrement au micro, puis la transcription embarquée sur cet audio. Rien
+ * n'est transmis : tout ce qui suit est lu sur l'appareil et affiché dessus.
  */
 
-import { expliquerEchec, transcriptionDisponible } from './transcription.ts';
+import { Enregistreur, audioDisponible } from './enregistreur.ts';
+import { chargerModele, transcrireAudio, transcriptionLocaleDisponible } from './transcripteurLocal.ts';
 
 export interface Constat {
-  /** Le moteur de reconnaissance existe-t-il dans ce navigateur ? */
-  moteurPresent: boolean;
+  /** Le navigateur peut-il faire tourner le moteur (WebAssembly, Worker, audio) ? */
+  moteurPossible: boolean;
   /** L'enregistrement audio est-il possible ? */
   microPresent: boolean;
   /** État de l'autorisation micro, quand le navigateur sait le dire. */
   autorisation: string;
-  /** Réseau au moment du test — la reconnaissance de Chrome en dépend. */
-  enLigne: boolean;
-  /** Ce que le moteur a rendu : du texte, un code d'erreur, ou rien. */
-  issue: string;
+  /** Temps de chargement du modèle, ou ce qui l'a empêché. */
+  modele: string;
+  /** Ce que l'enregistrement a donné : durée et poids, ou ce qui l'a empêché. */
+  enregistrement: string;
+  /** Ce que la transcription a rendu : durée du travail, ou ce qui l'a empêchée. */
+  transcription: string;
   /** L'issue en clair. */
   explication: string;
   /** Le texte reconnu, s'il y en a eu. */
   texte: string;
 }
 
-/** Combien de temps on laisse au moteur avant de conclure qu'il n'a rien rendu. */
-const DELAI_MS = 5000;
+/** Combien de temps on enregistre pour le test. */
+const DUREE_MS = 3000;
 
 /** Met le constat en un texte d'un seul tenant, prêt à être recopié. */
 export function enTexte(c: Constat, version: string): string {
   return [
     `ZeNote — diagnostic de la dictée`,
     `version : ${version}`,
-    `moteur de reconnaissance : ${c.moteurPresent ? 'présent' : 'absent'}`,
+    `moteur embarqué possible : ${c.moteurPossible ? 'oui' : 'non'}`,
     `micro : ${c.microPresent ? 'disponible' : 'indisponible'}`,
     `autorisation : ${c.autorisation}`,
-    `réseau : ${c.enLigne ? 'en ligne' : 'hors ligne'}`,
-    `issue : ${c.issue}`,
+    `modèle : ${c.modele}`,
+    `enregistrement : ${c.enregistrement}`,
+    `transcription : ${c.transcription}`,
     `en clair : ${c.explication}`,
     c.texte ? `texte reconnu : « ${c.texte} »` : `texte reconnu : aucun`,
   ].join('\n');
@@ -58,72 +64,81 @@ async function autorisationMicro(): Promise<string> {
   }
 }
 
+function message(erreur: unknown): string {
+  return erreur instanceof Error ? erreur.message : 'erreur inconnue';
+}
+
 /**
- * Lance la reconnaissance SEULE — sans enregistreur — et rapporte ce qu'elle fait.
+ * Enregistre trois secondes, transcrit, et rapporte chaque étape avec son temps.
  *
- * L'isoler est le point : si elle échoue ici aussi, la panne ne vient pas de la
- * cohabitation avec l'enregistrement audio, et la piste change.
+ * Chaque étape est mesurée séparément : « rien reconnu » n'a pas la même cause
+ * selon que le modèle a mis deux secondes à charger ou n'a jamais chargé, ou que
+ * l'enregistrement pèse zéro octet.
  */
 export async function diagnostiquer(): Promise<Constat> {
-  const moteurPresent = transcriptionDisponible();
-  const microPresent =
-    typeof navigator !== 'undefined' &&
-    !!navigator.mediaDevices?.getUserMedia &&
-    typeof MediaRecorder !== 'undefined';
+  const moteurPossible = transcriptionLocaleDisponible();
+  const microPresent = audioDisponible();
   const autorisation = await autorisationMicro();
-  const enLigne = typeof navigator !== 'undefined' && navigator.onLine !== false;
+  const constat: Constat = {
+    moteurPossible,
+    microPresent,
+    autorisation,
+    modele: 'non chargé',
+    enregistrement: 'non tenté',
+    transcription: 'non tentée',
+    explication: '',
+    texte: '',
+  };
 
-  if (!moteurPresent) {
-    return {
-      moteurPresent, microPresent, autorisation, enLigne,
-      issue: 'moteur absent',
-      explication: "ce navigateur n'a pas de reconnaissance vocale ; essayez Chrome",
-      texte: '',
-    };
+  if (!moteurPossible) {
+    constat.explication =
+      "ce navigateur ne peut pas faire tourner la transcription embarquée ; les captures resteront à écrire en Revue";
+    return constat;
   }
 
-  const Fabrique = (globalThis as unknown as {
-    webkitSpeechRecognition?: new () => Record<string, unknown>;
-    SpeechRecognition?: new () => Record<string, unknown>;
-  });
-  const F = Fabrique.webkitSpeechRecognition ?? Fabrique.SpeechRecognition;
+  const t0 = performance.now();
+  try {
+    await chargerModele();
+    constat.modele = `chargé en ${Math.round(performance.now() - t0)} ms`;
+  } catch (erreur) {
+    constat.modele = `impossible à charger : ${message(erreur)}`;
+    constat.explication =
+      'le modèle de reconnaissance ne se charge pas — réseau coupé au premier usage, ou mémoire insuffisante';
+    return constat;
+  }
 
-  let texte = '';
-  const issue = await new Promise<string>((resoudre) => {
-    let fini = false;
-    const finir = (v: string) => { if (!fini) { fini = true; resoudre(v); } };
-    let moteur: Record<string, unknown>;
-    try {
-      moteur = new (F as new () => Record<string, unknown>)();
-    } catch (e) {
-      finir(`démarrage impossible : ${e instanceof Error ? e.message : 'erreur'}`);
-      return;
-    }
-    moteur.lang = 'fr-FR';
-    moteur.continuous = true;
-    moteur.interimResults = true;
-    moteur.onresult = (e: unknown) => {
-      const ev = e as { results: { length: number; [i: number]: { 0: { transcript: string } } } };
-      for (let i = 0; i < ev.results.length; i += 1) texte += `${ev.results[i][0].transcript} `;
-      texte = texte.replace(/\s+/g, ' ').trim();
-    };
-    moteur.onerror = (e: unknown) => finir((e as { error?: string })?.error ?? 'erreur sans code');
-    moteur.onend = () => finir(texte ? 'texte reconnu' : 'terminé sans rien reconnaître');
-    try {
-      (moteur.start as () => void)();
-    } catch (e) {
-      finir(`start a échoué : ${e instanceof Error ? e.message : 'erreur'}`);
-      return;
-    }
-    setTimeout(() => {
-      try { (moteur.stop as () => void)(); } catch { /* le moteur est déjà arrêté */ }
-      finir(texte ? 'texte reconnu' : 'aucune réponse en 5 secondes');
-    }, DELAI_MS);
-  });
+  if (!microPresent) {
+    constat.explication = "pas de micro utilisable dans ce navigateur ; la capture écrite prend le relais";
+    return constat;
+  }
 
-  return {
-    moteurPresent, microPresent, autorisation, enLigne, issue,
-    explication: texte ? 'la dictée fonctionne sur cet appareil' : expliquerEchec(issue),
-    texte,
-  };
+  const enregistreur = new Enregistreur();
+  if (!(await enregistreur.demarrer())) {
+    constat.enregistrement = 'refusé';
+    constat.explication = "le micro n'a pas été autorisé ; accordez l'autorisation puis relancez le test";
+    return constat;
+  }
+  await new Promise((resoudre) => setTimeout(resoudre, DUREE_MS));
+  const audio = await enregistreur.arreter();
+  if (!audio.blob) {
+    constat.enregistrement = 'aucun audio rendu';
+    constat.explication = "le micro est ouvert mais ne rend rien ; une autre application le tient peut-être";
+    return constat;
+  }
+  constat.enregistrement = `${Math.round(audio.dureeMs / 100) / 10} s, ${audio.blob.size} octets`;
+
+  const t1 = performance.now();
+  try {
+    constat.texte = await transcrireAudio(audio.blob);
+    constat.transcription = `faite en ${Math.round(performance.now() - t1)} ms`;
+  } catch (erreur) {
+    constat.transcription = `échouée : ${message(erreur)}`;
+    constat.explication = "l'audio est enregistré mais le moteur n'a pas pu le lire";
+    return constat;
+  }
+
+  constat.explication = constat.texte
+    ? 'la dictée fonctionne sur cet appareil'
+    : "tout a fonctionné mais rien n'a été reconnu : parlez plus près, ou plus fort — l'audio, lui, est bien capté";
+  return constat;
 }

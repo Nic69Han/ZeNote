@@ -30,6 +30,8 @@ const TYPES = {
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
   '.map': 'application/json',
+  '.gz': 'application/gzip',
+  '.wav': 'audio/wav',
 };
 
 function servir() {
@@ -66,6 +68,10 @@ const navigateur = await chromium.launch({
     // vérifiable ici. Sans lui, la moitié du produit ne serait jamais exercée.
     '--use-fake-device-for-media-stream',
     '--use-fake-ui-for-media-stream',
+    // Le micro simulé joue une vraie phrase française, en boucle. C'est ce qui rend
+    // la chaîne vocale entière vérifiable : appuyer, parler, relâcher — et retrouver
+    // les mots en Revue, transcrits sur l'appareil.
+    `--use-file-for-fake-audio-capture=${new URL('./donnees/phrase-couvreur.wav', import.meta.url).pathname}`,
   ],
   // Sur un poste derrière un mandataire, viser un site en ligne exige de passer
   // par lui ; le serveur local de secours, lui, doit rester joignable en direct.
@@ -238,6 +244,61 @@ try {
     `${restantes} restante(s)`,
   );
 
+  // --- Parler, relâcher, retrouver les mots ----------------------------------
+  // La promesse entière du produit, mesurée : l'appui enregistre, la transcription
+  // se fait sur l'appareil, l'analyse produit des éléments, la Revue les présente.
+  // Le micro simulé joue « Rappeler le couvreur pour le devis du toit avant
+  // vendredi » en boucle ; on tient assez longtemps pour en capter une entière.
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('.bouton-capture').focus();
+  await page.keyboard.down(' ');
+  await page.waitForTimeout(6500);
+  await page.keyboard.up(' ');
+
+  // La confirmation suit l'écriture en base — quelques dizaines de millisecondes —
+  // et doit arriver alors que la transcription, elle, n'a pas encore rendu son texte.
+  let confirmation = '';
+  let etatPendantConfirmation = '';
+  for (let essai = 0; essai < 40 && !/c'est à moi/i.test(confirmation); essai += 1) {
+    await page.waitForTimeout(100);
+    confirmation = await page.locator('.message').innerText().catch(() => '');
+  }
+  etatPendantConfirmation =
+    (await page.locator('.journal__ligne').first().getAttribute('data-etat')) ?? '';
+  verifier(
+    'relâcher confirme aussitôt, avant toute transcription',
+    /c'est à moi/i.test(confirmation) && etatPendantConfirmation === 'en-cours',
+    `${confirmation} — journal : ${etatPendantConfirmation}`,
+  );
+
+  // La transcription tourne en arrière-plan : on attend que la dernière ligne du
+  // journal porte du texte reconnu — jusqu'à une minute, le moteur en WebAssembly
+  // n'étant pas pressé sur une machine de test.
+  let texteJournal = '';
+  for (let essai = 0; essai < 120; essai += 1) {
+    await page.waitForTimeout(500);
+    const ligne = page.locator('.journal__ligne').first();
+    if ((await ligne.getAttribute('data-etat')) === 'transcrite') {
+      texteJournal = await ligne.locator('.journal__texte').innerText();
+      break;
+    }
+  }
+  verifier(
+    'la parole est transcrite sur l’appareil, sans réseau',
+    /couvreur/i.test(texteJournal),
+    texteJournal || 'aucune transcription en une minute',
+  );
+
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1000);
+  const groupesParole = await page.locator('.groupe', { hasText: 'couvreur' }).count();
+  verifier(
+    'et ce qui a été dit arrive en Revue, en éléments à trancher',
+    groupesParole >= 1,
+    `${groupesParole} groupe(s)`,
+  );
+
   // --- Une dictée que rien n'a transcrite ne disparaît pas --------------------
   // C'est le cas réel : la reconnaissance vocale du navigateur ne rend rien, aucun
   // élément n'est produit, et la Revue affichait « rien à ranger » alors qu'une
@@ -254,7 +315,7 @@ try {
         id: 'c-muette', creeLe: new Date().toISOString(), source: 'VOCALE',
         texte: '', etatTranscription: 'ECHEC', dureeMs: 6000,
         audio: new Blob([new Uint8Array([26, 69, 223, 163])], { type: 'audio/webm' }),
-        incomplete: false, analysee: false,
+        incomplete: false, analysee: false, essaisTranscription: 1,
       });
       t.oncomplete = () => ok();
       t.onerror = () => ko(t.error);
@@ -318,13 +379,13 @@ try {
       const t = base.transaction(['captures', 'elements'], 'readwrite');
       t.objectStore('captures').put({
         id: 'c-vocale', creeLe: new Date().toISOString(), source: 'VOCALE',
-        texte: 'Rappeler le couvreur pour le devis du toit.', etatTranscription: 'OK',
+        texte: 'Prévenir le plombier pour la fuite de la cave.', etatTranscription: 'OK',
         dureeMs: 12000, audio: new Blob([new Uint8Array([26, 69, 223, 163])], { type: 'audio/webm' }),
         incomplete: false, analysee: true,
       });
       t.objectStore('elements').put({
         id: 'e-vocale', captureId: 'c-vocale', type: 'TACHE',
-        texte: 'Rappeler le couvreur', debutCar: 0, finCar: 20,
+        texte: 'Prévenir le plombier', debutCar: 0, finCar: 20,
         debutMs: 4000, finMs: 9000, verdict: 'EN_ATTENTE', corrigeParHumain: false,
       });
       t.oncomplete = () => ok();
@@ -337,7 +398,7 @@ try {
   await page.locator('.nav__lien[data-onglet="revue"]').click();
   await page.waitForTimeout(700);
 
-  const groupeVocal = page.locator('.groupe', { hasText: 'couvreur' }).first();
+  const groupeVocal = page.locator('.groupe', { hasText: 'plombier' }).first();
   const repli = groupeVocal.locator('details.source');
 
   const avantOuverture = await repli.locator('audio').getAttribute('src');
@@ -372,7 +433,7 @@ try {
   await page.locator('.nav__lien[data-onglet="maintenant"]').click();
   await page.waitForTimeout(700);
 
-  const carteVocale = page.locator('.proposition', { hasText: 'couvreur' }).first();
+  const carteVocale = page.locator('.proposition', { hasText: 'plombier' }).first();
   const sourceDansMaintenant = await carteVocale.locator('details.source').count();
   verifier(
     'Maintenant renvoie lui aussi à ce qui avait été dit',

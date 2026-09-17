@@ -16,6 +16,7 @@ import {
 } from '../core/regles.ts';
 import { aujourdhui } from '../services/pipeline.ts';
 import {
+  capturesATranscrire,
   capturesEnSouffrance,
   lireCapture,
   listerElements,
@@ -26,7 +27,7 @@ import {
   type Capture,
   type ElementStocke,
 } from '../stockage/depot.ts';
-import { traiterFileAnalyse } from '../services/pipeline.ts';
+import { traiterFileAnalyse, traiterFileTranscription } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 
@@ -154,6 +155,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const encoreEnJeu = elements.filter((e) => !e.faitLe);
     const aRelancer = relancesObjets(encoreEnJeu, jour, suivisDe(encoreEnJeu));
     const enSouffrance = await capturesEnSouffrance();
+    const enTranscription = await capturesATranscrire();
 
     vider(racine);
     const section = el(
@@ -171,11 +173,24 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // la file reviendrait à les enterrer sous ce qui, lui, a bien fonctionné.
     if (enSouffrance.length > 0) section.append(blocSouffrance(enSouffrance));
 
+    // Ce que la transcription embarquée n'a pas encore lu. Une ligne, pas un bloc :
+    // ce n'est pas à l'utilisateur de faire quelque chose, seulement de savoir que ça
+    // arrive — sinon « rien à ranger » ressemble à « votre capture a disparu ».
+    if (enTranscription.length > 0) {
+      section.append(ligneTranscription(enTranscription.length));
+      transcrirePuisRafraichir();
+    }
+
     // Les relances passent devant la file : ce sont les seules choses que
     // l'utilisateur ne peut pas réclamer, puisqu'il les a précisément oubliées.
     if (aRelancer.length > 0) section.append(blocRelances(aRelancer));
 
-    if (file.total === 0 && aRelancer.length === 0 && enSouffrance.length === 0) {
+    if (
+      file.total === 0 &&
+      aRelancer.length === 0 &&
+      enSouffrance.length === 0 &&
+      enTranscription.length === 0
+    ) {
       section.append(
         el(
           'div',
@@ -225,6 +240,32 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   }
 
   /** Le bloc des relances : ce que le produit se rappelle à votre place. */
+  function ligneTranscription(combien: number): HTMLElement {
+    return el('p', {
+      class: 'transcription-en-cours',
+      role: 'status',
+      texte:
+        combien === 1
+          ? 'Une capture est en cours de transcription. Elle arrivera ici dans un instant.'
+          : `${combien} captures sont en cours de transcription. Elles arriveront ici dans un instant.`,
+    });
+  }
+
+  /** Une seule relance par rendu : la file elle-même refuse de tourner en double. */
+  let transcriptionLancee = false;
+  function transcrirePuisRafraichir(): void {
+    if (transcriptionLancee) return;
+    transcriptionLancee = true;
+    void traiterFileTranscription()
+      .catch(() => {
+        // Le moteur n'a pas pu tourner ; les captures restent en file, l'audio en base.
+      })
+      .finally(() => {
+        transcriptionLancee = false;
+        void rendre();
+      });
+  }
+
   /**
    * Les captures dont rien n'est sorti, et de quoi les rattraper.
    *

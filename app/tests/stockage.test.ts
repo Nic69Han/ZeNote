@@ -208,13 +208,14 @@ describe('aucune décision demandée à la capture', () => {
 });
 
 describe('captures en souffrance', () => {
-  it('relève une dictée que rien n’a transcrite', async () => {
+  it('relève une dictée que le moteur a tentée sans rien reconnaître', async () => {
     const perdue = await capturer({
       texte: '',
       source: 'VOCALE',
       etatTranscription: 'ECHEC',
       audio: new Blob(['son']),
     });
+    await majCapture(perdue.id, { essaisTranscription: 1 });
 
     const enSouffrance = await capturesEnSouffrance();
     expect(enSouffrance.map((c) => c.id)).toEqual([perdue.id]);
@@ -227,13 +228,20 @@ describe('captures en souffrance', () => {
     expect(await capturesEnSouffrance()).toEqual([]);
   });
 
-  it('ne compte pas comme perdue une transcription encore en cours', async () => {
-    await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'EN_COURS' });
+  it('ne compte pas comme perdue une dictée que le moteur n’a pas encore tentée', async () => {
+    // Elle a son audio et personne ne l'a lue : elle est en file, pas en souffrance.
+    await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'ABSENTE', audio: new Blob(['son']) });
     expect(await capturesEnSouffrance()).toEqual([]);
+  });
+
+  it('compte comme perdue une dictée sans audio : il n’y a rien à transcrire', async () => {
+    const perdue = await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'ECHEC', audio: null });
+    expect((await capturesEnSouffrance()).map((c) => c.id)).toEqual([perdue.id]);
   });
 
   it('cesse de la relever une fois reprise à la main et analysée', async () => {
     const perdue = await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'ECHEC' });
+    await majCapture(perdue.id, { essaisTranscription: 1 });
 
     await majCapture(perdue.id, {
       texte: 'Rappeler le couvreur',
@@ -247,8 +255,9 @@ describe('captures en souffrance', () => {
 
   it('rend les plus récentes d’abord : on reprend ce qu’on vient de dire', async () => {
     const vieille = await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'ECHEC' });
-    await majCapture(vieille.id, { creeLe: '2026-01-01T09:00:00.000Z' });
+    await majCapture(vieille.id, { creeLe: '2026-01-01T09:00:00.000Z', essaisTranscription: 1 });
     const recente = await capturer({ texte: '', source: 'VOCALE', etatTranscription: 'ECHEC' });
+    await majCapture(recente.id, { essaisTranscription: 1 });
 
     const enSouffrance = await capturesEnSouffrance();
     expect(enSouffrance.map((c) => c.id)).toEqual([recente.id, vieille.id]);

@@ -5,10 +5,10 @@ Capturer en un geste, ranger une fois par jour, savoir quoi faire maintenant.
 **L'application est en ligne : https://zenote-app.netlify.app**
 Ouvrez-la sur le téléphone, puis « Ajouter à l'écran d'accueil ». Elle s'installe et fonctionne
 hors ligne. Vos notes vivent dans le navigateur, sur l'appareil : il n'y a pas de serveur ZeNote,
-pas de compte, pas de mesure d'audience. Une seule réserve, et elle compte : la **dictée** confie
-l'audio à la reconnaissance vocale du navigateur, qui sur Chrome est un service distant de
-l'éditeur. La capture écrite, elle, n'appelle rien. L'écran « Vos données » détaille tout cela,
-y compris ce qui dérange — le stockage local n'est pas chiffré.
+pas de compte, pas de mesure d'audience. La **dictée** aussi reste sur l'appareil : l'audio est
+transcrit par un moteur embarqué (Vosk, en WebAssembly, modèle français de 40 Mo téléchargé une
+fois), jamais envoyé nulle part. L'écran « Vos données » détaille tout cela, y compris ce qui
+dérange — le stockage local n'est pas chiffré.
 
 ## Ce que c'est
 
@@ -61,8 +61,11 @@ npm ci
 npm run dev          # http://localhost:5173
 ```
 
-La capture vocale utilise la reconnaissance vocale du navigateur : elle demande le micro, et
-fonctionne sur Chrome et Edge. La capture écrite fonctionne partout.
+La capture vocale enregistre au micro, écrit l'audio en base, puis le transcrit sur l'appareil
+en arrière-plan — quelques secondes, sans réseau. Elle ne dépend plus de la reconnaissance vocale
+du navigateur, qui sur Android réclame le micro pour elle seule et n'entendait rien pendant
+l'enregistrement. Quand rien n'est reconnu, la capture remonte en tête de la Revue avec son
+audio, à écrire. La capture écrite fonctionne partout.
 
 ```bash
 npm run build                    # construit dist/

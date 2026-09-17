@@ -10,7 +10,7 @@
 import './styles/base.css';
 import './styles/ecrans.css';
 import { registerSW } from 'virtual:pwa-register';
-import { capturer, traiterFileAnalyse } from './services/pipeline.ts';
+import { capturer, traiterFileAnalyse, traiterFileTranscription } from './services/pipeline.ts';
 import { ecrireReglage, lireReglages, toutEffacer, type Reglages } from './stockage/depot.ts';
 import { el, vider } from './ui/dom.ts';
 import { montrerCapturer } from './ui/capturer.ts';
@@ -124,8 +124,9 @@ async function demarrer(): Promise<void> {
 
   await afficher();
 
-  // L'analyse est rejouée en arrière-plan : elle n'est jamais sur le chemin de la capture.
-  void traiterFileAnalyse();
+  // Transcription puis analyse, en arrière-plan : jamais sur le chemin de la capture.
+  // Une capture faite juste avant de fermer l'application repart d'ici.
+  void traiterFileTranscription().catch(() => {}).finally(() => void traiterFileAnalyse());
 }
 
 function appliquerTheme(theme: Reglages['theme']): void {

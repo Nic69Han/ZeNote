@@ -7,13 +7,9 @@
 
 import { Enregistreur, audioDisponible, prechauffer } from '../audio/enregistreur.ts';
 import { retourDebut, retourEchec, retourEcrite } from '../audio/retour.ts';
-import {
-  Transcripteur,
-  expliquerEchec,
-  transcriptionDisponible,
-} from '../audio/transcription.ts';
-import { capturer, traiterFileAnalyse } from '../services/pipeline.ts';
-import { listerCaptures, type Capture, type Reglages } from '../stockage/depot.ts';
+import { transcriptionLocaleDisponible } from '../audio/transcripteurLocal.ts';
+import { capturer, traiterFileAnalyse, traiterFileTranscription } from '../services/pipeline.ts';
+import { aTranscrire, listerCaptures, type Capture, type Reglages } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 
 type Etat = 'REPOS' | 'ENREGISTRE' | 'ECRITURE' | 'CONFIRME' | 'ECHEC';
@@ -28,8 +24,9 @@ type Etat = 'REPOS' | 'ENREGISTRE' | 'ECRITURE' | 'CONFIRME' | 'ECHEC';
  */
 export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => void {
   const enregistreur = new Enregistreur();
-  const transcripteur = new Transcripteur();
   let etat: Etat = 'REPOS';
+  /** Ce que la transcription en arrière-plan a reconnu jusqu'ici, par capture. */
+  const avancement = new Map<string, string>();
   let debutMs = 0;
   let chrono: number | undefined;
   let modeEcrit = false;
@@ -95,17 +92,59 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       hour: '2-digit',
       minute: '2-digit',
     });
-    const apercuTexte =
-      capture.texte ||
-      (capture.etatTranscription === 'INDISPONIBLE'
-        ? 'Audio conservé, transcription indisponible'
-        : 'Audio conservé, non transcrit');
     return el(
       'li',
-      { class: 'journal__ligne' },
+      { class: 'journal__ligne', 'data-capture': capture.id, 'data-etat': etatJournal(capture) },
       el('span', { class: 'journal__heure chiffres', texte: heure }),
-      el('span', { class: 'journal__texte', texte: apercuTexte }),
+      el('span', { class: 'journal__texte', texte: apercuJournal(capture) }),
     );
+  }
+
+  function etatJournal(capture: Capture): string {
+    if (capture.texte) return 'transcrite';
+    if (aTranscrire(capture)) return 'en-cours';
+    return 'a-reprendre';
+  }
+
+  /**
+   * Ce que dit une ligne du journal quand la transcription n'a pas encore rendu son
+   * texte. Le partiel d'abord — voir les mots arriver est ce qui rassure ; sinon
+   * l'état, dit tel quel.
+   */
+  function apercuJournal(capture: Capture): string {
+    if (capture.texte) return capture.texte;
+    const partiel = avancement.get(capture.id);
+    if (partiel) return `${partiel}…`;
+    if (aTranscrire(capture)) return 'Audio conservé — transcription en cours…';
+    if (capture.etatTranscription === 'INDISPONIBLE') {
+      return 'Audio conservé — ce navigateur ne peut pas transcrire ; à reprendre en Revue';
+    }
+    return 'Audio conservé — rien reconnu ; à reprendre en Revue';
+  }
+
+  /**
+   * Lance la transcription de ce qui attend, et tient le journal à jour pendant.
+   *
+   * Le journal ne se reconstruit pas à chaque mot : seule la ligne concernée change.
+   * Reconstruire la liste ferait sauter le focus et clignoter l'écran à chaque
+   * partiel, sur le seul écran où l'on doit pouvoir ne pas regarder.
+   */
+  function transcrireEnArrierePlan(): void {
+    void traiterFileTranscription(undefined, (captureId, partiel) => {
+      avancement.set(captureId, partiel);
+      const ligne = journal.querySelector<HTMLElement>(
+        `.journal__ligne[data-capture="${captureId}"] .journal__texte`,
+      );
+      if (ligne) ligne.textContent = `${partiel}…`;
+    })
+      .catch(() => {
+        // Le moteur n'a pas pu tourner : la capture reste en file, l'audio est en
+        // base, la Revue la montrera. Rien à dire ici qui ne serait pas dit là.
+      })
+      .finally(() => {
+        avancement.clear();
+        void rafraichirJournal();
+      });
   }
 
   // ------------------------------------------------------------ capture vocale
@@ -125,12 +164,12 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     apercu.textContent = '';
     lancerChrono();
     retourDebut(reglages.sonConfirmation);
-    transcripteur.ecouter((t) => {
-      apercu.textContent = t;
-    });
-    const ecoute = transcripteur.demarrer();
+    // L'enregistreur, et lui seul. La reconnaissance vocale du navigateur ne tourne
+    // plus pendant l'appui : sur Android elle réclame le micro pour elle seule et
+    // n'entendait rien pendant qu'on enregistrait. La transcription se fait après,
+    // sur l'appareil, à partir de l'audio écrit — voir `audio/transcripteurLocal.ts`.
     const micro = await enregistreur.demarrer();
-    if (!micro && !ecoute) {
+    if (!micro) {
       arreterChrono();
       afficherEtat(
         'ECHEC',
@@ -151,10 +190,9 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     afficherEtat('ECRITURE', 'Écriture…');
 
     const audio = await enregistreur.arreter();
-    const transcription = await transcripteur.arreter();
 
-    if (!audio.blob && !transcription.texte) {
-      afficherEtat('ECHEC', 'Rien à enregistrer : ni audio, ni texte reconnu.');
+    if (!audio.blob) {
+      afficherEtat('ECHEC', "Rien n'a été enregistré : le micro n'a rien rendu.");
       retourEchec(reglages.sonConfirmation);
       return;
     }
@@ -162,33 +200,21 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     try {
       // L'écriture d'abord. Le retour ne vient qu'après, jamais sur l'intention.
       await capturer({
-        texte: transcription.texte,
+        texte: '',
         source: 'VOCALE',
-        etatTranscription: transcription.texte ? 'OK' : transcription.etat,
+        etatTranscription: 'ABSENTE',
         audio: audio.blob,
         dureeMs: audio.dureeMs,
       });
-      // « Tu peux oublier » est la promesse centrale du produit. La tenir alors que
-      // rien n'a été transcrit serait le pire des mensonges : l'audio est bien gardé,
-      // mais aucun élément n'en sortira, rien n'arrivera en Revue, et l'utilisateur
-      // aurait oublié pour de bon. On dit donc ce qui s'est passé, et pourquoi.
-      if (transcription.texte) {
-        retourEcrite(reglages.sonConfirmation);
-        afficherEtat('CONFIRME', "C'est à moi. Tu peux oublier.");
-      } else {
-        retourEchec(reglages.sonConfirmation);
-        afficherEtat(
-          'ECHEC',
-          transcription.etat === 'INDISPONIBLE'
-            ? 'Audio gardé, mais ce navigateur ne sait pas transcrire. ' +
-                'Écrivez la note, ou réessayez depuis Chrome.'
-            : `Audio gardé, mais rien n'a été transcrit : ` +
-                `${expliquerEchec(transcription.raison)}. Vous pouvez l'écrire.`,
-        );
-      }
+      // « Tu peux oublier » se tient ici parce que la chaîne qui suit ne perd rien :
+      // l'audio est en base ; la transcription tourne sur l'appareil dans les secondes
+      // qui viennent ; et si elle ne reconnaît rien, la capture remonte en tête de la
+      // Revue avec son audio, à reprendre. Aucun chemin ne mène au silence.
+      retourEcrite(reglages.sonConfirmation);
+      afficherEtat('CONFIRME', "C'est à moi. Tu peux oublier.");
       apercu.textContent = '';
       await rafraichirJournal();
-      void traiterFileAnalyse();
+      transcrireEnArrierePlan();
     } catch {
       retourEchec(reglages.sonConfirmation);
       afficherEtat(
@@ -273,12 +299,12 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
         texte: "Micro indisponible sur cet appareil : la capture écrite prend le relais.",
       }),
     );
-  } else if (!transcriptionDisponible()) {
+  } else if (!transcriptionLocaleDisponible()) {
     avertissements.push(
       el('p', {
         class: 'repli',
         texte:
-          "Reconnaissance vocale indisponible ici : l'audio est conservé et la capture reste dans la file, à transcrire plus tard.",
+          "Ce navigateur ne peut pas transcrire sur l'appareil : l'audio est conservé, et chaque capture remontera en Revue, à écrire.",
       }),
     );
   }
@@ -305,6 +331,9 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
   void rafraichirJournal();
   // Le micro est préparé à l'avance pour que l'appui suivant démarre sans attendre.
   void prechauffer();
+  // Ce qui attendait une transcription — une capture faite juste avant de fermer
+  // l'application, par exemple — repart dès qu'on revient sur cet écran.
+  transcrireEnArrierePlan();
 
   // On termine l'enregistrement comme si le doigt s'était levé, plutôt que de le jeter
   // en silence : ce que l'utilisateur a dit est déjà dit, et le perdre parce qu'il a

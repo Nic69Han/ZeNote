@@ -74,6 +74,25 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
         navigateFallback: 'index.html',
+        // Le moteur de transcription (Vosk en WebAssembly) pèse plusieurs
+        // mégaoctets : au-delà du plafond par défaut, il serait exclu du préchargement
+        // en silence, et la transcription tomberait dès la première ouverture hors
+        // ligne. Le plafond est relevé pour lui ; le modèle, lui, ne se précharge pas.
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        // Le modèle français (40 Mo) n'est pas dans la coquille : il est téléchargé à
+        // la première transcription et gardé ensuite — une seule fois, pas à chaque
+        // version de l'application, dont il ne dépend pas.
+        runtimeCaching: [
+          {
+            urlPattern: /\/modeles\/.*\.tar\.gz$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'zenote-modeles',
+              expiration: { maxEntries: 2 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
       manifest: {
         name: 'ZeNote',

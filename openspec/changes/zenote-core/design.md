@@ -88,7 +88,9 @@ Cela réduit le coût — le contexte de mémoire est chargé une fois pour tout
 
 ### 6. Traitement distant par défaut, refus possible par capture
 
-**Choix retenu avec l'utilisateur.** L'analyse s'exécute côté serveur, avec un interrupteur par capture et par sphère. Une capture marquée non transmissible reste capturée, transcrite localement si la plateforme le permet, consultable et recherchable — sans extraction. La reconnaissance vocale embarquée sert de repli hors ligne et pour ces captures.
+**Choix retenu avec l'utilisateur.** L'analyse s'exécute côté serveur, avec un interrupteur par capture et par sphère. Une capture marquée non transmissible reste capturée, transcrite localement si la plateforme le permet, consultable et recherchable — sans extraction.
+
+**Révision (mise en œuvre PWA).** La transcription, elle, est embarquée par défaut et non en repli : Vosk (Kaldi en WebAssembly) avec le petit modèle français, appliqué à l'audio *après* l'écriture en base, dans un Worker. La reconnaissance vocale du navigateur a été retirée du chemin de capture : elle ne transcrit que le micro en direct, et sur Android réclame le micro pour elle seule — pendant l'enregistrement, elle n'entendait rien (constaté chez l'utilisateur : bouton sans effet, rien en Revue). Le moteur embarqué est moins précis que le service de Chrome, mais déterministe, hors ligne, et l'audio reste là pour corriger ; une capture où rien n'est reconnu remonte en tête de la Revue, à écrire. Mesuré dans un vrai navigateur sur une phrase de synthèse naturelle : « Rappeler le couvreur pour le devis du toit avant vendredi » rendue « a appelez le couvreur pour le devis du toit avant vendredi », en 2 s pour 3 s d'audio.
 
 *Alternative écartée* : tout embarqué. Qualité d'extraction et de résolution de contexte insuffisante pour tenir la promesse produit, sur un besoin — comprendre des sous-entendus — qui est justement ce qui demande le plus de capacité.
 

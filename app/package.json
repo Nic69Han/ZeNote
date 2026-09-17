@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@js-joda/core": "^3.2.0",
-    "format-util": "^1.0.5"
+    "format-util": "^1.0.5",
+    "vosk-browser": "^0.0.8"
   }
 }

@@ -23,7 +23,7 @@ Une case n'est cochée que lorsqu'un test nommé la couvre. Les tâches cochées
 
 ## 3. Palier 2 — Transcription et consultation
 
-- [ ] 3.1 Intégrer la transcription automatique en file d'attente et vérifier le scénario `capture` / « Capture en mode avion » suivi de « Traitement au retour du réseau »
+- [x] 3.1 Intégrer la transcription automatique en file d'attente et vérifier le scénario `capture` / « Capture en mode avion » suivi de « Traitement au retour du réseau » — la file transcrit sur l'appareil (Vosk en WebAssembly), donc sans attendre le réseau : vérifié bout en bout dans un vrai navigateur, une phrase dictée au micro simulé arrive en Revue en éléments, sans aucune requête sortante ; ce qui attendait repart à l'ouverture suivante
 - [x] 3.2 Conserver et rendre consultables l'audio d'origine et la transcription brute depuis tout élément dérivé ; vérifier le scénario `transcription` / « Remonter à l'audio d'origine », lecture démarrant au passage source — la source est atteignable depuis la Revue, Maintenant et la Recherche ; la position de départ est estimée au prorata du texte, faute d'horodatage rendu par la reconnaissance vocale du navigateur, et les écrans le disent au lieu de la présenter comme une mesure
 - [ ] 3.3 Implémenter le nettoyage des disfluences avec version brute conservée ; vérifier sur un jeu de captures annotées que noms propres, chiffres, dates et négations sont intégralement préservés
 - [ ] 3.4 Implémenter le marquage des passages de faible confiance et vérifier qu'aucun élément structuré n'est créé à partir d'un seul passage incertain

@@ -71,6 +71,7 @@ export interface CaptureExportee {
   dureeMs: number | null;
   incomplete: boolean;
   analysee: boolean;
+  essaisTranscription: number;
   audio: AudioNonInclus;
 }
 
@@ -116,12 +117,15 @@ const CHAMPS_CAPTURES: Record<string, string> = {
     'La transcription ou la saisie, brute, non reformulée. Les positions « debutCar » et ' +
     '« finCar » des éléments s’y réfèrent.',
   etatTranscription:
-    'OK : texte obtenu. ABSENTE : pas de transcription. EN_COURS : transcription en cours ' +
-    'au moment de l’export. INDISPONIBLE : le navigateur n’offrait pas de reconnaissance ' +
-    'vocale. ECHEC : la reconnaissance a échoué — l’audio a malgré tout été conservé.',
+    'OK : texte obtenu. ABSENTE : audio en attente de transcription. EN_COURS : transcription ' +
+    'en cours au moment de l’export. INDISPONIBLE : ce navigateur ne pouvait pas faire tourner ' +
+    'le moteur embarqué. ECHEC : le moteur n’a rien reconnu — l’audio a malgré tout été conservé.',
   dureeMs: 'Durée de l’enregistrement en millisecondes, ou null si la note a été écrite.',
   incomplete: 'Vrai si l’application s’est arrêtée pendant l’enregistrement.',
   analysee: 'Vrai si l’analyse a déjà produit les éléments de cette capture.',
+  essaisTranscription:
+    'Combien de fois le moteur embarqué a été mené à son terme sur cet audio. Zéro : pas ' +
+    'encore tenté, la file s’en charge.',
   audio:
     'Ce que devient le son : « inclus » vaut toujours faux dans ce format. ' +
     '« presentSurLAppareil » dit si un enregistrement existe bien, « octets » sa taille et ' +
@@ -182,6 +186,7 @@ function exporterCapture(capture: Capture): CaptureExportee {
     dureeMs: capture.dureeMs,
     incomplete: capture.incomplete,
     analysee: capture.analysee,
+    essaisTranscription: capture.essaisTranscription ?? 0,
     audio: {
       inclus: false,
       presentSurLAppareil: capture.audio instanceof Blob,

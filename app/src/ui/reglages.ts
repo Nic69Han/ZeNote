@@ -161,7 +161,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       bouton.disabled = true;
       bouton.textContent = 'Parlez maintenant…';
       sortie.hidden = false;
-      sortie.textContent = 'Test en cours, cinq secondes.';
+      sortie.textContent = 'Test en cours : trois secondes d’enregistrement, puis la transcription.';
       void diagnostiquer()
         .then((constat) => {
           sortie.textContent = enTexte(constat, VERSION);
@@ -199,8 +199,9 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       el('p', {
         class: 'bloc__detail',
         texte:
-          'Ce test lance la reconnaissance vocale seule, sans enregistrement, et dit '
-          + 'exactement ce qu’elle répond. Appuyez, puis dites une phrase.',
+          'Ce test fait ce que fait une capture — trois secondes au micro, puis la '
+          + 'transcription sur l’appareil — et dit le temps et le résultat de chaque étape. '
+          + 'Appuyez, puis dites une phrase.',
       }),
       el('div', { class: 'bloc__actions' }, bouton, copier),
       sortie,
