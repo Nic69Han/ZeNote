@@ -1,0 +1,213 @@
+/* L'écran en retrait « Vos données » : ce qui quitte l'appareil, l'export, l'effacement.
+   Rien d'illustratif ici : un écran qui parle de confiance se lit, il ne se décore pas. */
+
+.ecran--donnees {
+  gap: 1.5rem;
+}
+
+.bloc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+}
+
+.bloc__titre {
+  font-size: 1.02rem;
+}
+
+.bloc__detail {
+  color: var(--encre-douce);
+  font-size: 0.92rem;
+}
+
+/* ------------------------------------------------- ce qui quitte l'appareil */
+
+/* Un fait par ligne, avec son verdict en tête : on ne noie pas l'aveu dans la prose. */
+.faits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fait {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 0.6rem;
+  row-gap: 0.15rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--rayon);
+  background: var(--fond-creux);
+}
+
+.fait__marque {
+  grid-row: span 2;
+  align-self: start;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  background: var(--calme-doux);
+  color: var(--calme);
+}
+
+.fait__titre {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.fait__detail {
+  color: var(--encre-douce);
+  font-size: 0.89rem;
+}
+
+/* Ce qui sort de l'appareil, ou n'est pas protégé, se voit du premier coup d'œil. */
+.fait--avertissement {
+  background: var(--signal-doux);
+}
+
+.fait--avertissement .fait__marque {
+  background: var(--signal);
+  color: var(--fond-carte);
+}
+
+.fait--avertissement .fait__detail {
+  color: var(--encre);
+}
+
+/* --------------------------------------------------------------- l'export */
+
+.export__resume {
+  font-size: 0.92rem;
+  color: var(--encre-douce);
+}
+
+.export__resume strong {
+  color: var(--encre);
+  font-weight: 600;
+}
+
+.export__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Le repli : toujours visible, jamais replié derrière un échec qu'on ne sait pas détecter. */
+.repli-export {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--trait);
+}
+
+.repli-export__texte {
+  width: 100%;
+  min-height: 11rem;
+  resize: vertical;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon);
+  background: var(--fond-creux);
+  color: var(--encre);
+  font-family: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* ---------------------------------------------------------- tout supprimer */
+
+.danger {
+  border-color: color-mix(in srgb, var(--temoin) 45%, var(--trait));
+}
+
+.danger__confirmation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  border-radius: var(--rayon);
+  background: var(--temoin-doux);
+}
+
+.danger__question {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.danger__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.bouton--danger {
+  border-color: var(--temoin);
+  color: var(--temoin);
+  font-weight: 600;
+}
+
+.bouton--danger[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.bouton--danger:not([disabled]):hover {
+  background: var(--temoin);
+  color: var(--fond-carte);
+  border-color: var(--temoin);
+}
+
+/* Message de service (copie faite, export effacé…) : discret, jamais une célébration. */
+.note-service {
+  font-size: 0.88rem;
+  color: var(--encre-douce);
+  min-height: 1.2em;
+}
+
+.note-service[data-ton='echec'] {
+  color: var(--temoin);
+}
+
+/* Le test de la dictée : une sortie brute, lisible et sélectionnable, parce qu'elle
+   est faite pour être recopiée telle quelle. */
+.bloc--diagnostic .bloc__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+
+.diagnostic__sortie {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  background: var(--fond-creux);
+  color: var(--encre);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.bloc__version {
+  margin-block: 0.6rem 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.78rem;
+}

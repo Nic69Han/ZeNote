@@ -1,0 +1,16 @@
+{
+  "name": "zenote-core",
+  "version": "0.0.0-unspecified",
+  "main": "zenote-core.js",
+  "types": "zenote-core.d.ts",
+  "devDependencies": {
+    "typescript": "5.5.4"
+  },
+  "dependencies": {
+    "@js-joda/core": "3.2.0",
+    "format-util": "^1.0.5"
+  },
+  "peerDependencies": {},
+  "optionalDependencies": {},
+  "bundledDependencies": []
+}
