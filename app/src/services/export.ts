@@ -163,11 +163,11 @@ const CHAMPS_ELEMENTS: Record<string, string> = {
 
 /** Ce que l'export dit du son qu'il n'emporte pas. */
 function resumerAudio(captures: Capture[]): ResumeAudio {
-  const avecAudio = captures.filter((c) => c.audio instanceof Blob);
+  const avecAudio = captures.filter((c) => c.aAudio);
   return {
     inclus: false,
     capturesAvecAudio: avecAudio.length,
-    octetsNonInclus: avecAudio.reduce((total, c) => total + (c.audio?.size ?? 0), 0),
+    octetsNonInclus: avecAudio.reduce((total, c) => total + (c.audioOctets ?? 0), 0),
     explication:
       'Les enregistrements audio ne sont pas dans ce fichier : encodés en texte, ils le ' +
       'rendraient illisible pour un humain, ce qui est justement ce que cet export cherche ' +
@@ -189,9 +189,9 @@ function exporterCapture(capture: Capture): CaptureExportee {
     essaisTranscription: capture.essaisTranscription ?? 0,
     audio: {
       inclus: false,
-      presentSurLAppareil: capture.audio instanceof Blob,
-      octets: capture.audio?.size ?? null,
-      typeMime: capture.audio?.type || null,
+      presentSurLAppareil: capture.aAudio,
+      octets: capture.audioOctets,
+      typeMime: capture.audioType,
     },
   };
 }

@@ -8,7 +8,7 @@ Une case n'est cochée que lorsqu'un test nommé la couvre. Les tâches cochées
 - [ ] 1.2 Décider la technologie du socle métier partagé entre Android et Windows à partir de la mesure 1.1, et consigner l'arbitrage et les chiffres dans `design.md` — Décisions
 - [ ] 1.3 Mettre en place le dépôt du produit (structure socle + surfaces), la construction et les tests automatisés ; vérifier qu'une commande unique construit et teste les deux surfaces
 - [x] 1.4 Définir le schéma des trois couches de données — source immuable, dérivé reconstructible, décidé par l'humain — et vérifier par un test qu'une ré-analyse ne modifie ni la couche source ni la couche humaine
-- [ ] 1.5 Mettre en place le stockage local chiffré et vérifier par un test que les données ne sont pas lisibles sans authentification de l'appareil
+- [x] 1.5 Mettre en place le stockage local chiffré et vérifier par un test que les données ne sont pas lisibles sans authentification de l'appareil — coffre à paire de clés ECDH P-256 (`securite/coffre.ts`) : la clé publique reste en clair et sert à chiffrer, donc capturer ne demande aucune authentification ; la clé privée est enveloppée sous WebAuthn PRF (empreinte, visage ou code) ou sous PBKDF2-SHA-256 à 600 000 itérations. Vérifié par lecture directe de la base, en test unitaire et dans un vrai navigateur avec un authentificateur virtuel : après chiffrement, pas un mot des notes n'y figure. Restent en clair les identifiants et le lien élément → capture, dont IndexedDB a besoin ; l'écran « Vos données » le dit.
 
 ## 2. Palier 1 — Capture fiable
 

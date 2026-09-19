@@ -6,9 +6,38 @@
  *  - le **dérivé** (les éléments produits par l'analyse) est jetable et reconstructible ;
  *  - le **décidé par l'humain** (verdict, corrections, plan) prime et n'est jamais
  *    écrasé par une ré-analyse.
+ *
+ * ## Le chiffrement, et pourquoi il vit ici
+ *
+ * Quand un coffre existe (`securite/coffre.ts`), tout ce qui porte du sens est
+ * scellé avant d'entrer en base et ouvert en en sortant. C'est fait ici, au seul
+ * endroit par lequel les données passent : une couche placée plus haut laisserait
+ * un chemin d'écriture oublié écrire en clair, et personne ne le verrait.
+ *
+ * Ne restent en clair que les deux champs dont la base a besoin pour fonctionner :
+ * l'identifiant d'un enregistrement, et l'identifiant de capture d'un élément — le
+ * seul index réellement interrogé. Tout le reste, dates comprises, est dans le
+ * scellé. Un tiers qui ouvre la base sans authentification voit donc combien de
+ * notes existent et lesquelles vont ensemble, rien d'autre.
+ *
+ * ## Une règle à ne pas enfreindre
+ *
+ * Aucun appel de chiffrement à l'intérieur d'une transaction IndexedDB. Une
+ * transaction se referme dès que la file d'événements se vide, et attendre
+ * WebCrypto la vide : la transaction serait morte avant l'écriture. D'où la forme
+ * de chaque écriture qui doit d'abord lire — lire, refermer, chiffrer, rouvrir pour
+ * écrire.
  */
 
 import type { ElementJson } from '../core/regles.ts';
+import {
+  assurerCoffreCharge,
+  ouvrirScelle,
+  ouvrirValeur,
+  sceller,
+  scellerValeur,
+  type Scelle,
+} from '../securite/coffre.ts';
 import {
   MAGASIN_CAPTURES,
   MAGASIN_ELEMENTS,
@@ -55,8 +84,25 @@ export interface Capture {
   texte: string;
   etatTranscription: EtatTranscription;
   dureeMs: number | null;
-  /** L'audio d'origine, conservé : aucune reformulation n'est irréversible. */
+  /**
+   * L'audio d'origine, conservé : aucune reformulation n'est irréversible.
+   *
+   * `null` ne veut pas dire « il n'y en a pas » : les lectures de liste ne le
+   * déchiffrent pas, parce que déplier trente enregistrements pour en écouter zéro
+   * coûterait cher pour rien. [aAudio] dit s'il existe ; [lireCapture] le rend.
+   */
   audio: Blob | null;
+  /** Vrai quand un enregistrement existe, qu'il ait été déplié ou non. */
+  aAudio: boolean;
+  /**
+   * Le poids et le format de l'enregistrement, connus sans avoir à le déplier.
+   *
+   * L'export en a besoin pour dire ce qu'il n'emporte pas ; déchiffrer un
+   * enregistrement entier pour en lire la seule taille serait payer le prix fort
+   * pour un nombre. Ils voyagent donc dans le scellé, avec le reste.
+   */
+  audioOctets: number | null;
+  audioType: string | null;
   /** Vrai quand l'application s'est arrêtée pendant l'enregistrement. */
   incomplete: boolean;
   /** Vrai quand l'analyse a déjà produit les éléments de cette capture. */
@@ -72,6 +118,15 @@ export interface Capture {
   essaisTranscription?: number;
 }
 
+/**
+ * Ce qu'il faut fournir pour écrire une capture.
+ *
+ * `aAudio`, `audioOctets` et `audioType` n'en font pas partie : ils se déduisent de
+ * l'enregistrement lui-même, et les laisser à l'appelant serait lui donner de quoi
+ * mentir au dépôt.
+ */
+export type CaptureAEcrire = Omit<Capture, 'aAudio' | 'audioOctets' | 'audioType'>;
+
 export interface Reglages {
   theme: 'auto' | 'clair' | 'sombre';
   sonConfirmation: boolean;
@@ -79,48 +134,198 @@ export interface Reglages {
 
 export const REGLAGES_PAR_DEFAUT: Reglages = { theme: 'auto', sonConfirmation: true };
 
+// ------------------------------------------------- scellement et ouverture
+
+/** Ce qu'une capture porte de sensible : tout sauf son identifiant et son audio. */
+type ContenuCapture = Omit<Capture, 'id' | 'audio' | 'aAudio'>;
+
+/** Ce qu'un élément porte de sensible : tout sauf ses deux identifiants. */
+type ContenuElement = Omit<ElementStocke, 'id' | 'captureId'>;
+
+/**
+ * Une capture telle qu'elle existe réellement en base.
+ *
+ * Sans coffre, c'est une [Capture] à plat. Avec coffre, il ne reste que
+ * l'identifiant et des scellés. La présence de `scelle` distingue les deux, et
+ * permet aux deux de coexister le temps d'une activation.
+ */
+interface CaptureBrute extends Partial<ContenuCapture> {
+  id: string;
+  audio?: Blob | null;
+  scelle?: Scelle;
+  audioScelle?: Scelle;
+}
+
+interface ElementBrut extends Partial<ContenuElement> {
+  id: string;
+  captureId: string;
+  scelle?: Scelle;
+}
+
+/**
+ * Y a-t-il un coffre sur cet appareil ?
+ *
+ * La réponse est asynchrone parce qu'elle garantit d'abord que le descripteur a été
+ * lu : la question « faut-il chiffrer ? » ne doit jamais recevoir « non » par simple
+ * ignorance.
+ */
+async function chiffre(): Promise<boolean> {
+  return (await assurerCoffreCharge()) !== 'ABSENT';
+}
+
+async function versStockageCapture(capture: Capture): Promise<CaptureBrute> {
+  const { id, audio, aAudio: _ignore, ...reste } = capture;
+  const contenu: ContenuCapture = {
+    ...reste,
+    audioOctets: audio?.size ?? capture.audioOctets,
+    audioType: audio?.type ?? capture.audioType,
+  };
+  if (!(await chiffre())) return { id, audio: audio ?? null, ...contenu };
+  const brute: CaptureBrute = { id, scelle: await scellerValeur(contenu) };
+  if (audio) brute.audioScelle = await sceller(await audio.arrayBuffer());
+  return brute;
+}
+
+/**
+ * @param avecAudio déplier l'enregistrement, qui est la partie coûteuse. Faux pour
+ *   les listes ; vrai quand on va réellement l'écouter ou le transcrire.
+ */
+async function depuisStockageCapture(brute: CaptureBrute, avecAudio: boolean): Promise<Capture> {
+  if (!brute.scelle) {
+    // Sans coffre l'enregistrement est là, sous la main : sa taille est gratuite,
+    // y compris pour les captures écrites avant que ce champ existe.
+    return {
+      ...(brute as unknown as ContenuCapture),
+      id: brute.id,
+      audio: avecAudio ? brute.audio ?? null : null,
+      aAudio: brute.audio instanceof Blob,
+      audioOctets: brute.audio?.size ?? null,
+      audioType: brute.audio?.type || null,
+    };
+  }
+  const contenu = await ouvrirValeur<ContenuCapture>(brute.scelle);
+  const audio =
+    avecAudio && brute.audioScelle
+      ? new Blob([await ouvrirScelle(brute.audioScelle)], { type: contenu.audioType ?? '' })
+      : null;
+  return {
+    ...contenu,
+    id: brute.id,
+    audio,
+    aAudio: Boolean(brute.audioScelle),
+    audioOctets: contenu.audioOctets ?? null,
+    audioType: contenu.audioType ?? null,
+  };
+}
+
+async function versStockageElement(element: ElementStocke): Promise<ElementBrut> {
+  const { id, captureId, ...contenu } = element;
+  if (!(await chiffre())) return { id, captureId, ...contenu };
+  return { id, captureId, scelle: await scellerValeur(contenu) };
+}
+
+async function depuisStockageElement(brut: ElementBrut): Promise<ElementStocke> {
+  if (!brut.scelle) return brut as unknown as ElementStocke;
+  const contenu = await ouvrirValeur<ContenuElement>(brut.scelle);
+  return { ...contenu, id: brut.id, captureId: brut.captureId };
+}
+
 // ------------------------------------------------------------------ captures
+
+function toutesLesBrutes(): Promise<CaptureBrute[]> {
+  return transaction([MAGASIN_CAPTURES], 'readonly', ([captures]) =>
+    demander<CaptureBrute[]>(captures.getAll()),
+  );
+}
+
+/**
+ * Lit toutes les captures, en applique un filtre et un ordre, et ne déplie les
+ * enregistrements que pour celles qui restent.
+ *
+ * Une seule transaction, puis tout le déchiffrement en dehors — c'est la règle du
+ * fichier, et c'est aussi ce qui évite de déplier trente audios pour en garder deux.
+ */
+async function capturesRetenues(
+  garde: (c: Capture) => boolean,
+  ordre: (a: Capture, b: Capture) => number,
+  avecAudio: boolean,
+): Promise<Capture[]> {
+  const brutes = await toutesLesBrutes();
+  const legeres: Capture[] = [];
+  for (const brute of brutes) legeres.push(await depuisStockageCapture(brute, false));
+
+  const retenues = legeres.filter(garde).sort(ordre);
+  if (!avecAudio) return retenues;
+
+  const parId = new Map(brutes.map((b) => [b.id, b]));
+  const completes: Capture[] = [];
+  for (const capture of retenues) {
+    completes.push(await depuisStockageCapture(parId.get(capture.id)!, true));
+  }
+  return completes;
+}
+
+const plusRecentesDAbord = (a: Capture, b: Capture) => b.creeLe.localeCompare(a.creeLe);
+const plusAnciennesDAbord = (a: Capture, b: Capture) => a.creeLe.localeCompare(b.creeLe);
 
 /**
  * Écrit une capture et ne rend la main qu'une fois l'écriture durable.
  *
  * L'appelant ne doit émettre le retour de confirmation qu'après résolution de cette
  * promesse : c'est la garantie « rien ne se perd » qui rend l'oubli possible.
+ *
+ * Le scellement a lieu avant la transaction, et ne demande aucune authentification :
+ * déposer une note reste un geste, coffre verrouillé ou non.
  */
-export async function enregistrerCapture(capture: Capture): Promise<Capture> {
+export async function enregistrerCapture(aEcrire: CaptureAEcrire): Promise<Capture> {
+  const capture: Capture = {
+    ...aEcrire,
+    aAudio: aEcrire.audio instanceof Blob,
+    audioOctets: aEcrire.audio?.size ?? null,
+    audioType: aEcrire.audio?.type || null,
+  };
+  const brute = await versStockageCapture(capture);
   await transaction([MAGASIN_CAPTURES], 'readwrite', ([captures]) => {
-    captures.put(capture);
+    captures.put(brute);
   });
   return capture;
 }
 
-/** Met à jour les champs dérivés d'une capture (transcription, état, analyse). */
+/**
+ * Met à jour les champs dérivés d'une capture (transcription, état, analyse).
+ *
+ * Fusionner demande de relire ce qui est là, donc de l'ouvrir : cette écriture-ci
+ * réclame le coffre ouvert, à la différence de [enregistrerCapture].
+ */
 export async function majCapture(id: string, ajustement: Partial<Capture>): Promise<void> {
-  await transaction([MAGASIN_CAPTURES], 'readwrite', async ([captures]) => {
-    const existante = await demander<Capture | undefined>(captures.get(id));
-    if (!existante) throw new Error(`Capture introuvable : ${id}`);
-    captures.put({ ...existante, ...ajustement, id: existante.id });
+  const brute = await transaction([MAGASIN_CAPTURES], 'readonly', ([captures]) =>
+    demander<CaptureBrute | undefined>(captures.get(id)),
+  );
+  if (!brute) throw new Error(`Capture introuvable : ${id}`);
+
+  const existante = await depuisStockageCapture(brute, true);
+  const fusionnee = await versStockageCapture({ ...existante, ...ajustement, id: existante.id });
+  await transaction([MAGASIN_CAPTURES], 'readwrite', ([captures]) => {
+    captures.put(fusionnee);
   });
 }
 
+/** Toutes les captures, la plus récente d'abord. Les enregistrements ne sont pas dépliés. */
 export function listerCaptures(): Promise<Capture[]> {
-  return transaction([MAGASIN_CAPTURES], 'readonly', ([captures]) =>
-    demander<Capture[]>(captures.getAll()).then((tout) =>
-      tout.sort((a, b) => b.creeLe.localeCompare(a.creeLe)),
-    ),
-  );
+  return capturesRetenues(() => true, plusRecentesDAbord, false);
 }
 
-export function lireCapture(id: string): Promise<Capture | undefined> {
-  return transaction([MAGASIN_CAPTURES], 'readonly', ([captures]) =>
-    demander<Capture | undefined>(captures.get(id)),
+/** Une capture, enregistrement compris. */
+export async function lireCapture(id: string): Promise<Capture | undefined> {
+  const brute = await transaction([MAGASIN_CAPTURES], 'readonly', ([captures]) =>
+    demander<CaptureBrute | undefined>(captures.get(id)),
   );
+  return brute ? depuisStockageCapture(brute, true) : undefined;
 }
 
 /** Les captures transcrites qui attendent encore d'être analysées. */
-export async function capturesAAnalyser(): Promise<Capture[]> {
-  const tout = await listerCaptures();
-  return tout.filter(analysable).sort((a, b) => a.creeLe.localeCompare(b.creeLe));
+export function capturesAAnalyser(): Promise<Capture[]> {
+  return capturesRetenues(analysable, plusAnciennesDAbord, false);
 }
 
 /** Une capture qui porte du texte exploitable et n'a pas encore été analysée. */
@@ -136,16 +341,15 @@ export function aTranscrire(c: Capture): boolean {
   return (
     !c.analysee &&
     c.source === 'VOCALE' &&
-    c.audio !== null &&
+    c.aAudio &&
     c.texte.trim() === '' &&
     (c.essaisTranscription ?? 0) < 1
   );
 }
 
 /** Les captures que la transcription embarquée doit traiter, plus anciennes d'abord. */
-export async function capturesATranscrire(): Promise<Capture[]> {
-  const tout = await listerCaptures();
-  return tout.filter(aTranscrire).sort((a, b) => a.creeLe.localeCompare(b.creeLe));
+export function capturesATranscrire(): Promise<Capture[]> {
+  return capturesRetenues(aTranscrire, plusAnciennesDAbord, true);
 }
 
 /**
@@ -158,13 +362,15 @@ export async function capturesATranscrire(): Promise<Capture[]> {
  * « tu peux oublier », et l'utilisateur aurait oublié pour de bon.
  *
  * Une capture que la transcription embarquée n'a pas encore tentée n'est pas en
- * souffrance : elle est en file, et va être lue.
+ * souffrance : elle est en file, et va être lue. L'enregistrement est déplié —
+ * c'est précisément pour le réécouter que la Revue les présente.
  */
-export async function capturesEnSouffrance(): Promise<Capture[]> {
-  const tout = await listerCaptures();
-  return tout
-    .filter((c) => !c.analysee && !analysable(c) && !aTranscrire(c))
-    .sort((a, b) => b.creeLe.localeCompare(a.creeLe));
+export function capturesEnSouffrance(): Promise<Capture[]> {
+  return capturesRetenues(
+    (c) => !c.analysee && !analysable(c) && !aTranscrire(c),
+    plusRecentesDAbord,
+    true,
+  );
 }
 
 /**
@@ -172,10 +378,11 @@ export async function capturesEnSouffrance(): Promise<Capture[]> {
  *
  * Le seul endroit du produit où une source disparaît, et il faut que ce soit un geste
  * explicite de l'utilisateur : la couche source est immuable, pas indestructible.
+ * Rien n'est déchiffré ici : les identifiants suffisent, et ils sont en clair.
  */
 export async function supprimerCapture(id: string): Promise<void> {
   await transaction([MAGASIN_CAPTURES, MAGASIN_ELEMENTS], 'readwrite', async ([captures, elements]) => {
-    const derives = await demander<ElementStocke[]>(
+    const derives = await demander<{ id: string }[]>(
       elements.index('captureId').getAll(IDBKeyRange.only(id)),
     );
     for (const derive of derives) elements.delete(derive.id);
@@ -189,28 +396,35 @@ export async function supprimerCapture(id: string): Promise<void> {
  * Remplace intégralement la couche dérivée d'une capture.
  *
  * Les décisions humaines déjà prises sont conservées : un élément dont le verdict
- * n'est plus `EN_ATTENTE`, ou corrigé à la main, survit à la ré-analyse.
+ * n'est plus `EN_ATTENTE`, ou corrigé à la main, survit à la ré-analyse. Savoir
+ * lesquels demande de les ouvrir, donc le coffre.
  */
 export async function remplacerElements(
   captureId: string,
   nouveaux: ElementJson[],
 ): Promise<void> {
-  await transaction([MAGASIN_ELEMENTS], 'readwrite', async ([elements]) => {
-    const index = elements.index('captureId');
-    const anciens = await demander<ElementStocke[]>(index.getAll(IDBKeyRange.only(captureId)));
-    const aGarder = anciens.filter((e) => e.verdict !== 'EN_ATTENTE' || e.corrigeParHumain);
-    const aGarderIds = new Set(aGarder.map((e) => e.id));
+  const bruts = await transaction([MAGASIN_ELEMENTS], 'readonly', ([elements]) =>
+    demander<ElementBrut[]>(elements.index('captureId').getAll(IDBKeyRange.only(captureId))),
+  );
 
-    for (const ancien of anciens) {
-      if (!aGarderIds.has(ancien.id)) elements.delete(ancien.id);
-    }
-    for (const nouveau of nouveaux) elements.put(nouveau);
+  const aSupprimer: string[] = [];
+  for (const brut of bruts) {
+    const ancien = await depuisStockageElement(brut);
+    if (ancien.verdict === 'EN_ATTENTE' && !ancien.corrigeParHumain) aSupprimer.push(ancien.id);
+  }
+  const aEcrire: ElementBrut[] = [];
+  for (const nouveau of nouveaux) aEcrire.push(await versStockageElement(nouveau));
+
+  await transaction([MAGASIN_ELEMENTS], 'readwrite', ([elements]) => {
+    for (const id of aSupprimer) elements.delete(id);
+    for (const brut of aEcrire) elements.put(brut);
   });
 }
 
 export async function enregistrerElement(element: ElementJson): Promise<void> {
+  const brut = await versStockageElement(element);
   await transaction([MAGASIN_ELEMENTS], 'readwrite', ([elements]) => {
-    elements.put(element);
+    elements.put(brut);
   });
 }
 
@@ -219,19 +433,27 @@ export async function majElement(
   id: string,
   ajustement: Partial<ElementStocke>,
 ): Promise<ElementStocke> {
-  return transaction([MAGASIN_ELEMENTS], 'readwrite', async ([elements]) => {
-    const existant = await demander<ElementStocke | undefined>(elements.get(id));
-    if (!existant) throw new Error(`Élément introuvable : ${id}`);
-    const fusionne: ElementStocke = { ...existant, ...ajustement, id: existant.id };
-    elements.put(fusionne);
-    return fusionne;
+  const brut = await transaction([MAGASIN_ELEMENTS], 'readonly', ([elements]) =>
+    demander<ElementBrut | undefined>(elements.get(id)),
+  );
+  if (!brut) throw new Error(`Élément introuvable : ${id}`);
+
+  const existant = await depuisStockageElement(brut);
+  const fusionne: ElementStocke = { ...existant, ...ajustement, id: existant.id };
+  const aEcrire = await versStockageElement(fusionne);
+  await transaction([MAGASIN_ELEMENTS], 'readwrite', ([elements]) => {
+    elements.put(aEcrire);
   });
+  return fusionne;
 }
 
-export function listerElements(): Promise<ElementStocke[]> {
-  return transaction([MAGASIN_ELEMENTS], 'readonly', ([elements]) =>
-    demander<ElementStocke[]>(elements.getAll()),
+export async function listerElements(): Promise<ElementStocke[]> {
+  const bruts = await transaction([MAGASIN_ELEMENTS], 'readonly', ([elements]) =>
+    demander<ElementBrut[]>(elements.getAll()),
   );
+  const ouverts: ElementStocke[] = [];
+  for (const brut of bruts) ouverts.push(await depuisStockageElement(brut));
+  return ouverts;
 }
 
 /** Les éléments encore en jeu : tout sauf ceux que l'utilisateur a marqués faits. */
@@ -240,9 +462,43 @@ export async function listerElementsActifs(): Promise<ElementJson[]> {
   return tout.filter((e) => !e.faitLe);
 }
 
-export function elementsDeCapture(captureId: string): Promise<ElementStocke[]> {
-  return transaction([MAGASIN_ELEMENTS], 'readonly', ([elements]) =>
-    demander<ElementStocke[]>(elements.index('captureId').getAll(IDBKeyRange.only(captureId))),
+export async function elementsDeCapture(captureId: string): Promise<ElementStocke[]> {
+  const bruts = await transaction([MAGASIN_ELEMENTS], 'readonly', ([elements]) =>
+    demander<ElementBrut[]>(elements.index('captureId').getAll(IDBKeyRange.only(captureId))),
+  );
+  const ouverts: ElementStocke[] = [];
+  for (const brut of bruts) ouverts.push(await depuisStockageElement(brut));
+  return ouverts;
+}
+
+// ------------------------------------------------- réécriture en clair
+
+/**
+ * Écrit une capture sans la sceller, coffre ou pas.
+ *
+ * Réservé à la désactivation du chiffrement, qui doit déchiffrer chaque
+ * enregistrement — donc disposer du coffre — tout en le réécrivant en clair. Le
+ * coffre n'est supprimé qu'une fois tout réécrit : si l'opération s'interrompt, la
+ * base reste mêlée, et mêlée elle se lit encore parfaitement.
+ */
+export async function ecrireCaptureEnClair(capture: Capture): Promise<void> {
+  const { id, audio, aAudio: _a, ...contenu } = capture;
+  await transaction([MAGASIN_CAPTURES], 'readwrite', ([captures]) => {
+    captures.put({ id, audio: audio ?? null, ...contenu });
+  });
+}
+
+/** Voir [ecrireCaptureEnClair]. */
+export async function ecrireElementEnClair(element: ElementStocke): Promise<void> {
+  await transaction([MAGASIN_ELEMENTS], 'readwrite', ([elements]) => {
+    elements.put({ ...element });
+  });
+}
+
+/** Les identifiants de toutes les captures, sans rien déchiffrer. */
+export function identifiantsDesCaptures(): Promise<string[]> {
+  return transaction([MAGASIN_CAPTURES], 'readonly', ([captures]) =>
+    demander<IDBValidKey[]>(captures.getAllKeys()).then((cles) => cles.map(String)),
   );
 }
 

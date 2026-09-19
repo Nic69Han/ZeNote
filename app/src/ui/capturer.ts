@@ -9,6 +9,7 @@ import { Enregistreur, audioDisponible, prechauffer } from '../audio/enregistreu
 import { retourDebut, retourEchec, retourEcrite } from '../audio/retour.ts';
 import { transcriptionLocaleDisponible } from '../audio/transcripteurLocal.ts';
 import { capturer, traiterFileAnalyse, traiterFileTranscription } from '../services/pipeline.ts';
+import { CoffreVerrouille } from '../securite/coffre.ts';
 import { aTranscrire, listerCaptures, type Capture, type Reglages } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 
@@ -78,7 +79,28 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
   }
 
   async function rafraichirJournal(): Promise<void> {
-    const captures = await listerCaptures();
+    let captures: Capture[];
+    try {
+      captures = await listerCaptures();
+    } catch (erreur) {
+      // Coffre fermé : on peut déposer mais pas relire. Le dire vaut mieux qu'un
+      // journal vide, qui laisserait croire que la capture n'a pas été écrite.
+      vider(journal);
+      if (erreur instanceof CoffreVerrouille) {
+        journal.append(
+          el(
+            'li',
+            { class: 'journal__ligne', 'data-etat': 'verrouille' },
+            el('span', {
+              class: 'journal__texte',
+              texte: 'Vos notes sont chiffrées et fermées. Ce que vous déposez est bien gardé.',
+            }),
+          ),
+        );
+        return;
+      }
+      throw erreur;
+    }
     vider(journal);
     // Les trois dernières, sans compteur ni retard affiché : la preuve que rien
     // ne se perd, pas un tableau de bord de sa propre culpabilité.

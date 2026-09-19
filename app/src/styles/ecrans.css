@@ -723,3 +723,51 @@
   color: var(--encre-douce);
   font-size: 0.88rem;
 }
+
+/* --- Le coffre ------------------------------------------------------------
+   Un écran de verrou doit dire deux choses à la fois : ce qui est fermé, et ce
+   qui reste ouvert. La capture n'est jamais derrière lui, et c'est écrit dessus. */
+.ecran--verrou .verrou__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-block: 1.25rem;
+}
+
+.verrou__phrase {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.verrou__champ {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.verrou__message:empty {
+  display: none;
+}
+
+.verrou__message {
+  margin-block: 0.75rem;
+  color: var(--signal);
+  font-size: 0.9rem;
+}
+
+.verrou__message[data-ton='neutre'] {
+  color: var(--encre-douce);
+}
+
+.verrou__capture {
+  margin-block: 1.5rem 0.75rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--trait);
+  color: var(--encre-douce);
+  font-size: 0.9rem;
+}
+
+.journal__ligne[data-etat='verrouille'] .journal__texte {
+  color: var(--encre-tres-douce);
+  font-style: italic;
+}

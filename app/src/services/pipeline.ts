@@ -9,7 +9,13 @@
 import { analyser } from '../analyse/index.ts';
 import { identifiant } from '../analyse/index.ts';
 import { transcrireAudio } from '../audio/transcripteurLocal.ts';
-import type { Capture, EtatTranscription, SourceCapture } from '../stockage/depot.ts';
+import { assurerCoffreCharge } from '../securite/coffre.ts';
+import type {
+  Capture,
+  CaptureAEcrire,
+  EtatTranscription,
+  SourceCapture,
+} from '../stockage/depot.ts';
 import {
   capturesAAnalyser,
   capturesATranscrire,
@@ -39,7 +45,7 @@ export interface NouvelleCapture {
  * Aucun champ n'est demandé : ni titre, ni dossier, ni date, ni priorité.
  */
 export async function capturer(entree: NouvelleCapture): Promise<Capture> {
-  const capture: Capture = {
+  const capture: CaptureAEcrire = {
     id: identifiant('cap'),
     creeLe: new Date().toISOString(),
     source: entree.source,
@@ -135,6 +141,10 @@ export function traiterFileTranscription(
   fileEnCours = (async () => {
     let transcrites = 0;
     try {
+      // Coffre fermé : l'audio déposé est illisible, y compris par nous. On ne
+      // touche à rien — surtout pas au compteur d'essais, qui ferait passer ces
+      // captures pour des échecs de reconnaissance et les enverrait à réécrire.
+      if ((await assurerCoffreCharge()) === 'VERROUILLE') return 0;
       for (const capture of await capturesATranscrire()) {
         const reussi = await transcrireCapture(capture, (audio) =>
           transcrire(audio, (partiel) => surAvancement?.(capture.id, partiel)),
@@ -152,6 +162,7 @@ export function traiterFileTranscription(
 
 /** Vide la file d'analyse, dans l'ordre de capture. Sûr à rappeler à tout moment. */
 export async function traiterFileAnalyse(jour = aujourdhui()): Promise<number> {
+  if ((await assurerCoffreCharge()) === 'VERROUILLE') return 0;
   const enAttente = await capturesAAnalyser();
   let produits = 0;
   for (const capture of enAttente) {

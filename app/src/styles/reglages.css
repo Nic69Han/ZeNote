@@ -211,3 +211,32 @@
   color: var(--encre-tres-douce);
   font-size: 0.78rem;
 }
+
+/* --- Chiffrement ----------------------------------------------------------
+   Le danger se lit avant le bouton, pas après : c'est la seule place honnête
+   pour une manière de tout perdre. */
+.chiffrement {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chiffrement__danger {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border-inline-start: 3px solid var(--signal);
+  border-radius: var(--rayon);
+  background: var(--fond-creux);
+  color: var(--encre);
+  font-size: 0.9rem;
+}
+
+.chiffrement__phrase {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chiffrement__second {
+  display: flex;
+}

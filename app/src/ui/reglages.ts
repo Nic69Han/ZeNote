@@ -23,6 +23,17 @@ import {
 } from '../services/export.ts';
 import { toutEffacer } from '../stockage/depot.ts';
 import { diagnostiquer, enTexte } from '../audio/diagnostic.ts';
+import { activerChiffrement, desactiverChiffrement } from '../securite/activation.ts';
+import {
+  assurerCoffreCharge,
+  chiffrementPossible,
+  gardienAppareilPossible,
+  gardiens,
+  ajouterGardien,
+  verrouiller,
+  type EtatCoffre,
+  type TypeGardien,
+} from '../securite/coffre.ts';
 import { annoncer, el, vider } from './dom.ts';
 
 /** Empreinte de la construction servie, injectée par Vite. */
@@ -45,7 +56,8 @@ interface Fait {
  * déléguée au navigateur, et l'application ne peut, depuis son propre code, ni
  * observer ni empêcher ce que celui-ci envoie.
  */
-const FAITS: Fait[] = [
+function faits(coffre: EtatCoffre): Fait[] {
+  return [
   {
     rassurant: true,
     titre: 'L’analyse se fait sur cet appareil.',
@@ -62,26 +74,35 @@ const FAITS: Fait[] = [
       'le déposer. Tout vit dans IndexedDB, la base de données du navigateur, sur cet ' +
       'appareil.',
   },
+  coffre === 'ABSENT'
+    ? {
+        rassurant: false,
+        titre: 'Le stockage local n’est pas chiffré.',
+        detail:
+          'Vos captures, vos enregistrements et vos éléments sont écrits en clair dans la ' +
+          'base du navigateur. Ils sont protégés par le verrouillage de l’appareil et par ' +
+          'rien d’autre : qui ouvre votre session ouvre vos notes. Le chiffrement existe ' +
+          'maintenant — il s’active plus bas sur cet écran.',
+      }
+    : {
+        rassurant: true,
+        titre: 'Le stockage local est chiffré.',
+        detail:
+          'Le texte de vos captures, vos enregistrements et vos éléments sont scellés avant ' +
+          'd’entrer dans la base, et ne s’ouvrent qu’après authentification. Restent lisibles ' +
+          'sans elle : le nombre de notes, leur ordre, et quels éléments viennent de quelle ' +
+          'capture — ce dont la base a besoin pour fonctionner. Pas une phrase de ce que ' +
+          'vous avez dit.',
+      },
   {
-    rassurant: false,
-    titre: 'Le stockage local n’est pas chiffré.',
+    rassurant: true,
+    titre: 'La dictée est transcrite sur cet appareil.',
     detail:
-      'Vos captures, vos enregistrements et vos éléments sont écrits en clair dans la base ' +
-      'du navigateur. Ils sont protégés par le verrouillage de l’appareil et par rien ' +
-      'd’autre : qui ouvre votre session ouvre vos notes. Tant que le chiffrement n’existe ' +
-      'pas, nous préférons l’écrire que le laisser croire.',
-  },
-  {
-    rassurant: false,
-    titre: 'La dictée passe par la reconnaissance vocale du navigateur.',
-    detail:
-      'ZeNote confie la transcription à l’API de reconnaissance vocale du navigateur ' +
-      '(webkitSpeechRecognition). Sur Chrome et les navigateurs dérivés de Chromium, cette ' +
-      'reconnaissance est assurée par un service distant de l’éditeur : ce que vous dictez ' +
-      'quitte alors l’appareil, envoyé par le navigateur lui-même — ZeNote ne voit pas cet ' +
-      'échange, ne peut pas le vérifier depuis son code et ne peut pas l’empêcher. Le ' +
-      'comportement dépend du navigateur et de sa version. Pour qu’il ne sorte rien, ' +
-      'capturez par écrit : la saisie n’appelle aucune reconnaissance vocale.',
+      'La transcription tourne ici, dans cet onglet : un moteur de reconnaissance vocale ' +
+      'embarqué (Vosk, compilé en WebAssembly) et un modèle français téléchargé une fois ' +
+      'puis gardé en cache. Ce que vous dictez ne part pas chez un service de ' +
+      'reconnaissance. ZeNote n’utilise plus la reconnaissance vocale du navigateur, qui ' +
+      'sur Chrome passe, elle, par un service distant de l’éditeur.',
   },
   {
     rassurant: true,
@@ -92,7 +113,8 @@ const FAITS: Fait[] = [
       'il rendrait le fichier illisible. L’export dit, capture par capture, quel ' +
       'enregistrement existe et quelle taille il fait.',
   },
-];
+  ];
+}
 
 /** Une taille d'octets lisible d'un coup d'œil, sans fausse précision. */
 function poidsLisible(octets: number): string {
@@ -118,8 +140,10 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
   }
 
   async function rendre(): Promise<void> {
+    const coffre = await assurerCoffreCharge();
     const donnees = await construireExport();
     const texte = serialiser(donnees);
+    const appareilPossible = await gardienAppareilPossible();
 
     vider(vue);
     const section = el(
@@ -130,7 +154,8 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
         class: 'ecran__sous-titre',
         texte: 'Ce qui reste ici, ce qui sort, et comment tout reprendre.',
       }),
-      blocPerimetre(),
+      blocPerimetre(coffre),
+      blocChiffrement(coffre, appareilPossible, donnees),
       blocExport(donnees, texte),
       blocEffacement(donnees),
       blocDictee(),
@@ -209,11 +234,291 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
     );
   }
 
+  // ------------------------------------------------------------ chiffrement
+
+  /**
+   * Activer, retirer, ou compléter le chiffrement.
+   *
+   * Le chiffrement n'est pas mis par défaut, et c'est délibéré : il crée une manière
+   * de tout perdre qui n'existait pas avant. Perdre la phrase, effacer les données du
+   * navigateur ou réinitialiser le téléphone rend les notes définitivement illisibles
+   * — par personne, ZeNote compris. C'est dit ici, en toutes lettres, avant le
+   * bouton et non après.
+   */
+  function blocChiffrement(
+    coffre: EtatCoffre,
+    appareilPossible: boolean,
+    donnees: ExportZeNote,
+  ): HTMLElement {
+    const corps = el('div', { class: 'chiffrement' });
+
+    if (!chiffrementPossible()) {
+      corps.append(
+        el('p', {
+          class: 'bloc__detail',
+          texte:
+            'Ce navigateur n’offre pas les fonctions de chiffrement nécessaires. Vos notes ' +
+            'restent en clair dans sa base.',
+        }),
+      );
+    } else if (coffre === 'ABSENT') {
+      corps.append(...activation(appareilPossible, donnees));
+    } else {
+      corps.append(...gestion(appareilPossible));
+    }
+
+    return el(
+      'section',
+      { class: 'bloc bloc--chiffrement', 'aria-labelledby': 'titre-chiffrement' },
+      el('h2', { id: 'titre-chiffrement', class: 'bloc__titre', texte: 'Chiffrer vos notes' }),
+      corps,
+    );
+  }
+
+  /** L'écran d'activation : ce qu'on gagne, ce qu'on risque, et comment. */
+  function activation(appareilPossible: boolean, donnees: ExportZeNote): HTMLElement[] {
+    const champ = el('input', {
+      class: 'champ',
+      type: 'password',
+      autocomplete: 'new-password',
+      placeholder: 'Une phrase que vous seul connaissez',
+      'aria-label': 'Phrase de passe',
+    }) as HTMLInputElement;
+    const confirmation = el('input', {
+      class: 'champ',
+      type: 'password',
+      autocomplete: 'new-password',
+      placeholder: 'La même, pour être sûr',
+      'aria-label': 'Confirmation de la phrase de passe',
+    }) as HTMLInputElement;
+
+    async function activer(type: TypeGardien, phrase?: string): Promise<void> {
+      dire('Chiffrement en cours…');
+      try {
+        const reprise = await activerChiffrement(type, phrase);
+        dire(
+          `Chiffré : ${accord(reprise.captures, 'capture', 'captures')} et ` +
+            `${accord(reprise.elements, 'élément', 'éléments')}.`,
+        );
+        await rendre();
+      } catch (erreur) {
+        dire(
+          erreur instanceof Error ? erreur.message : 'Le chiffrement n’a pas pu être activé.',
+          'echec',
+        );
+      }
+    }
+
+    const boutons = el('div', { class: 'bloc__actions' });
+    if (appareilPossible) {
+      const bouton = el('button', {
+        class: 'bouton bouton--plein',
+        type: 'button',
+        texte: 'Chiffrer, déverrouillage par cet appareil',
+      }) as HTMLButtonElement;
+      bouton.addEventListener('click', () => void activer('APPAREIL'));
+      boutons.append(bouton);
+    }
+
+    const parPhrase = el('button', {
+      class: `bouton ${appareilPossible ? 'bouton--discret' : 'bouton--plein'}`,
+      type: 'submit',
+      texte: 'Chiffrer, déverrouillage par phrase',
+    }) as HTMLButtonElement;
+
+    const formulaire = el(
+      'form',
+      {
+        class: 'chiffrement__phrase',
+        onsubmit: (evenement: Event) => {
+          evenement.preventDefault();
+          if (champ.value.length < 8) {
+            dire('Une phrase de huit caractères au moins.', 'echec');
+            return;
+          }
+          if (champ.value !== confirmation.value) {
+            dire('Les deux phrases ne sont pas identiques.', 'echec');
+            return;
+          }
+          void activer('PHRASE', champ.value);
+        },
+      },
+      champ,
+      confirmation,
+      parPhrase,
+    );
+
+    return [
+      el('p', {
+        class: 'bloc__detail',
+        texte:
+          'Une fois chiffrées, vos notes ne se relisent qu’après authentification. Capturer ' +
+          'continue de ne rien demander : une note déposée est chiffrée aussitôt, même ' +
+          'sans déverrouiller.',
+      }),
+      el(
+        'p',
+        { class: 'chiffrement__danger' },
+        el('strong', { texte: 'Ce qui devient possible de perdre. ' }),
+        'Si vous oubliez votre phrase, effacez les données de ce navigateur ou ' +
+          'réinitialisez l’appareil, vos notes deviennent définitivement illisibles — ' +
+          'par vous comme par nous. Il n’existe aucun moyen de les récupérer. ' +
+          (donnees.totaux.captures > 0
+            ? `Vous avez ${accord(donnees.totaux.captures, 'capture', 'captures')} : ` +
+              'exportez-les avant d’activer.'
+            : ''),
+      ),
+      appareilPossible
+        ? el('p', {
+            class: 'bloc__detail',
+            texte:
+              'Le déverrouillage par l’appareil utilise son empreinte, son visage ou son ' +
+              'code. La clé ne sort jamais de l’appareil et n’est écrite nulle part.',
+          })
+        : el('p', {
+            class: 'bloc__detail',
+            texte:
+              'Cet appareil n’offre pas de déverrouillage biométrique à ZeNote : le ' +
+              'chiffrement se fera par phrase de passe.',
+          }),
+      boutons,
+      formulaire,
+    ];
+  }
+
+  /**
+   * Le coffre existe : le compléter, le fermer, ou le retirer.
+   *
+   * Il est forcément ouvert ici : cet écran montre l'export, donc toutes les notes,
+   * et se trouve derrière le verrou comme la Revue. Rien n'a donc à prévoir le cas
+   * fermé — le prévoir laisserait croire qu'il arrive.
+   */
+  function gestion(appareilPossible: boolean): HTMLElement[] {
+    const enregistres = gardiens();
+    const actions = el('div', { class: 'bloc__actions' });
+
+    {
+      const fermer = el('button', {
+        class: 'bouton bouton--discret',
+        type: 'button',
+        texte: 'Fermer le coffre maintenant',
+      }) as HTMLButtonElement;
+      fermer.addEventListener('click', () => {
+        verrouiller();
+        annoncer('Coffre fermé.');
+        location.hash = '#revue';
+      });
+      actions.append(fermer);
+
+      const retirer = el('button', {
+        class: 'bouton bouton--discret bouton--supprimer',
+        type: 'button',
+        texte: 'Retirer le chiffrement',
+      }) as HTMLButtonElement;
+      retirer.addEventListener('click', () => {
+        if (retirer.dataset.confirme !== 'oui') {
+          retirer.dataset.confirme = 'oui';
+          retirer.textContent = 'Confirmer : remettre tout en clair';
+          dire('Vos notes seront réécrites en clair dans la base.', 'echec');
+          return;
+        }
+        void (async () => {
+          dire('Déchiffrement en cours…');
+          try {
+            const reprise = await desactiverChiffrement();
+            dire(`Remis en clair : ${accord(reprise.captures, 'capture', 'captures')}.`);
+            await rendre();
+          } catch (erreur) {
+            dire(erreur instanceof Error ? erreur.message : 'Le retrait a échoué.', 'echec');
+          }
+        })();
+      });
+      actions.append(retirer);
+    }
+
+    const lignes: HTMLElement[] = [
+      el('p', {
+        class: 'bloc__detail',
+        texte:
+          'Le coffre est ouvert pour cette session. Il se referme deux minutes après que ' +
+          'vous avez quitté l’application, et à chaque rechargement.',
+      }),
+      el('p', {
+        class: 'bloc__detail',
+        texte: `Déverrouillage enregistré : ${enregistres
+          .map((g) => (g === 'APPAREIL' ? 'cet appareil' : 'une phrase de passe'))
+          .join(' et ')}.`,
+      }),
+    ];
+
+    // Un second moyen est une assurance contre la perte du premier — le seul filet
+    // que ce produit puisse offrir, faute de serveur où déposer une copie.
+    if (!enregistres.includes('PHRASE')) {
+      lignes.push(secondGardienParPhrase());
+    } else if (!enregistres.includes('APPAREIL') && appareilPossible) {
+      lignes.push(secondGardienParAppareil());
+    }
+
+    return [...lignes, actions];
+  }
+
+  function secondGardienParPhrase(): HTMLElement {
+    const champ = el('input', {
+      class: 'champ',
+      type: 'password',
+      autocomplete: 'new-password',
+      placeholder: 'Une phrase de secours',
+      'aria-label': 'Phrase de passe de secours',
+    }) as HTMLInputElement;
+    return el(
+      'form',
+      {
+        class: 'chiffrement__phrase',
+        onsubmit: (evenement: Event) => {
+          evenement.preventDefault();
+          if (champ.value.length < 8) {
+            dire('Une phrase de huit caractères au moins.', 'echec');
+            return;
+          }
+          void ajouter('PHRASE', champ.value);
+        },
+      },
+      el('p', {
+        class: 'bloc__detail',
+        texte:
+          'Ajoutez une phrase de secours : si cet appareil vous lâche, elle sera le seul ' +
+          'moyen de rouvrir vos notes.',
+      }),
+      champ,
+      el('button', { class: 'bouton bouton--discret', type: 'submit', texte: 'Ajouter la phrase' }),
+    );
+  }
+
+  function secondGardienParAppareil(): HTMLElement {
+    const bouton = el('button', {
+      class: 'bouton bouton--discret',
+      type: 'button',
+      texte: 'Ajouter le déverrouillage par cet appareil',
+    }) as HTMLButtonElement;
+    bouton.addEventListener('click', () => void ajouter('APPAREIL'));
+    return el('div', { class: 'chiffrement__second' }, bouton);
+  }
+
+  async function ajouter(type: TypeGardien, phrase?: string): Promise<void> {
+    try {
+      await ajouterGardien(type, phrase);
+      dire('Moyen de déverrouillage ajouté.');
+      await rendre();
+    } catch (erreur) {
+      dire(erreur instanceof Error ? erreur.message : 'Ajout impossible.', 'echec');
+    }
+  }
+
   // ------------------------------------------------ ce qui quitte l'appareil
 
-  function blocPerimetre(): HTMLElement {
+  function blocPerimetre(coffre: EtatCoffre): HTMLElement {
     const liste = el('ul', { class: 'faits' });
-    for (const fait of FAITS) {
+    for (const fait of faits(coffre)) {
       liste.append(
         el(
           'li',

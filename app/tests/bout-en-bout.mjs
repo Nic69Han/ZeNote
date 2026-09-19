@@ -83,6 +83,24 @@ const contexte = await navigateur.newContext({
 });
 const page = await contexte.newPage();
 
+// Un authentificateur virtuel : l'équivalent d'une empreinte digitale, piloté par le
+// test. Sans lui, la voie « authentification de l'appareil » du chiffrement ne serait
+// vérifiable sur aucune machine sans doigt.
+const cdp = await contexte.newCDPSession(page);
+await cdp.send('WebAuthn.enable');
+await cdp.send('WebAuthn.addVirtualAuthenticator', {
+  options: {
+    protocol: 'ctap2',
+    ctap2Version: 'ctap2_1',
+    transport: 'internal',
+    hasResidentKey: true,
+    hasUserVerification: true,
+    isUserVerified: true,
+    automaticPresenceSimulation: true,
+    hasPrf: true,
+  },
+});
+
 // Tout ce que la page tente d'envoyer ailleurs que chez elle. La promesse du produit
 // — l'analyse se fait ici, rien n'est déposé sur un serveur ZeNote — ne vaut que si
 // elle se mesure ; une page peut affirmer n'importe quoi dans son écran de confiance.
@@ -546,6 +564,114 @@ try {
     "quitter l'écran pendant un enregistrement ne perd pas la capture",
     apres === avant + 1,
     `${avant} capture(s) avant, ${apres} après`,
+  );
+
+  // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
+  // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
+  // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un
+  // qui a pris le téléphone.
+
+  /** Tout ce que la base contient réellement, lu sans passer par l'application. */
+  const baseEnClair = () =>
+    page.evaluate(async () => {
+      const base = await new Promise((ok, ko) => {
+        const r = indexedDB.open('zenote');
+        r.onsuccess = () => ok(r.result);
+        r.onerror = () => ko(r.error);
+      });
+      const lire = (magasin) =>
+        new Promise((ok, ko) => {
+          const d = base.transaction(magasin, 'readonly').objectStore(magasin).getAll();
+          d.onsuccess = () => ok(d.result);
+          d.onerror = () => ko(d.error);
+        });
+      const tout = [await lire('captures'), await lire('elements')];
+      return JSON.stringify(tout, (_c, v) => {
+        if (v instanceof ArrayBuffer) return new TextDecoder().decode(v);
+        if (ArrayBuffer.isView(v)) return new TextDecoder().decode(v.buffer);
+        return v;
+      });
+    });
+
+  const avantChiffrement = await baseEnClair();
+  verifier(
+    'avant chiffrement, la base se lit à livre ouvert',
+    /couvreur|notaire|planning/i.test(avantChiffrement),
+    `${avantChiffrement.length} caractères lisibles`,
+  );
+
+  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await page.waitForTimeout(600);
+
+  const parAppareil = page.locator('.bloc--chiffrement .bouton--plein').first();
+  const libelleActivation = await parAppareil.innerText();
+  verifier(
+    'le déverrouillage par l’appareil est proposé quand l’appareil sait le faire',
+    /cet appareil/i.test(libelleActivation),
+    libelleActivation,
+  );
+
+  const danger = await page.locator('.chiffrement__danger').innerText();
+  verifier(
+    'ce qu’on risque est écrit avant le bouton, pas après',
+    /définitivement illisibles/i.test(danger),
+    danger.slice(0, 80) + '…',
+  );
+
+  await parAppareil.click();
+  await page.waitForTimeout(2500);
+
+  const apresChiffrement = await baseEnClair();
+  verifier(
+    'après chiffrement, plus une phrase ne se lit dans la base',
+    !/couvreur|notaire|planning|pneus/i.test(apresChiffrement),
+    `${apresChiffrement.length} caractères, aucun mot des notes`,
+  );
+
+  // Un appareil perdu, c'est une application rouverte : rien en mémoire.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(800);
+
+  const verrou = await page.locator('.ecran--verrou').count();
+  verifier(
+    'à la réouverture, la Revue demande l’authentification',
+    verrou === 1,
+    `${verrou} écran(s) de verrou`,
+  );
+
+  // Et pendant ce temps, capturer marche — c'est toute la forme du coffre.
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('.bouton--discret', { hasText: 'Écrire plutôt' }).click();
+  await page.locator('.zone-ecrite').fill('note déposée coffre fermé');
+  await page.locator('.bloc-ecrit .bouton--plein').click();
+  await page.waitForTimeout(800);
+
+  const confirme = await page.locator('.message').innerText();
+  verifier(
+    'capturer ne demande jamais de déverrouiller',
+    /c'est à moi/i.test(confirme),
+    confirme,
+  );
+  const baseVerrouillee = await baseEnClair();
+  verifier(
+    'et la note déposée est chiffrée aussitôt, sans clé dépliée',
+    !baseVerrouillee.includes('note déposée coffre fermé'),
+    'aucun mot de la note dans la base',
+  );
+
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(600);
+  await page.locator('.ecran--verrou .bouton--plein').first().click();
+  await page.waitForTimeout(2000);
+
+  const revueRouverte = await page.locator('.ecran--revue').count();
+  const contenuRevue = await page.locator('#vue').innerText();
+  verifier(
+    'l’authentification de l’appareil rouvre les notes',
+    revueRouverte === 1 && /note déposée coffre fermé|couvreur|notaire/i.test(contenuRevue),
+    revueRouverte === 1 ? 'Revue rendue, notes lisibles' : 'la Revue ne s’est pas rouverte',
   );
 
   const minuteriesVivantes = await page.evaluate(

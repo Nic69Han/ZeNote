@@ -193,9 +193,14 @@ describe('aucune décision demandée à la capture', () => {
       (await capturer({ texte: 'juste une idée', source: 'ECRITE', etatTranscription: 'OK' })).id,
     );
     // Ni titre, ni dossier, ni projet, ni priorité : aucun de ces champs n'existe.
+    // Ce qui figure ici est soit la note elle-même, soit un fait constaté sur elle —
+    // jamais un rangement demandé à celui qui l'a déposée.
     expect(Object.keys(capture ?? {}).sort()).toEqual([
+      'aAudio',
       'analysee',
       'audio',
+      'audioOctets',
+      'audioType',
       'creeLe',
       'dureeMs',
       'etatTranscription',

@@ -11,6 +11,7 @@ import './styles/base.css';
 import './styles/ecrans.css';
 import { registerSW } from 'virtual:pwa-register';
 import { capturer, traiterFileAnalyse, traiterFileTranscription } from './services/pipeline.ts';
+import { assurerCoffreCharge, etatCoffre, verrouiller } from './securite/coffre.ts';
 import { ecrireReglage, lireReglages, toutEffacer, type Reglages } from './stockage/depot.ts';
 import { el, vider } from './ui/dom.ts';
 import { montrerCapturer } from './ui/capturer.ts';
@@ -18,6 +19,7 @@ import { montrerMaintenant } from './ui/maintenant.ts';
 import { montrerRevue } from './ui/revue.ts';
 import { montrerRecherche } from './ui/recherche.ts';
 import { montrerReglages } from './ui/reglages.ts';
+import { montrerDeverrouillage } from './ui/deverrouillage.ts';
 
 type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'reglages';
 
@@ -108,6 +110,14 @@ async function demarrer(): Promise<void> {
 
     vider(vue);
     document.documentElement.dataset.ecran = valide;
+
+    // Capturer passe toujours ; tout ce qui relit attend le déverrouillage. C'est la
+    // seule barrière du produit, et elle ne tombe jamais sur le geste de capture.
+    if (valide !== 'capturer' && (await assurerCoffreCharge()) === 'VERROUILLE') {
+      montrerDeverrouillage(vue, () => void afficher());
+      return;
+    }
+
     if (valide === 'capturer') demonterEcran = montrerCapturer(vue, reglages);
     else if (valide === 'revue') demonterEcran = await montrerRevue(vue);
     else if (valide === 'maintenant') demonterEcran = await montrerMaintenant(vue);
@@ -127,6 +137,34 @@ async function demarrer(): Promise<void> {
   // Transcription puis analyse, en arrière-plan : jamais sur le chemin de la capture.
   // Une capture faite juste avant de fermer l'application repart d'ici.
   void traiterFileTranscription().catch(() => {}).finally(() => void traiterFileAnalyse());
+
+  /**
+   * Le coffre se referme quand l'application reste en arrière-plan.
+   *
+   * Pas au premier masquage : sur un téléphone, répondre à un message puis revenir
+   * prend trois secondes, et redemander une empreinte à chaque fois rendrait le
+   * chiffrement insupportable — donc désactivé, donc inutile. Pas jamais non plus :
+   * une clé dépliée dans un onglet oublié n'est plus une clé. Deux minutes est le
+   * compromis, et il n'est pas réglable : ce serait une décision de plus à prendre.
+   */
+  const REPOS_AVANT_VERROU_MS = 120_000;
+  let verrouEnAttente: number | undefined;
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      window.clearTimeout(verrouEnAttente);
+      verrouEnAttente = undefined;
+      return;
+    }
+    if (etatCoffre() !== 'OUVERT') return;
+    verrouEnAttente = window.setTimeout(() => {
+      verrouiller();
+      // L'écran est caché : le redessiner maintenant ne fait sauter aucune lecture en
+      // cours, et évite de retrouver au retour des notes déchiffrées sous un coffre
+      // fermé.
+      void afficher();
+    }, REPOS_AVANT_VERROU_MS);
+  });
 }
 
 function appliquerTheme(theme: Reglages['theme']): void {

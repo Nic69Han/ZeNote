@@ -7,8 +7,10 @@ Ouvrez-la sur le téléphone, puis « Ajouter à l'écran d'accueil ». Elle s'i
 hors ligne. Vos notes vivent dans le navigateur, sur l'appareil : il n'y a pas de serveur ZeNote,
 pas de compte, pas de mesure d'audience. La **dictée** aussi reste sur l'appareil : l'audio est
 transcrit par un moteur embarqué (Vosk, en WebAssembly, modèle français de 40 Mo téléchargé une
-fois), jamais envoyé nulle part. L'écran « Vos données » détaille tout cela, y compris ce qui
-dérange — le stockage local n'est pas chiffré.
+fois), jamais envoyé nulle part. Le **chiffrement** s'active depuis « Vos données » : les notes
+deviennent illisibles sans votre empreinte, votre visage ou votre phrase de passe — sans que
+capturer ne demande jamais rien. L'écran « Vos données » détaille tout cela, y compris ce qui
+dérange.
 
 ## Ce que c'est
 
@@ -32,6 +34,22 @@ une suppression.**
 | **Capturer** | Appuyer, parler ou écrire, c'est déposé | Choisir un dossier, un projet, une priorité |
 | **La Revue** | Trancher ce qui a été compris, une fois par jour | Relire tout l'historique |
 | **Maintenant** | Voir au plus trois choses, chacune justifiée | Compter ce qui reste |
+
+### Le chiffrement
+
+Il est proposé, jamais imposé : il crée une manière de tout perdre qui n'existait pas avant, et
+l'écran le dit avant le bouton. Une fois activé, un **coffre à deux clés** sépare écrire et lire.
+
+| | |
+|---|---|
+| **Écrire** | La clé publique reste en clair et ne sait que chiffrer. Capturer ne demande donc aucune authentification, coffre fermé compris — la promesse « un geste » tient entière. |
+| **Lire** | La clé privée est enveloppée sous l'authentification de l'appareil (WebAuthn, empreinte / visage / code) ou sous une phrase de passe (PBKDF2-SHA-256, 600 000 itérations). Sans elle, rien ne s'ouvre. |
+
+Chaque valeur est scellée par ECIES sur P-256 : paire éphémère, ECDH avec la clé publique du
+coffre, HKDF-SHA-256, puis AES-GCM 256. Deux notes identiques ne se ressemblent pas une fois
+scellées. Restent lisibles sans authentification les identifiants et le lien élément → capture,
+dont la base a besoin pour fonctionner : on sait donc combien de notes existent, pas ce qu'elles
+disent.
 
 Quand la reconnaissance vocale du navigateur ne rend rien, la capture n'est pas perdue et
 ne disparaît pas non plus : elle remonte **en tête de la Revue**, avec son enregistrement
