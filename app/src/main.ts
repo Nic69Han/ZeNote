@@ -24,6 +24,7 @@ import { montrerCapturer } from './ui/capturer.ts';
 import { montrerMaintenant } from './ui/maintenant.ts';
 import { montrerRevue } from './ui/revue.ts';
 import { montrerRecherche } from './ui/recherche.ts';
+import { montrerPersonnes } from './ui/personnes.ts';
 import { montrerReglages } from './ui/reglages.ts';
 import { montrerDeverrouillage } from './ui/deverrouillage.ts';
 import { montrerRappels } from './ui/rappels.ts';
@@ -33,7 +34,7 @@ import {
   rappelsDuPointDeRupture,
 } from './services/rappels.ts';
 
-type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'reglages';
+type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'personnes' | 'reglages';
 
 /** Les trois surfaces de la barre du bas : celles d'une journée de travail. */
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
@@ -45,6 +46,7 @@ const ONGLETS: { cle: Onglet; libelle: string }[] = [
 /** Les écrans en retrait, atteints depuis l'en-tête. */
 const ECRANS_RETRAIT: { cle: Onglet; libelle: string }[] = [
   { cle: 'recherche', libelle: 'Rechercher' },
+  { cle: 'personnes', libelle: 'Les gens' },
   { cle: 'reglages', libelle: 'Vos données' },
 ];
 
@@ -151,6 +153,7 @@ async function demarrer(): Promise<void> {
     else if (valide === 'revue') demonterEcran = await montrerRevue(vue);
     else if (valide === 'maintenant') demonterEcran = await montrerMaintenant(vue);
     else if (valide === 'recherche') demonterEcran = await montrerRecherche(vue);
+    else if (valide === 'personnes') demonterEcran = await montrerPersonnes(vue);
     else await montrerReglages(vue);
   }
 

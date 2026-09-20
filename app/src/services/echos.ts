@@ -118,6 +118,21 @@ export function echosDe(
 /** Le seuil de recouvrement en dessous duquel deux notes ne parlent pas du même sujet. */
 const PROXIMITE_MINIMALE = 0.34;
 
+/**
+ * Au-delà de ce nombre de jours, une note ne se propose plus d'elle-même.
+ *
+ * Spec `memoire` — « Décroissance sans suppression ». Rien n'est effacé : seule la
+ * mise en avant décroît. Une note de l'an dernier qui remonte parce qu'elle partage
+ * trois mots avec celle qu'on vient de dicter n'aide pas — elle donne l'impression
+ * d'un outil qui ressasse, et l'on cesse de lire ses suggestions. Elle reste
+ * évidemment retrouvable par une recherche explicite, qui est une question posée et
+ * non une proposition subie.
+ *
+ * Une note liée à quelque chose d'actif échappe à cette décroissance : ce n'est plus
+ * du passé, c'est un dossier en cours.
+ */
+const JOURS_AVANT_SOMMEIL = 120;
+
 /** Ce qu'on a déjà dit sur ce sujet, ou `null` s'il n'y a rien de net. */
 export function passePertinent(
   texte: string,
@@ -130,7 +145,17 @@ export function passePertinent(
   // Trop court pour être un sujet : « rappeler Marc » ressemble à tout.
   if (mots.length < 3) return null;
 
-  const ailleurs = captures.filter((c) => c.id !== captureId);
+  // Les captures qui portent encore quelque chose d'ouvert : celles-là ne dorment
+  // jamais, quel que soit leur âge. Un dossier en cours n'est pas du passé.
+  const actives = new Set(
+    elements
+      .filter((e) => e.verdict !== 'REJETE' && e.type !== 'INFORMATION')
+      .map((e) => e.captureId),
+  );
+
+  const ailleurs = captures.filter(
+    (c) => c.id !== captureId && (actives.has(c.id) || !endormie(c, aujourdhui)),
+  );
   if (ailleurs.length === 0) return null;
 
   const reponse = rechercherParQuestionObjets(
@@ -174,4 +199,18 @@ function recouvrement(a: string, b: string): number {
   let communs = 0;
   for (const mot of gauche) if (droite.has(mot)) communs += 1;
   return communs / gauche.size;
+}
+
+/**
+ * Vrai quand cette capture a cessé de se proposer d'elle-même.
+ *
+ * Rien n'est supprimé et rien n'est caché : une recherche explicite la retrouve.
+ * Seule sa mise en avant décroît, ce qui est exactement ce que la spec demande —
+ * « aucune donnée d'origine ne doit être supprimée par la consolidation ».
+ */
+export function endormie(capture: CaptureJson, aujourdhui: string): boolean {
+  const quand = Date.parse(capture.creeLe);
+  const jour = Date.parse(`${aujourdhui}T00:00:00.000Z`);
+  if (Number.isNaN(quand) || Number.isNaN(jour)) return false;
+  return (jour - quand) / 86_400_000 > JOURS_AVANT_SOMMEIL;
 }

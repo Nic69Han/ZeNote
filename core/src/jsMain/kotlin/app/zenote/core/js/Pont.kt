@@ -3,7 +3,7 @@ package app.zenote.core.js
 import app.zenote.core.api.Regles
 
 /**
- * Le pont vers le navigateur. Treize fonctions, un contrat JSON, aucun état.
+ * Le pont vers le navigateur. Quatorze fonctions, un contrat JSON, aucun état.
  *
  * La PWA détient les données (IndexedDB) et appelle ces règles ; les applications
  * natives appelleront les mêmes, en JVM. C'est ce qui garantit qu'un même jeu de
@@ -108,6 +108,15 @@ object ZeNoteRegles {
     fun signalCreneau(renoncementsDAffilee: Int): String =
         Regles.signalCreneau(renoncementsDAffilee)
 
+    /**
+     * Fiches des personnes : `[CaptureJson]` + `[ElementJson]` → `[FicheJson]`.
+     *
+     * Ce qui est ouvert, ce qui a été décidé, les derniers échanges. Jamais
+     * renseignées à la main : elles se déduisent de ce qui a été capturé.
+     */
+    fun fiches(capturesJson: String, elementsJson: String): String =
+        Regles.fiches(capturesJson, elementsJson)
+
     /** Recherche par personne : nom + `[ElementJson]` → `ReponseJson`. */
     fun rechercherParPersonne(personne: String, elementsJson: String, reseau: Boolean): String =
         Regles.rechercherParPersonne(personne, elementsJson, reseau)
@@ -115,10 +124,9 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 12 » avec les engagements tirés d'un compte rendu, que le contrat
-     * d'élément porte désormais et que la Revue fait confirmer. Une surface qui
-     * attend cette version et en trouve une plus ancienne parle à un cœur qui
-     * laisserait tomber ce champ en silence.
+     * Passée à « 13 » avec les fiches d'entité. Une surface qui attend cette
+     * version et en trouve une plus ancienne parle à un cœur sans cette fonction, et
+     * doit le dire au lieu de planter à l'appel.
      */
-    val version: String = "12"
+    val version: String = "13"
 }

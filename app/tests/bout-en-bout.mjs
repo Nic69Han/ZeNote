@@ -1378,6 +1378,34 @@ try {
     confirmationTenue,
   );
 
+  // --- Les fiches ----------------------------------------------------------------
+  // Spec `memoire` — « Fiche personne » et « Synthèse par projet ». Avant d'appeler
+  // quelqu'un, la question est toujours la même : qu'est-ce qui traîne entre nous ?
+  // Elle se répond en relisant six mois de notes, ce que personne ne fait.
+  await page.locator('.retrait__lien[data-ecran="personnes"]').click();
+  await page.waitForTimeout(1200);
+
+  const fiche = page.locator('.fiche', { hasText: /Sophie/i }).first();
+  const vueFiche = await fiche
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const ouverts = vueFiche
+    ? await fiche.locator('.fiche__ouvert .fiche__texte').allInnerTexts()
+    : [];
+  verifier(
+    'une fiche dit ce qui traîne avec quelqu’un, sans rien avoir à renseigner',
+    vueFiche && ouverts.length > 0 && ouverts.every((o) => o.trim().length > 3),
+    ouverts.slice(0, 2).join(' · ') || 'aucune ligne ouverte',
+  );
+
+  const echanges = vueFiche ? await fiche.locator('.fiche__echange').count() : 0;
+  verifier(
+    'et cite les derniers échanges, chacun renvoyant à sa capture',
+    echanges > 0,
+    `${echanges} échange(s) cité(s)`,
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

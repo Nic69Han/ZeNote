@@ -324,3 +324,35 @@ data class ARevoirJson(
     /** REFORMULER, DECOUPER, PLANIFIER, DELEGUER, ABANDONNER. */
     val issues: List<String>,
 )
+
+/** Une ligne de fiche : elle porte toujours de quoi remonter à sa capture. */
+@Serializable
+data class LigneFicheJson(
+    val elementId: String,
+    val captureId: String,
+    val type: String,
+    val texte: String,
+    val verdict: String,
+)
+
+/** Un échange passé avec l'entité, tel que la fiche le cite. */
+@Serializable
+data class EchangeJson(
+    val captureId: String,
+    val quand: String,
+    val extrait: String,
+)
+
+/**
+ * La fiche d'une entité : ce qui est ouvert, ce qui a été décidé, les derniers
+ * échanges. Jamais renseignée à la main — elle se déduit de ce qui a été capturé.
+ */
+@Serializable
+data class FicheJson(
+    val nom: String,
+    val type: String,
+    val ouverts: List<LigneFicheJson> = emptyList(),
+    val decide: List<LigneFicheJson> = emptyList(),
+    val derniersEchanges: List<EchangeJson> = emptyList(),
+    val mentions: Int = 0,
+)

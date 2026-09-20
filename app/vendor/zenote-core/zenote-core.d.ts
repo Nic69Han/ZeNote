@@ -13,6 +13,7 @@ export declare namespace app.zenote.core.js {
         aRevoir(elementsJson: string, suivisJson: string, aujourdhui: string): string;
         creneauProtege(elementsJson: string, aujourdhui: string): string;
         signalCreneau(renoncementsDAffilee: number): string;
+        fiches(capturesJson: string, elementsJson: string): string;
         rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
         get version(): string;
     };

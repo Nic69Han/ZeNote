@@ -1,6 +1,7 @@
 package app.zenote.core.api
 
 import app.zenote.core.memoire.Candidat
+import app.zenote.core.memoire.Fiches
 import app.zenote.core.memoire.Memoire
 import app.zenote.core.memoire.Mention
 import app.zenote.core.memoire.ResolutionReferences
@@ -562,6 +563,78 @@ object Regles {
         } else {
             ""
         }
+
+    /**
+     * Les fiches des personnes connues, de la plus récemment citée à la plus ancienne.
+     *
+     * La mémoire est reconstruite depuis les captures et les éléments, comme pour la
+     * résolution des références : rien n'est stocké, et une fiche ne peut donc pas
+     * contredire les notes dont elle sort.
+     *
+     * @param capturesJson tableau de [CaptureJson]
+     * @param elementsJson tableau d'[ElementJson]
+     * @return tableau de [FicheJson], les fiches vides comprises — une personne sans
+     *   rien d'ouvert est une information, pas une absence.
+     */
+    fun fiches(capturesJson: String, elementsJson: String): String {
+        val captures = json
+            .decodeFromString(ListSerializer(CaptureJson.serializer()), capturesJson)
+            .associateBy { it.id }
+        val dtos = decoder(elementsJson)
+        val resolus = dtos.map { it.versResolu() }
+
+        val memoire = Memoire()
+        for (dto in dtos.sortedBy { it.id }) {
+            val qui = dto.interlocuteur?.takeIf { it.isNotBlank() } ?: continue
+            val capture = captures[dto.captureId] ?: continue
+            val entite = memoire.observer(
+                type = TypeEntite.PERSONNE,
+                nom = qui,
+                mention = Mention(
+                    captureId = CaptureId(dto.captureId),
+                    a = Instant.parse(capture.creeLe),
+                    extrait = dto.texte,
+                    elementId = ElementId(dto.id),
+                ),
+                sphere = dto.sphere?.let { Sphere.valueOf(it) },
+            )
+            memoire.rattacher(ElementId(dto.id), entite.id)
+        }
+
+        val fiches = memoire.entites()
+            .sortedWith(
+                compareByDescending<app.zenote.core.memoire.Entite> { it.derniereMention }
+                    .thenBy { it.nom },
+            )
+            .mapNotNull { entite -> Fiches.de(memoire, entite.id, resolus) }
+            .map { fiche ->
+                FicheJson(
+                    nom = fiche.entite.nom,
+                    type = fiche.entite.type.name,
+                    ouverts = fiche.ouverts.map { versLigne(it) },
+                    decide = fiche.decide.map { versLigne(it) },
+                    derniersEchanges = fiche.derniersEchanges.map {
+                        EchangeJson(
+                            captureId = it.captureId.value,
+                            quand = it.a.toString(),
+                            extrait = it.extrait,
+                        )
+                    },
+                    mentions = fiche.entite.frequence,
+                )
+            }
+
+        return json.encodeToString(ListSerializer(FicheJson.serializer()), fiches)
+    }
+
+    private fun versLigne(ligne: app.zenote.core.memoire.LigneFiche): LigneFicheJson =
+        LigneFicheJson(
+            elementId = ligne.elementId.value,
+            captureId = ligne.captureId.value,
+            type = ligne.type.name,
+            texte = ligne.texte,
+            verdict = ligne.verdict.name,
+        )
 
     // ------------------------------------------------------------------ interne
 

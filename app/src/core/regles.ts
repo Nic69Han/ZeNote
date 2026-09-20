@@ -93,6 +93,35 @@ export interface ARevoirJson {
   issues: IssueRevoir[];
 }
 
+/** Une ligne de fiche : elle porte toujours de quoi remonter à sa capture. */
+export interface LigneFicheJson {
+  elementId: string;
+  captureId: string;
+  type: string;
+  texte: string;
+  verdict: string;
+}
+
+/** Un échange passé avec l'entité, tel que la fiche le cite. */
+export interface EchangeJson {
+  captureId: string;
+  quand: string;
+  extrait: string;
+}
+
+/**
+ * La fiche d'une personne : ce qui est ouvert, ce qui a été décidé, les derniers
+ * échanges. Jamais renseignée à la main — elle se déduit de ce qui a été capturé.
+ */
+export interface FicheJson {
+  nom: string;
+  type: string;
+  ouverts: LigneFicheJson[];
+  decide: LigneFicheJson[];
+  derniersEchanges: EchangeJson[];
+  mentions: number;
+}
+
 /** Un candidat à la résolution d'une référence, avec ce qui le place là. */
 export interface CandidatJson {
   entiteId: string;
@@ -310,6 +339,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
   aRevoir(elementsJson: string, suivisJson: string, aujourdhui: string): string;
   creneauProtege(elementsJson: string, aujourdhui: string): string;
   signalCreneau(renoncementsDAffilee: number): string;
+  fiches(capturesJson: string, elementsJson: string): string;
   referencesAResoudre(
     capturesJson: string,
     elementsJson: string,
@@ -319,7 +349,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '12';
+export const VERSION_CONTRAT_ATTENDUE = '13';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -560,4 +590,14 @@ export function creneauProtege(elements: ElementJson[], aujourdhui: string): str
 /** Ce que la Revue dit d'un créneau décliné trop souvent, ou `null`. */
 export function signalCreneau(renoncementsDAffilee: number): string | null {
   return Regles.signalCreneau(renoncementsDAffilee) || null;
+}
+
+/**
+ * Les fiches des personnes connues, de la plus récemment citée à la plus ancienne.
+ *
+ * Rien n'est stocké : la mémoire est reconstruite depuis les captures et les
+ * éléments, donc une fiche ne peut pas contredire les notes dont elle sort.
+ */
+export function fiches(captures: CaptureJson[], elements: ElementJson[]): FicheJson[] {
+  return JSON.parse(Regles.fiches(JSON.stringify(captures), JSON.stringify(elements))) as FicheJson[];
 }

@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { passePertinent } from '../src/services/echos.ts';
+import { endormie, passePertinent } from '../src/services/echos.ts';
 import type { CaptureJson, ElementJson } from '../src/core/regles.ts';
 
 const JOUR = '2026-09-25';
@@ -103,5 +103,49 @@ describe('quand il se tait', () => {
     expect(
       passePertinent('acheter un nouveau téléphone pour le bureau', 'c-3', PASSE, ELEMENTS, JOUR),
     ).toBeNull();
+  });
+});
+
+describe('la décroissance : ce qui cesse de se proposer', () => {
+  const vieille: CaptureJson = {
+    id: 'c-vieux',
+    texte: 'revoir le chiffrage du chantier de Bron avec le fournisseur',
+    creeLe: '2026-01-05T10:00:00.000Z',
+    jour: '2026-01-05',
+  };
+
+  it('une note de l’an dernier ne remonte plus d’elle-même', () => {
+    // Elle donnerait l'impression d'un outil qui ressasse, et l'on cesserait de
+    // lire ses suggestions — y compris le jour où l'une aurait servi.
+    expect(endormie(vieille, JOUR)).toBe(true);
+    expect(
+      passePertinent(
+        'relancer le fournisseur sur le chiffrage du chantier de Bron',
+        'c-3',
+        [vieille],
+        [],
+        JOUR,
+      ),
+    ).toBeNull();
+  });
+
+  it('mais elle remonte encore si elle porte quelque chose d’ouvert', () => {
+    // Un dossier en cours n'est pas du passé, quel que soit son âge.
+    const ouvert = element('e-vieux', 'c-vieux', 'revoir le chiffrage du chantier de Bron');
+    const echo = passePertinent(
+      'relancer le fournisseur sur le chiffrage du chantier de Bron',
+      'c-3',
+      [vieille],
+      [ouvert],
+      JOUR,
+    );
+    expect(echo?.captureId).toBe('c-vieux');
+  });
+
+  it('et rien n’est supprimé : la capture est toujours là', () => {
+    // La décroissance ne touche qu'à la mise en avant. C'est la différence entre
+    // ranger et jeter.
+    expect(vieille.texte).toContain('chiffrage');
+    expect(endormie({ ...vieille, creeLe: '2026-09-20T10:00:00.000Z' }, JOUR)).toBe(false);
   });
 });

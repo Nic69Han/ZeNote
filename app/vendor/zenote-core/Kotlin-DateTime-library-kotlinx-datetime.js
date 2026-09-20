@@ -325,7 +325,7 @@
   function addFormatStructureForTime(structure) {
     this.kr(structure);
   }
-  initMetadataForInterface(AbstractWithDateTimeBuilder, 'AbstractWithDateTimeBuilder', VOID, VOID, [AbstractWithDateBuilder, AbstractWithTimeBuilder, WithTime, WithDate]);
+  initMetadataForInterface(AbstractWithDateTimeBuilder, 'AbstractWithDateTimeBuilder', VOID, VOID, [AbstractWithDateBuilder, AbstractWithTimeBuilder, WithDate, WithTime]);
   function offsetHours$default(padding, $super) {
     padding = padding === VOID ? Padding_ZERO_getInstance() : padding;
     var tmp;
@@ -378,7 +378,7 @@
     return tmp;
   }
   initMetadataForInterface(AbstractWithOffsetBuilder, 'AbstractWithOffsetBuilder', VOID, VOID, [WithUtcOffset]);
-  initMetadataForClass(Builder, 'Builder', VOID, VOID, [AbstractDateTimeFormatBuilder, AbstractWithDateTimeBuilder, AbstractWithOffsetBuilder, WithUtcOffset, WithTime, WithDate]);
+  initMetadataForClass(Builder, 'Builder', VOID, VOID, [AbstractDateTimeFormatBuilder, AbstractWithDateTimeBuilder, AbstractWithOffsetBuilder, WithUtcOffset, WithDate, WithTime]);
   initMetadataForClass(AbstractDateTimeFormat, 'AbstractDateTimeFormat');
   initMetadataForClass(DateTimeComponentsFormat, 'DateTimeComponentsFormat', VOID, AbstractDateTimeFormat);
   initMetadataForClass(TwoDigitNumber, 'TwoDigitNumber');
