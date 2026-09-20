@@ -21,7 +21,12 @@ import {
   serialiser,
   type ExportZeNote,
 } from '../services/export.ts';
-import { toutEffacer } from '../stockage/depot.ts';
+import {
+  ecrireReglage,
+  lireReglages,
+  toutEffacer,
+  type Reglages,
+} from '../stockage/depot.ts';
 import { diagnostiquer, enTexte } from '../audio/diagnostic.ts';
 import { activerChiffrement, desactiverChiffrement } from '../securite/activation.ts';
 import {
@@ -154,6 +159,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
     const donnees = await construireExport();
     const texte = serialiser(donnees);
     const appareilPossible = await gardienAppareilPossible();
+    const reglages = await lireReglages();
 
     vider(vue);
     const section = el(
@@ -166,11 +172,69 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       }),
       blocPerimetre(coffre),
       blocChiffrement(coffre, appareilPossible, donnees),
+      blocCreneau(reglages),
       blocExport(donnees, texte),
       blocEffacement(donnees),
       blocDictee(),
     );
     vue.append(section);
+  }
+
+  // ------------------------------------------------------- le créneau protégé
+
+  /**
+   * L'heure du créneau protégé, et de quoi l'éteindre.
+   *
+   * Le réglage existe parce que le créneau ne vaut qu'au bon moment. Un créneau posé
+   * à neuf heures chez quelqu'un dont la matinée est prise se saute tous les jours,
+   * et la Revue finit par le signaler — ce qui est utile la première fois, et pénible
+   * la dixième. Le déplacer coûte deux secondes ; l'éteindre aussi.
+   */
+  function blocCreneau(reglages: Reglages): HTMLElement {
+    const heure = el('input', {
+      class: 'champ',
+      type: 'time',
+      value: reglages.creneauProtegeDebut ?? '',
+      'aria-label': 'Heure du créneau protégé',
+    }) as HTMLInputElement;
+
+    heure.addEventListener('change', () => {
+      void (async () => {
+        await ecrireReglage('creneauProtegeDebut', heure.value || null);
+        // Changer l'heure remet le compte à zéro : les renoncements portaient sur
+        // l'ancien créneau, et les reporter sur le nouveau ferait signaler d'emblée
+        // un problème qu'on vient justement de corriger.
+        await ecrireReglage('creneauRenoncements', 0);
+        annoncer(heure.value ? `Créneau protégé à ${heure.value}.` : 'Créneau protégé éteint.');
+      })();
+    });
+
+    return el(
+      'section',
+      { class: 'bloc bloc--creneau' },
+      el('h2', { class: 'bloc__titre', texte: 'Créneau protégé' }),
+      el('p', {
+        class: 'bloc__texte',
+        texte:
+          'Une heure par jour où rien d’urgent ne passe devant. Ce qui compte vraiment ' +
+          'n’a jamais de date, donc n’est jamais urgent, donc n’arrive jamais — ce ' +
+          'créneau est la seule réponse qui ne demande pas de volonté.',
+      }),
+      heure,
+      el('button', {
+        class: 'bouton bouton--discret',
+        type: 'button',
+        texte: 'Éteindre le créneau',
+        onclick: () => {
+          void (async () => {
+            heure.value = '';
+            await ecrireReglage('creneauProtegeDebut', null);
+            await ecrireReglage('creneauRenoncements', 0);
+            annoncer('Créneau protégé éteint.');
+          })();
+        },
+      }),
+    );
   }
 
   // ------------------------------------------------------------ la dictée

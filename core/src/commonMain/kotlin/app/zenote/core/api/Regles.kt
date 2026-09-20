@@ -17,6 +17,7 @@ import app.zenote.core.model.Sphere
 import app.zenote.core.model.TypeElement
 import app.zenote.core.model.Verdict
 import app.zenote.core.priorisation.ContexteMaintenant
+import app.zenote.core.priorisation.CreneauProtege
 import app.zenote.core.priorisation.Priorisation
 import app.zenote.core.rappels.Declencheur
 import app.zenote.core.rappels.Echeance
@@ -534,6 +535,33 @@ object Regles {
             },
         )
     }
+
+    /**
+     * Ce que le créneau protégé propose aujourd'hui, ou une chaîne vide.
+     *
+     * @param elementsJson tableau d'[ElementJson]
+     * @param aujourdhui date ISO `AAAA-MM-JJ`
+     * @return l'identifiant de l'élément retenu, ou `""` s'il n'y a rien qui mérite
+     *   le créneau. Le remplir avec ce qui traîne le viderait de son sens.
+     */
+    fun creneauProtege(elementsJson: String, aujourdhui: String): String =
+        CreneauProtege.proposition(
+            elements = decoder(elementsJson).map { it.versResolu() },
+            aujourdhui = LocalDate.parse(aujourdhui),
+        )?.id?.value ?: ""
+
+    /**
+     * Ce que la Revue dit d'un créneau systématiquement décliné, ou une chaîne vide.
+     *
+     * Un créneau qui reproche se fait désactiver : la phrase porte sur le créneau,
+     * jamais sur la personne.
+     */
+    fun signalCreneau(renoncementsDAffilee: Int): String =
+        if (CreneauProtege.aSignaler(renoncementsDAffilee)) {
+            CreneauProtege.signal(renoncementsDAffilee)
+        } else {
+            ""
+        }
 
     // ------------------------------------------------------------------ interne
 

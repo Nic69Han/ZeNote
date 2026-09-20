@@ -1111,3 +1111,49 @@
   flex-wrap: wrap;
   gap: 0.5rem;
 }
+
+/* Le créneau protégé : ce qui compte, et qui n'a pas de date. Distinct des trois
+   propositions, parce qu'il ne répond pas à la même question. */
+.creneau {
+  margin-block-end: 1rem;
+  padding: 0.9rem 1rem;
+  border: 2px solid var(--accent);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+}
+
+.creneau__titre {
+  margin: 0 0 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--accent);
+}
+
+.creneau__explication {
+  margin: 0 0 0.7rem;
+  color: var(--encre-douce);
+  font-size: 0.82rem;
+}
+
+.creneau__texte {
+  margin: 0 0 0.8rem;
+  font-size: 1rem;
+  color: var(--encre);
+}
+
+.creneau__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Le constat quand le créneau passe sans être pris. Jamais un reproche. */
+.signal-creneau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-block-end: 0.85rem;
+  color: var(--encre-douce);
+  font-size: 0.85rem;
+}

@@ -8,9 +8,15 @@
  * Le classement vient du cœur (`core/regles.ts`) : cet écran n'ordonne rien.
  */
 
-import { maintenantObjets, type ElementJson, type PropositionJson } from '../core/regles.ts';
+import {
+  creneauProtege,
+  maintenantObjets,
+  type ElementJson,
+  type PropositionJson,
+} from '../core/regles.ts';
 import { aujourdhui } from '../services/pipeline.ts';
 import {
+  ecrireReglage,
   lireCapture,
   lireReglages,
   listerElementsActifs,
@@ -42,9 +48,25 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
     lecteurs.length = 0;
   }
 
+  /**
+   * Vrai si l'heure présente tombe dans le créneau protégé.
+   *
+   * Une heure pleine, à partir de l'heure réglée. Un créneau qui déborderait sur la
+   * journée entière ne protégerait plus rien : c'est sa brièveté qui le rend tenable.
+   */
+  function dansLeCreneau(debut: string | null, maintenant = new Date()): boolean {
+    if (!debut) return false;
+    const [heure, minute] = debut.split(':').map(Number);
+    if (Number.isNaN(heure) || Number.isNaN(minute)) return false;
+    const debutMinutes = heure * 60 + minute;
+    const courant = maintenant.getHours() * 60 + maintenant.getMinutes();
+    return courant >= debutMinutes && courant < debutMinutes + 60;
+  }
+
   async function rendre(): Promise<void> {
     libererLecteurs();
-    const sphere = (await lireReglages()).filtreSphere;
+    const reglages = await lireReglages();
+    const sphere = reglages.filtreSphere;
     const actifs = await listerElementsActifs();
     // Le même filtre qu'en Revue, et la même règle : un élément dont la sphère n'a
     // pas pu être déduite reste visible partout. Le filtre trie ce qu'on sait ranger,
@@ -55,17 +77,23 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
     );
     const propositions = maintenantObjets(candidats, aujourdhui());
 
+    // Spec `priorisation` — « Créneau tenu ». Pendant le créneau, ce qui compte passe
+    // devant ce qui presse. Le reste de la journée, l'ordre habituel reprend.
+    const creneauOuvert = dansLeCreneau(reglages.creneauProtegeDebut);
+    const protege = creneauOuvert
+      ? candidats.find((e) => e.id === creneauProtege(candidats, aujourdhui()))
+      : undefined;
+
     // Les sources des trois propositions, chargées d'avance : trois lectures, pas une
     // par rendu de carte, et le rendu reste synchrone.
     const parElement = new Map(candidats.map((e) => [e.id, e]));
     const sources = new Map<string, Capture | undefined>();
     await Promise.all(
-      propositions.map(async (p) => {
-        const captureId = parElement.get(p.elementId)?.captureId;
-        if (captureId && !sources.has(captureId)) {
-          sources.set(captureId, await lireCapture(captureId));
-        }
-      }),
+      [...propositions.map((p) => parElement.get(p.elementId)?.captureId), protege?.captureId]
+        .filter((id): id is string => Boolean(id))
+        .map(async (captureId) => {
+          if (!sources.has(captureId)) sources.set(captureId, await lireCapture(captureId));
+        }),
     );
 
     vider(racine);
@@ -76,9 +104,13 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
       el('p', { class: 'ecran__sous-titre', texte: 'Trois choses. Pas une de plus.' }),
     );
 
-    if (propositions.length === 0) {
+    if (protege) {
+      section.append(carteCreneau(protege, sources.get(protege.captureId)));
+    }
+
+    if (propositions.length === 0 && !protege) {
       section.append(vue_vide(actifs));
-    } else {
+    } else if (propositions.length > 0) {
       const liste = el('ol', { class: 'propositions' });
       for (const proposition of propositions) {
         const element = parElement.get(proposition.elementId);
@@ -129,6 +161,73 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
       bloc.append(el('p', { class: 'vide__detail', texte: 'Rien. C’est une bonne nouvelle.' }));
     }
     return bloc;
+  }
+
+  /**
+   * La carte du créneau protégé.
+   *
+   * Elle se distingue des trois propositions ordinaires, parce qu'elle ne répond pas
+   * à la même question : les autres disent « quoi faire maintenant », celle-ci dit
+   * « ce qui n'arrivera jamais tout seul ».
+   *
+   * Passer outre est un bouton comme un autre, sans commentaire ni friction : un
+   * créneau qui reproche se fait désactiver, et l'on perd tout. Le renoncement est
+   * seulement compté, une fois par jour.
+   */
+  function carteCreneau(element: ElementStocke, capture: Capture | undefined): HTMLElement {
+    const lecteur = lecteurAudio(capture);
+    lecteurs.push(lecteur);
+
+    return el(
+      'section',
+      { class: 'creneau', 'aria-labelledby': 'titre-creneau' },
+      el('h2', { id: 'titre-creneau', class: 'creneau__titre', texte: 'Créneau protégé' }),
+      el('p', {
+        class: 'creneau__explication',
+        texte: 'Ce qui compte, et qui n’a pas de date. Rien d’urgent ne prend ce moment.',
+      }),
+      el('p', { class: 'creneau__texte', texte: element.texte }),
+      el(
+        'div',
+        { class: 'creneau__actions' },
+        el('button', {
+          class: 'bouton bouton--plein creneau__pris',
+          type: 'button',
+          texte: 'Je m’y mets',
+          onclick: () => {
+            void marquerCreneau(false);
+          },
+        }),
+        el('button', {
+          class: 'bouton bouton--discret creneau__passe',
+          type: 'button',
+          texte: 'Pas aujourd’hui',
+          onclick: () => {
+            void marquerCreneau(true);
+          },
+        }),
+      ),
+    );
+  }
+
+  /**
+   * Retient ce qui a été fait du créneau, une fois par jour.
+   *
+   * Compter deux fois le même jour ferait d'un après-midi hésitant trois
+   * renoncements, et la Revue signalerait un problème qui n'existe pas.
+   */
+  async function marquerCreneau(renonce: boolean): Promise<void> {
+    const reglages = await lireReglages();
+    const jour = aujourdhui();
+    if (reglages.creneauVuLe !== jour) {
+      await ecrireReglage(
+        'creneauRenoncements',
+        renonce ? (reglages.creneauRenoncements ?? 0) + 1 : 0,
+      );
+      await ecrireReglage('creneauVuLe', jour);
+    }
+    annoncer(renonce ? 'Noté.' : 'Bon travail.');
+    await rendre();
   }
 
   function rendreProposition(

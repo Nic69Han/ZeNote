@@ -300,6 +300,8 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
   rappels(elementsJson: string, maintenant: string, suivisJson: string): string;
   rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
   aRevoir(elementsJson: string, suivisJson: string, aujourdhui: string): string;
+  creneauProtege(elementsJson: string, aujourdhui: string): string;
+  signalCreneau(renoncementsDAffilee: number): string;
   referencesAResoudre(
     capturesJson: string,
     elementsJson: string,
@@ -309,7 +311,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '10';
+export const VERSION_CONTRAT_ATTENDUE = '11';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -532,4 +534,22 @@ export function aRevoirObjets(
   return JSON.parse(
     Regles.aRevoir(JSON.stringify(elements), JSON.stringify(suivis), aujourdhui),
   ) as ARevoirJson[];
+}
+
+/**
+ * Ce que le créneau protégé propose aujourd'hui, ou `null`.
+ *
+ * Un élément de poids fort sans échéance proche. Ce qui compte vraiment n'a jamais
+ * de date, donc n'est jamais urgent, donc n'arrive jamais : le créneau ne rend pas
+ * l'important plus urgent, il empêche l'urgent d'y entrer. S'il n'y a rien qui le
+ * mérite, il ne propose rien — le remplir avec ce qui traîne le viderait de son sens
+ * en une semaine.
+ */
+export function creneauProtege(elements: ElementJson[], aujourdhui: string): string | null {
+  return Regles.creneauProtege(JSON.stringify(elements), aujourdhui) || null;
+}
+
+/** Ce que la Revue dit d'un créneau décliné trop souvent, ou `null`. */
+export function signalCreneau(renoncementsDAffilee: number): string | null {
+  return Regles.signalCreneau(renoncementsDAffilee) || null;
 }

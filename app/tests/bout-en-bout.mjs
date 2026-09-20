@@ -1132,6 +1132,112 @@ try {
     remonte ? `${apresDecoupe} remontée(s) restante(s)` : 'rien n’avait remonté',
   );
 
+  // --- Le créneau protégé --------------------------------------------------------
+  // Spec `priorisation` — « Créneau tenu » et « Renoncement explicite ». La règle de
+  // sélection est vérifiée dans le cœur ; ce qui se vérifie ici est que le créneau
+  // s'ouvre à l'heure dite et que passer outre ne coûte ni friction ni commentaire.
+  //
+  // Il faut d'abord quelque chose qui mérite le créneau : lourd, accepté, et sans
+  // échéance. Tout ce que le parcours a produit jusqu'ici a une date — c'est
+  // précisément le genre d'élément que le créneau n'accueille pas.
+  await page.evaluate(async () => {
+    await window.__zenote.capturer({
+      texte: 'préparer la reprise du dossier Atlas, sinon tout le chantier est bloqué',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.traiterFileAnalyse();
+  });
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(200);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1200);
+
+  const aAccepter = page.locator('.entree', { hasText: /reprise du dossier Atlas/i }).first();
+  const trouvee = await aAccepter
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (trouvee) {
+    await aAccepter.locator('.bouton--accepter').click();
+    await page.waitForTimeout(400);
+    const plan = aAccepter.locator('.bouton--plan').first();
+    if ((await plan.count()) > 0) {
+      await plan.click();
+      await page.waitForTimeout(800);
+    }
+  }
+
+  // L'heure est posée sur celle du navigateur : attendre neuf heures du matin pour
+  // vérifier un créneau de neuf heures ne serait pas un test.
+  await page.evaluate(
+    (heure) =>
+      new Promise((ok) => {
+        const requete = indexedDB.open('zenote');
+        requete.onsuccess = () => {
+          const magasin = requete.result
+            .transaction('reglages', 'readwrite')
+            .objectStore('reglages');
+          magasin.put({ cle: 'creneauProtegeDebut', valeur: heure });
+          magasin.put({ cle: 'creneauRenoncements', valeur: 0 });
+          magasin.put({ cle: 'creneauVuLe', valeur: null });
+          magasin.transaction.oncomplete = () => ok(true);
+        };
+        requete.onerror = () => ok(false);
+      }),
+    `${String(new Date().getHours()).padStart(2, '0')}:00`,
+  );
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(800);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(900);
+
+  const creneau = page.locator('.creneau').first();
+  const ouvert = await creneau
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const propose = ouvert ? await creneau.locator('.creneau__texte').innerText() : '';
+  verifier(
+    'le créneau protégé s’ouvre à l’heure dite, avec ce qui compte',
+    ouvert && propose.trim().length > 0,
+    propose || 'aucun créneau',
+  );
+
+  const passer = ouvert ? await creneau.locator('.creneau__passe').count() : 0;
+  verifier(
+    'passer outre est un bouton comme un autre, sans friction',
+    passer === 1,
+    `${passer} bouton(s) pour passer`,
+  );
+
+  if (passer === 1) {
+    await creneau.locator('.creneau__passe').click();
+    await page.waitForTimeout(800);
+  }
+  const renoncements = await page.evaluate(
+    () =>
+      new Promise((ok) => {
+        const requete = indexedDB.open('zenote');
+        requete.onsuccess = () => {
+          const lecture = requete.result
+            .transaction('reglages', 'readonly')
+            .objectStore('reglages')
+            .get('creneauRenoncements');
+          lecture.onsuccess = () => ok(lecture.result?.valeur ?? 0);
+          lecture.onerror = () => ok(-1);
+        };
+        requete.onerror = () => ok(-1);
+      }),
+  );
+  verifier(
+    'le renoncement est retenu, sans un mot de reproche',
+    renoncements === 1,
+    `${renoncements} renoncement(s) compté(s)`,
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

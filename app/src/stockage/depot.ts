@@ -212,12 +212,27 @@ export interface Reglages {
    * capture ne demande toujours rien.
    */
   filtreSphere: 'TOUT' | 'PROFESSIONNEL' | 'PERSONNEL';
+  /**
+   * L'heure de début du créneau protégé, en `HH:MM`, ou `null` pour l'éteindre.
+   *
+   * Spec `priorisation` — « Créneau protégé ». Une heure plutôt qu'un créneau
+   * d'agenda : l'agenda n'est pas branché, et attendre qu'il le soit reviendrait à
+   * ne rien protéger du tout. Le créneau dure une heure.
+   */
+  creneauProtegeDebut: string | null;
+  /** Combien de fois d'affilée le créneau est passé sans être pris. */
+  creneauRenoncements: number;
+  /** Le jour où le créneau a été pris ou décliné, pour ne compter qu'une fois par jour. */
+  creneauVuLe: string | null;
 }
 
 export const REGLAGES_PAR_DEFAUT: Reglages = {
   theme: 'auto',
   sonConfirmation: true,
   filtreSphere: 'TOUT',
+  creneauProtegeDebut: '09:00',
+  creneauRenoncements: 0,
+  creneauVuLe: null,
 };
 
 // ------------------------------------------------- scellement et ouverture

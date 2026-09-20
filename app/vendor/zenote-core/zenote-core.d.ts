@@ -11,6 +11,8 @@ export declare namespace app.zenote.core.js {
         rappels(elementsJson: string, maintenant: string, suivisJson: string): string;
         referencesAResoudre(capturesJson: string, elementsJson: string, maintenant: string): string;
         aRevoir(elementsJson: string, suivisJson: string, aujourdhui: string): string;
+        creneauProtege(elementsJson: string, aujourdhui: string): string;
+        signalCreneau(renoncementsDAffilee: number): string;
         rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
         get version(): string;
     };

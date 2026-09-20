@@ -12,6 +12,7 @@ import {
   revueObjets,
   aRevoirObjets,
   referencesAResoudre,
+  signalCreneau,
   transcriptionLisible,
   type ElementJson,
   type PassageIncertain,
@@ -323,6 +324,25 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // Ce qui n'avance plus passe avant les rappels : répéter un rappel sur un
     // élément mal découpé ne le débloquera pas, et l'ordre inverse donnerait à lire
     // trois fois la même chose sous trois formes.
+    // Spec `priorisation` — « Renoncement explicite » : le signal arrive ici, une
+    // fois, et porte sur le créneau. Un créneau qu'on saute chaque jour n'est pas au
+    // bon moment ; le reprocher le ferait éteindre, et l'on perdrait tout.
+    const signal = signalCreneau((await lireReglages()).creneauRenoncements ?? 0);
+    if (signal) {
+      section.append(
+        el(
+          'p',
+          { class: 'signal-creneau', role: 'status' },
+          el('span', { class: 'signal-creneau__texte', texte: signal }),
+          el('a', {
+            class: 'bouton bouton--discret',
+            href: '#reglages',
+            texte: 'Changer l’heure',
+          }),
+        ),
+      );
+    }
+
     if (aRevoir.length > 0) section.append(blocARevoir(aRevoir, parElementStocke));
 
     if (moment.escalades.length > 0) section.append(blocEscalades(moment));
