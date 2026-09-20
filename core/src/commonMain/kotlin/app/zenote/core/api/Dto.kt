@@ -287,3 +287,31 @@ data class ResolutionJson(
     val candidats: List<CandidatJson> = emptyList(),
     val aQuestionner: Boolean = false,
 )
+
+/**
+ * Ce que la surface a retenu d'un élément entre deux Revues.
+ *
+ * Ces deux faits n'appartiennent pas au classement — ils disent ce qui s'est passé à
+ * l'écran, pas ce que l'élément est. Ils voyagent donc à part, comme les suivis de
+ * relance et de rappel.
+ */
+@Serializable
+data class SuiviElementJson(
+    val elementId: String,
+    val ecarteFois: Int = 0,
+    /** Dernier jour où l'on y a touché, en ISO `AAAA-MM-JJ`. */
+    val vuLe: String? = null,
+)
+
+/** Un élément qui n'avance plus, le constat qui l'explique et les issues proposées. */
+@Serializable
+data class ARevoirJson(
+    val elementId: String,
+    val texte: String,
+    /** ECARTE_PLUSIEURS_FOIS ou DORMANT. */
+    val motif: String,
+    /** Le constat, affichable tel quel. Jamais un reproche. */
+    val explication: String,
+    /** REFORMULER, DECOUPER, PLANIFIER, DELEGUER, ABANDONNER. */
+    val issues: List<String>,
+)

@@ -78,6 +78,34 @@ export interface ElementStocke extends ElementJson {
    * l'identique au-delà n'use que l'utilisateur.
    */
   rappelIgnoreFois?: number;
+  /**
+   * Combien de fois cet élément a été écarté dans la vue Maintenant.
+   *
+   * Écarter n'est ni supprimer ni reporter : l'élément reste actif et sera reproposé.
+   * Mais au troisième écart, le reproposer à l'identique n'apprend plus rien — ce
+   * n'est pas le moment qui cloche, c'est l'élément. Le compte vivait en mémoire et
+   * disparaissait au rechargement ; il ne pouvait donc rien déclencher.
+   */
+  ecarteFois?: number;
+  /**
+   * Le dernier jour où l'on a touché à cet élément, en ISO `AAAA-MM-JJ`.
+   *
+   * C'est ce qui permet de repérer un élément lourd qui dort. Sans lui, « sans
+   * avancée depuis trois semaines » ne se distingue pas de « créé il y a trois
+   * semaines et traité hier ».
+   */
+  vuLe?: string | null;
+}
+
+/** Les suivis d'élément, tels que le cœur les attend. */
+export function suivisElementDe(
+  elements: ElementStocke[],
+): { elementId: string; ecarteFois: number; vuLe: string | null }[] {
+  return elements.map((e) => ({
+    elementId: e.id,
+    ecarteFois: e.ecarteFois ?? 0,
+    vuLe: e.vuLe ?? null,
+  }));
 }
 
 /** Les suivis de rappel, tels que le cœur les attend, tirés des éléments stockés. */
@@ -479,7 +507,7 @@ export async function remplacerElements(
   });
 }
 
-export async function enregistrerElement(element: ElementJson): Promise<void> {
+export async function enregistrerElement(element: ElementStocke): Promise<void> {
   const brut = await versStockageElement(element);
   await transaction([MAGASIN_ELEMENTS], 'readwrite', ([elements]) => {
     elements.put(brut);

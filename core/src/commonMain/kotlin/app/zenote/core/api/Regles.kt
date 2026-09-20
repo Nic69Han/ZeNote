@@ -27,7 +27,9 @@ import app.zenote.core.rappels.PointDeRupture
 import app.zenote.core.rappels.Rappel
 import app.zenote.core.rappels.RappelId
 import app.zenote.core.recherche.RechercheLocale
+import app.zenote.core.revue.ARevoir
 import app.zenote.core.revue.Arriere
+import app.zenote.core.revue.SuiviElement
 import app.zenote.core.revue.FileRevue
 import app.zenote.core.revue.Relance
 import app.zenote.core.revue.Suivi
@@ -493,6 +495,45 @@ object Regles {
         nom = candidat.entite.nom,
         appui = candidat.appui,
     )
+
+    /**
+     * Les éléments qui n'avancent plus : écartés plusieurs fois, ou dormants.
+     *
+     * @param elementsJson tableau d'[ElementJson]
+     * @param suivisJson tableau de [SuiviElementJson] — ce que la surface a retenu
+     * @param aujourdhui date ISO `AAAA-MM-JJ`
+     * @return tableau d'[ARevoirJson], les plus lourds d'abord
+     */
+    fun aRevoir(elementsJson: String, suivisJson: String, aujourdhui: String): String {
+        val suivis = json
+            .decodeFromString(ListSerializer(SuiviElementJson.serializer()), suivisJson.ifBlank { "[]" })
+            .map {
+                SuiviElement(
+                    elementId = it.elementId,
+                    ecarteFois = it.ecarteFois,
+                    vuLe = it.vuLe?.let(LocalDate::parse),
+                )
+            }
+
+        val remontees = ARevoir.aRevoir(
+            elements = decoder(elementsJson).map { it.versResolu() },
+            suivis = suivis,
+            aujourdhui = LocalDate.parse(aujourdhui),
+        )
+
+        return json.encodeToString(
+            ListSerializer(ARevoirJson.serializer()),
+            remontees.map {
+                ARevoirJson(
+                    elementId = it.element.id.value,
+                    texte = it.element.texte,
+                    motif = it.motif.name,
+                    explication = it.explication,
+                    issues = it.issues.map { issue -> issue.name },
+                )
+            },
+        )
+    }
 
     // ------------------------------------------------------------------ interne
 

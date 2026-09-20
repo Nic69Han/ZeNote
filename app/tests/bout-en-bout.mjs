@@ -1049,6 +1049,89 @@ try {
     pose || 'aucun rattachement affiché',
   );
 
+  // --- Écarter, et ce qui remonte au bout de trois fois --------------------------
+  // Spec `priorisation` — « Élément écarté » et « Rejets répétés ». Écarter doit
+  // laisser l'élément actif ; le compte, lui, vivait en mémoire et disparaissait au
+  // rechargement. Le geste marchait donc parfaitement, et ne déclenchait jamais rien.
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(700);
+
+  const avantEcart = await page.locator('.proposition').first().innerText().catch(() => '');
+  const peutEcarter = await page
+    .locator('.proposition .bouton')
+    .filter({ hasText: /pas maintenant/i })
+    .count();
+
+  // Trois fois le même élément, et non trois éléments une fois chacun : écarter fait
+  // place au suivant, donc sans revenir on écarterait toute la pile. Le rechargement
+  // est ce qui ramène la proposition en tête — c'est aussi ce qui se passe quand on
+  // rouvre l'application le lendemain.
+  let ecarteTrois = false;
+  if (peutEcarter > 0) {
+    for (let fois = 0; fois < 3; fois += 1) {
+      const bouton = page
+        .locator('.proposition .bouton')
+        .filter({ hasText: /pas maintenant/i })
+        .first();
+      if ((await bouton.count()) === 0) break;
+      await bouton.click();
+      await page.waitForTimeout(500);
+      ecarteTrois = fois === 2;
+      if (fois < 2) {
+        await page.reload({ waitUntil: 'networkidle' });
+        await page.waitForTimeout(700);
+        await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+        await page.waitForTimeout(700);
+      }
+    }
+  }
+  const apresEcart = await page.locator('.proposition').first().innerText().catch(() => '');
+  verifier(
+    'écarter laisse la place au suivant',
+    peutEcarter > 0 && avantEcart !== apresEcart,
+    peutEcarter > 0 ? 'la proposition en tête a changé' : 'rien à écarter',
+  );
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(800);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1200);
+
+  const remontee = page.locator('.arevoir__ligne').first();
+  const remonte = await remontee
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const motifRemontee = remonte ? await remontee.locator('.arevoir__motif').innerText() : '';
+  verifier(
+    'écarté trois fois, l’élément remonte en Revue — le compte a survécu au rechargement',
+    /écart[ée]\s+\d+\s+fois/i.test(motifRemontee),
+    motifRemontee || 'rien n’est remonté',
+  );
+
+  const issuesRemontee = remonte
+    ? await remontee.locator('.arevoir__issue').allInnerTexts()
+    : [];
+  verifier(
+    'avec de quoi le reprendre autrement, pas pour le redemander',
+    /reformuler/i.test(issuesRemontee.join(' ')) &&
+      /découper/i.test(issuesRemontee.join(' ')) &&
+      /abandonner/i.test(issuesRemontee.join(' ')),
+    issuesRemontee.join(' · ') || 'aucune issue',
+  );
+
+  if (remonte) {
+    await remontee.locator('.arevoir__champ').fill('appeler le notaire ; relire la promesse');
+    await remontee.locator('.arevoir__issue[data-issue="DECOUPER"]').click();
+    await page.waitForTimeout(1000);
+  }
+  const apresDecoupe = await page.locator('.arevoir__ligne').count();
+  verifier(
+    'découper le sort de la remontée',
+    remonte && apresDecoupe === 0,
+    remonte ? `${apresDecoupe} remontée(s) restante(s)` : 'rien n’avait remonté',
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

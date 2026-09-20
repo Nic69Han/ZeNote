@@ -10,6 +10,7 @@ export declare namespace app.zenote.core.js {
         rechercherParQuestion(requete: string, elementsJson: string, capturesJson: string, aujourdhui: string, reseau: boolean): string;
         rappels(elementsJson: string, maintenant: string, suivisJson: string): string;
         referencesAResoudre(capturesJson: string, elementsJson: string, maintenant: string): string;
+        aRevoir(elementsJson: string, suivisJson: string, aujourdhui: string): string;
         rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
         get version(): string;
     };

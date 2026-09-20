@@ -16,6 +16,7 @@ import {
   listerElementsActifs,
   majElement,
   type Capture,
+  type ElementStocke,
 } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
@@ -132,7 +133,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
 
   function rendreProposition(
     p: PropositionJson,
-    element: ElementJson | undefined,
+    element: ElementStocke | undefined,
     capture: Capture | undefined,
   ): HTMLElement {
     return el(
@@ -164,8 +165,17 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
           type: 'button',
           texte: 'Pas maintenant',
           onclick: () => {
-            // Écarté : l'élément reste actif et pourra être reproposé plus tard.
+            // Écarté : l'élément reste actif et pourra être reproposé plus tard. Ni
+            // supprimé, ni reporté — c'est la différence que la spec tient.
+            //
+            // Le compte, lui, est écrit : il vivait en mémoire et disparaissait au
+            // rechargement, donc ne pouvait rien déclencher. Au troisième écart, la
+            // Revue demande si c'est bien le bon découpage.
             ecartes.add(p.elementId);
+            void majElement(p.elementId, {
+              ecarteFois: (element?.ecarteFois ?? 0) + 1,
+              vuLe: aujourdhui(),
+            });
             annoncer('Écarté pour l’instant.');
             void rendre();
           },

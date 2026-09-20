@@ -1053,3 +1053,61 @@
   font-style: italic;
   color: var(--encre-douce);
 }
+
+/* Ce qui n'avance plus. Présenté comme un constat : le reproposer à l'identique
+   n'apprendrait rien, et le reprocher encore moins. */
+.arevoir {
+  margin-block-end: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.arevoir__titre {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.arevoir__explication {
+  margin: 0 0 0.85rem;
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+}
+
+.arevoir__ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.arevoir__ligne + .arevoir__ligne {
+  margin-block-start: 0.85rem;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.arevoir__texte {
+  margin: 0;
+  color: var(--encre);
+  font-size: 0.95rem;
+}
+
+.arevoir__motif {
+  margin: 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.arevoir__champ {
+  width: 100%;
+}
+
+.arevoir__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

@@ -57,6 +57,34 @@ export interface ElementJson {
 /** L'ordre de grandeur d'une échéance qu'on n'a pas datée. */
 export type Horizon = 'JOURS' | 'SEMAINES' | 'MOIS';
 
+/** Ce que la surface a retenu d'un élément entre deux Revues. */
+export interface SuiviElementJson {
+  elementId: string;
+  /** Combien de fois il a été écarté dans la vue Maintenant. */
+  ecarteFois: number;
+  /** Dernier jour où l'on y a touché, en ISO `AAAA-MM-JJ`. */
+  vuLe?: string | null;
+}
+
+/** Ce qu'on peut faire d'un élément qui n'avance pas. */
+export type IssueRevoir =
+  | 'REFORMULER'
+  | 'DECOUPER'
+  | 'PLANIFIER'
+  | 'DELEGUER'
+  | 'ABANDONNER';
+
+/** Un élément qui n'avance plus, avec le constat qui l'explique. */
+export interface ARevoirJson {
+  elementId: string;
+  texte: string;
+  /** ECARTE_PLUSIEURS_FOIS ou DORMANT. */
+  motif: string;
+  /** Le constat, affichable tel quel. Jamais un reproche. */
+  explication: string;
+  issues: IssueRevoir[];
+}
+
 /** Un candidat à la résolution d'une référence, avec ce qui le place là. */
 export interface CandidatJson {
   entiteId: string;
@@ -271,6 +299,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
   ): string;
   rappels(elementsJson: string, maintenant: string, suivisJson: string): string;
   rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
+  aRevoir(elementsJson: string, suivisJson: string, aujourdhui: string): string;
   referencesAResoudre(
     capturesJson: string,
     elementsJson: string,
@@ -280,7 +309,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '9';
+export const VERSION_CONTRAT_ATTENDUE = '10';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -485,4 +514,22 @@ export function referencesAResoudre(
   return JSON.parse(
     Regles.referencesAResoudre(JSON.stringify(captures), JSON.stringify(elements), maintenant),
   ) as ResolutionJson[];
+}
+
+/**
+ * Les éléments qui n'avancent plus : écartés plusieurs fois, ou dormants.
+ *
+ * Deux causes différentes, un même symptôme — un élément qui reste là sans avancer,
+ * et qu'aucune insistance ne débloquera. Le cœur pose les issues et s'arrête :
+ * découper, planifier, déléguer, abandonner demandent de savoir pourquoi ça bloque,
+ * et personne d'autre que l'utilisateur ne le sait.
+ */
+export function aRevoirObjets(
+  elements: ElementJson[],
+  suivis: SuiviElementJson[],
+  aujourdhui: string,
+): ARevoirJson[] {
+  return JSON.parse(
+    Regles.aRevoir(JSON.stringify(elements), JSON.stringify(suivis), aujourdhui),
+  ) as ARevoirJson[];
 }

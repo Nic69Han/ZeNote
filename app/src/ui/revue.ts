@@ -10,11 +10,14 @@
 import {
   relancesObjets,
   revueObjets,
+  aRevoirObjets,
   referencesAResoudre,
   transcriptionLisible,
   type ElementJson,
   type PassageIncertain,
+  type ARevoirJson,
   type CaptureJson,
+  type IssueRevoir,
   type ResolutionJson,
   type EntreeRevueJson,
   type RelanceJson,
@@ -23,8 +26,10 @@ import {
   capturesATranscrire,
   capturesEnSouffrance,
   lireCapture,
+  enregistrerElement,
   listerCaptures,
   listerElements,
+  suivisElementDe,
   majCapture,
   retenirCorrections,
   majElement,
@@ -44,6 +49,7 @@ import {
 } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import { identifiant } from '../analyse/index.ts';
 import { apprendre } from '../services/lexique.ts';
 import { echosDe } from '../services/echos.ts';
 import {
@@ -138,7 +144,10 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   ): Promise<void> {
     if (!lot) dernierLot = [];
     dernierLot.push({ id: element.id, avant: { ...element } });
-    await majElement(element.id, ajustement);
+    // Toute décision est une interaction : c'est elle qui empêche un élément d'être
+    // pris pour dormant alors qu'on s'en occupe. Sans cette date, « sans avancée
+    // depuis trois semaines » ne se distingue pas de « créé il y a trois semaines ».
+    await majElement(element.id, { vuLe: jour, ...ajustement });
   }
 
   async function annulerDernier(): Promise<void> {
@@ -276,6 +285,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const encoreEnJeu = elements.filter((e) => !e.faitLe);
     const masques = tous.length - elements.length;
     const aRelancer = relancesObjets(encoreEnJeu, jour, suivisDe(encoreEnJeu));
+    const aRevoir = aRevoirObjets(encoreEnJeu, suivisElementDe(encoreEnJeu), jour);
+    const parElementStocke = new Map(encoreEnJeu.map((e) => [e.id, e]));
     const enSouffrance = await capturesEnSouffrance();
     const enTranscription = await capturesATranscrire();
     const moment = await rappelsDuPointDeRupture();
@@ -309,6 +320,11 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // Les escalades viennent avant les relances : ce sont des rappels qu'on a déjà
     // vus passer trois fois sans rien en faire. Les redemander à l'identique ne sert
     // plus ; ce qu'il faut, c'est décider autrement.
+    // Ce qui n'avance plus passe avant les rappels : répéter un rappel sur un
+    // élément mal découpé ne le débloquera pas, et l'ordre inverse donnerait à lire
+    // trois fois la même chose sous trois formes.
+    if (aRevoir.length > 0) section.append(blocARevoir(aRevoir, parElementStocke));
+
     if (moment.escalades.length > 0) section.append(blocEscalades(moment));
 
     // Les relances passent devant la file : ce sont les seules choses que
@@ -320,7 +336,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       aRelancer.length === 0 &&
       enSouffrance.length === 0 &&
       enTranscription.length === 0 &&
-      moment.escalades.length === 0
+      moment.escalades.length === 0 &&
+      aRevoir.length === 0
     ) {
       section.append(
         el(
@@ -382,6 +399,186 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
    * Aucun reproche ici non plus. « Ignoré trois fois » est un constat sur le rappel,
    * pas sur celui qui l'a écarté.
    */
+  /**
+   * Ce qui n'avance plus, et les issues qu'on propose d'y prendre.
+   *
+   * Spec `priorisation` — « Rejets répétés » et « Tâche dormante ». Un élément
+   * écarté trois fois n'attend pas un meilleur moment : il est trop gros, mal
+   * formulé, ou plus d'actualité. Un élément lourd que personne n'a touché depuis
+   * trois semaines est bloqué par autre chose. Dans les deux cas, le proposer une
+   * fois de plus à l'identique n'use que l'utilisateur.
+   *
+   * Aucune issue n'est choisie ici — elles demandent de savoir pourquoi ça bloque,
+   * et personne d'autre ne le sait. Le motif est un constat sur l'élément, jamais
+   * sur celui qui ne l'a pas fait.
+   */
+  function blocARevoir(
+    remontees: ARevoirJson[],
+    parId: Map<string, ElementStocke>,
+  ): HTMLElement {
+    const bloc = el(
+      'section',
+      { class: 'arevoir', 'aria-labelledby': 'titre-arevoir' },
+      el('h2', {
+        id: 'titre-arevoir',
+        class: 'arevoir__titre',
+        texte:
+          remontees.length === 1
+            ? 'Une chose n’avance pas'
+            : `${remontees.length} choses n’avancent pas`,
+      }),
+      el('p', {
+        class: 'arevoir__explication',
+        texte:
+          'Les reproposer à l’identique ne changerait rien. Ce qui aide, c’est de les ' +
+          'reprendre autrement.',
+      }),
+    );
+
+    for (const remontee of remontees) {
+      const element = parId.get(remontee.elementId);
+      if (!element) continue;
+
+      const champ = el('input', {
+        class: 'champ arevoir__champ',
+        type: 'text',
+        placeholder: 'Reformuler, découper en deux lignes, ou à qui confier…',
+        'aria-label': 'Reformulation, découpage ou destinataire',
+      }) as HTMLInputElement;
+
+      const actions = el('div', { class: 'arevoir__actions' });
+      for (const issue of remontee.issues) {
+        actions.append(boutonIssue(issue, element, champ));
+      }
+
+      bloc.append(
+        el(
+          'article',
+          { class: 'arevoir__ligne', 'data-element': remontee.elementId },
+          el('p', { class: 'arevoir__texte', texte: remontee.texte }),
+          el('p', { class: 'arevoir__motif', texte: remontee.explication }),
+          champ,
+          actions,
+        ),
+      );
+    }
+    return bloc;
+  }
+
+  /** Le bouton d'une issue, et ce qu'il fait de ce qui est écrit dans le champ. */
+  function boutonIssue(
+    issue: IssueRevoir,
+    element: ElementStocke,
+    champ: HTMLInputElement,
+  ): HTMLElement {
+    const libelles: Record<IssueRevoir, string> = {
+      REFORMULER: 'Reformuler',
+      DECOUPER: 'Découper',
+      PLANIFIER: 'Planifier',
+      DELEGUER: 'Déléguer',
+      ABANDONNER: 'Abandonner',
+    };
+
+    return el('button', {
+      class: `bouton bouton--discret arevoir__issue${issue === 'ABANDONNER' ? ' bouton--supprimer' : ''}`,
+      type: 'button',
+      'data-issue': issue,
+      texte: libelles[issue],
+      onclick: () => void prendreIssue(issue, element, champ.value.trim()),
+    });
+  }
+
+  /**
+   * Ce qu'une issue fait, et ce qu'elle remet à zéro.
+   *
+   * Chaque issue repart d'un compte d'écarts neuf : l'élément a changé, et l'ancien
+   * compte ne dit plus rien de celui-là. Sans cette remise à zéro, il remonterait à
+   * la Revue suivante en disant qu'on l'a écarté trois fois — ce qui serait faux.
+   */
+  async function prendreIssue(
+    issue: IssueRevoir,
+    element: ElementStocke,
+    saisi: string,
+  ): Promise<void> {
+    const neuf = { ecarteFois: 0, vuLe: jour, corrigeParHumain: true };
+
+    switch (issue) {
+      case 'REFORMULER': {
+        if (saisi === '') {
+          annoncer('Écrivez la nouvelle formulation dans le champ.');
+          return;
+        }
+        await appliquer(element, { ...neuf, texte: saisi });
+        annoncer('Reformulé.');
+        break;
+      }
+      case 'DECOUPER': {
+        // Deux morceaux séparés par une virgule ou un retour : chacun devient un
+        // élément, ancré sur le même passage source. Découper n'invente rien, et
+        // l'ancrage reste vérifiable.
+        const morceaux = saisi
+          .split(/\s*[\n;]\s*/)
+          .map((m) => m.trim())
+          .filter((m) => m !== '');
+        if (morceaux.length < 2) {
+          annoncer('Écrivez les morceaux séparés par un point-virgule.');
+          return;
+        }
+        await appliquer(element, { ...neuf, texte: morceaux[0] });
+        for (const morceau of morceaux.slice(1)) {
+          await enregistrerElement({
+            ...element,
+            id: identifiant('el'),
+            texte: morceau,
+            verdict: 'ACCEPTE',
+            corrigeParHumain: true,
+            ecarteFois: 0,
+            vuLe: jour,
+          });
+        }
+        annoncer(`Découpé en ${morceaux.length}.`);
+        break;
+      }
+      case 'PLANIFIER': {
+        const declencheur = saisi || 'au prochain créneau libre';
+        await appliquer(element, {
+          ...neuf,
+          verdict: 'ACCEPTE',
+          planDeclencheur: declencheur,
+          planAction: element.texte,
+          planPoseLe: maintenantLocal(),
+          rappelIgnoreFois: 0,
+        });
+        annoncer(`Planifié — ${declencheur}.`);
+        break;
+      }
+      case 'DELEGUER': {
+        if (saisi === '') {
+          annoncer('À qui ? Écrivez un nom dans le champ.');
+          return;
+        }
+        await appliquer(element, {
+          ...neuf,
+          type: 'ATTENTE',
+          interlocuteur: saisi,
+          relanceLe: new Date().toISOString().slice(0, 10),
+        });
+        annoncer(`Confié à ${saisi} — suivi comme une attente.`);
+        break;
+      }
+      case 'ABANDONNER': {
+        await appliquer(element, {
+          ...neuf,
+          verdict: 'REJETE',
+          faitLe: new Date().toISOString(),
+        });
+        annoncer('Abandonné.');
+        break;
+      }
+    }
+    await rendre();
+  }
+
   function blocEscalades(moment: RappelsDuMoment): HTMLElement {
     const bloc = el(
       'section',

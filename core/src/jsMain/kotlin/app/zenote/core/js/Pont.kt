@@ -3,7 +3,7 @@ package app.zenote.core.js
 import app.zenote.core.api.Regles
 
 /**
- * Le pont vers le navigateur. Dix fonctions, un contrat JSON, aucun état.
+ * Le pont vers le navigateur. Onze fonctions, un contrat JSON, aucun état.
  *
  * La PWA détient les données (IndexedDB) et appelle ces règles ; les applications
  * natives appelleront les mêmes, en JVM. C'est ce qui garantit qu'un même jeu de
@@ -85,6 +85,15 @@ object ZeNoteRegles {
         maintenant: String,
     ): String = Regles.referencesAResoudre(capturesJson, elementsJson, maintenant)
 
+    /**
+     * Éléments qui n'avancent plus : `[ElementJson]` + `[SuiviElementJson]` → `[ARevoirJson]`.
+     *
+     * Écartés plusieurs fois, ou dormants au regard de leur poids. Les plus lourds
+     * d'abord.
+     */
+    fun aRevoir(elementsJson: String, suivisJson: String, aujourdhui: String): String =
+        Regles.aRevoir(elementsJson, suivisJson, aujourdhui)
+
     /** Recherche par personne : nom + `[ElementJson]` → `ReponseJson`. */
     fun rechercherParPersonne(personne: String, elementsJson: String, reseau: Boolean): String =
         Regles.rechercherParPersonne(personne, elementsJson, reseau)
@@ -92,9 +101,10 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 9 » avec la résolution des références implicites. Une surface qui
-     * attend cette version et en trouve une plus ancienne parle à un cœur sans cette
-     * fonction, et doit le dire au lieu de planter à l'appel.
+     * Passée à « 10 » avec les éléments à revoir — écartés plusieurs fois, ou
+     * dormants. Une surface qui attend cette version et en trouve une plus ancienne
+     * parle à un cœur sans cette fonction, et doit le dire au lieu de planter à
+     * l'appel.
      */
-    val version: String = "9"
+    val version: String = "10"
 }
