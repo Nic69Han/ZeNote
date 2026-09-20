@@ -19,6 +19,7 @@ import {
 import { assurerCoffreCharge, etatCoffre, verrouiller } from './securite/coffre.ts';
 import { ecrireReglage, lireReglages, majCapture, toutEffacer, type Reglages } from './stockage/depot.ts';
 import { el, vider } from './ui/dom.ts';
+import { surEnregistrement } from './audio/enregistreur.ts';
 import { montrerCapturer } from './ui/capturer.ts';
 import { montrerMaintenant } from './ui/maintenant.ts';
 import { montrerRevue } from './ui/revue.ts';
@@ -69,6 +70,22 @@ async function demarrer(): Promise<void> {
       }),
     );
   }
+
+  // Spec `reunions` — « Aucun enregistrement à l'insu des participants ». Le voyant
+  // vit dans la coquille, pas dans l'écran de capture : un enregistrement continue
+  // quand on change d'écran, et un voyant qui disparaît avec l'écran laisserait le
+  // micro tourner sans que rien ne le dise. C'est exactement ce que l'exigence
+  // interdit, et ce serait invisible depuis l'écran de capture.
+  const voyant = el('div', {
+    class: 'voyant-enregistrement',
+    role: 'status',
+    hidden: true,
+    texte: 'Enregistrement en cours',
+  });
+  document.body.prepend(voyant);
+  surEnregistrement((enCours) => {
+    voyant.hidden = enCours === null;
+  });
 
   const bandeRappels = document.getElementById('rappels') as HTMLElement;
   const retrait = document.getElementById('retrait') as HTMLElement;

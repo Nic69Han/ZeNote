@@ -6,6 +6,7 @@
  */
 
 import { Enregistreur, audioDisponible, prechauffer } from '../audio/enregistreur.ts';
+import { arreterReunion, demarrerReunion, reunionEnCours } from '../audio/reunion.ts';
 import { retourDebut, retourEchec, retourEcrite } from '../audio/retour.ts';
 import { transcriptionLocaleDisponible } from '../audio/transcripteurLocal.ts';
 import {
@@ -113,6 +114,69 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     importer,
     retourImport,
   );
+
+  // ------------------------------------------------- l'enregistrement de réunion
+  //
+  // Spec `reunions` — « Aucun enregistrement à l'insu des participants ». Une réunion
+  // dure une heure : l'appui long n'est pas tenable, il faut un début et une fin. Ce
+  // qui ne change pas, c'est qu'aucun micro ne s'ouvre sans un geste — il n'existe
+  // dans ce produit aucun chemin qui enregistre tout seul, ni au démarrage, ni à
+  // l'arrivée d'une réunion dans un agenda.
+  const boutonReunion = el('button', {
+    class: 'bouton bouton--discret',
+    type: 'button',
+    texte: 'Enregistrer une réunion',
+  });
+
+  /** Le bouton dit toujours ce qui se passe, y compris après un retour sur l'écran. */
+  function ajusterBoutonReunion(): void {
+    const enCours = reunionEnCours();
+    boutonReunion.textContent = enCours ? 'Arrêter l’enregistrement' : 'Enregistrer une réunion';
+    boutonReunion.classList.toggle('bouton--enregistre', enCours);
+  }
+
+  async function basculerReunion(): Promise<void> {
+    if (!reunionEnCours()) {
+      if (!(await demarrerReunion())) {
+        afficherEtat('ECHEC', "Micro indisponible : autorisez l'accès.");
+        retourEchec(reglages.sonConfirmation);
+        return;
+      }
+      ajusterBoutonReunion();
+      retourDebut(reglages.sonConfirmation);
+      annoncer('Enregistrement de réunion commencé. Un voyant le signale.');
+      return;
+    }
+
+    const audio = await arreterReunion();
+    ajusterBoutonReunion();
+
+    if (!audio?.blob) {
+      afficherEtat('ECHEC', "Rien n'a été enregistré : le micro n'a rien rendu.");
+      retourEchec(reglages.sonConfirmation);
+      return;
+    }
+
+    try {
+      await capturer({
+        texte: '',
+        source: 'VOCALE',
+        etatTranscription: 'ABSENTE',
+        audio: audio.blob,
+        dureeMs: audio.dureeMs,
+      });
+      retourEcrite(reglages.sonConfirmation);
+      afficherEtat('CONFIRME', 'Réunion enregistrée. La transcription suit.');
+      await rafraichirJournal();
+      transcrireEnArrierePlan();
+    } catch (erreur) {
+      retourEchec(reglages.sonConfirmation);
+      await signalerEchecEcriture(erreur, () => basculerReunion());
+    }
+  }
+
+  boutonReunion.addEventListener('click', () => void basculerReunion());
+  ajusterBoutonReunion();
 
   const basculeImport = el('button', {
     class: 'bouton bouton--discret',
@@ -529,7 +593,7 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       message,
       secours,
       ...avertissements,
-      el('div', { class: 'actions' }, basculeEcrite, basculeImport),
+      el('div', { class: 'actions' }, basculeEcrite, boutonReunion, basculeImport),
       blocEcrit,
       blocImport,
       el('h2', { class: 'titre-section', texte: 'Dernières captures' }),

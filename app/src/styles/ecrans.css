@@ -1184,3 +1184,29 @@
   color: var(--encre-douce);
   font-size: 0.82rem;
 }
+
+/* Le voyant d'enregistrement. Dans la coquille, pas dans l'écran : un enregistrement
+   continue quand on change d'écran, et un voyant qui disparaît avec l'écran
+   laisserait le micro tourner sans que rien ne le dise. */
+.voyant-enregistrement {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 0.35rem 0.8rem;
+  background: #b3261e;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+.voyant-enregistrement::before {
+  content: '●';
+  margin-inline-end: 0.4rem;
+}
+
+.bouton--enregistre {
+  border-color: #b3261e;
+  color: #b3261e;
+  font-weight: 650;
+}

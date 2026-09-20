@@ -1298,6 +1298,49 @@ try {
     badgesAttente.join(' · ') || 'aucune attente',
   );
 
+  // --- Aucun enregistrement à l'insu des participants ----------------------------
+  // Spec `reunions`. Deux constats opposés, et le second compte autant : le micro ne
+  // s'ouvre que sur un geste, et quand il est ouvert, cela se voit — y compris après
+  // avoir changé d'écran, puisque l'enregistrement, lui, continue.
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(500);
+
+  const voyantAuRepos = await page.locator('.voyant-enregistrement:visible').count();
+  verifier(
+    'au repos, aucun voyant : rien n’enregistre',
+    voyantAuRepos === 0,
+    `${voyantAuRepos} voyant(s) au repos`,
+  );
+
+  await page.getByRole('button', { name: /^enregistrer une réunion$/i }).click();
+  await page.waitForTimeout(900);
+  const voyantPendant = await page.locator('.voyant-enregistrement:visible').count();
+  verifier(
+    'l’enregistrement de réunion ne part que sur un geste, et se voit',
+    voyantPendant === 1,
+    `${voyantPendant} voyant(s) pendant l’enregistrement`,
+  );
+
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(700);
+  const voyantAilleurs = await page.locator('.voyant-enregistrement:visible').count();
+  verifier(
+    'et reste visible après avoir changé d’écran, puisque le micro continue',
+    voyantAilleurs === 1,
+    `${voyantAilleurs} voyant(s) sur un autre écran`,
+  );
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(500);
+  await page.getByRole('button', { name: /arrêter l’enregistrement/i }).click();
+  await page.waitForTimeout(1500);
+  const voyantApres = await page.locator('.voyant-enregistrement:visible').count();
+  verifier(
+    'arrêté, le voyant s’éteint',
+    voyantApres === 0,
+    `${voyantApres} voyant(s) après l’arrêt`,
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

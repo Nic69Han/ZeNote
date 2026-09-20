@@ -37,6 +37,28 @@ let flux: MediaStream | null = null;
  */
 let enCours: string | null = null;
 
+/**
+ * Ceux qui veulent savoir qu'un enregistrement commence ou s'arrête.
+ *
+ * Spec `reunions` — « Aucun enregistrement à l'insu des participants » : tout
+ * enregistrement en cours doit être visible **pendant toute sa durée**. Un voyant
+ * posé sur l'écran de capture disparaîtrait au premier changement d'écran, alors que
+ * le micro, lui, continuerait. C'est exactement la situation que l'exigence
+ * interdit, et elle serait invisible depuis cet écran-là.
+ */
+const spectateurs = new Set<(enCours: string | null) => void>();
+
+/** S'abonner aux débuts et fins d'enregistrement. Rend de quoi se désabonner. */
+export function surEnregistrement(quoi: (enCours: string | null) => void): () => void {
+  spectateurs.add(quoi);
+  quoi(enCours);
+  return () => spectateurs.delete(quoi);
+}
+
+function signaler(): void {
+  for (const spectateur of spectateurs) spectateur(enCours);
+}
+
 /** L'identifiant de l'enregistrement en cours, ou `null`. */
 export function enregistrementEnCours(): string | null {
   return enCours;
@@ -83,6 +105,7 @@ export class Enregistreur {
     this.debut = Date.now();
     this.enregistrementId = identifiant('enr');
     enCours = this.enregistrementId;
+    signaler();
 
     this.recorder = new MediaRecorder(flux);
     this.recorder.ondataavailable = (e) => {
@@ -116,7 +139,10 @@ export class Enregistreur {
     const recorder = this.recorder;
     const id = this.enregistrementId;
     this.enregistrementId = null;
-    if (enCours === id) enCours = null;
+    if (enCours === id) {
+      enCours = null;
+      signaler();
+    }
 
     if (!recorder || recorder.state === 'inactive') {
       void this.oublierMorceaux(id);
