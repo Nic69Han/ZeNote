@@ -989,3 +989,32 @@
   color: var(--encre-douce);
   font-size: 0.78rem;
 }
+
+/* La question posée quand deux personnes portent le même prénom. Elle n'empêche pas
+   de décider : une question qui bloque coûte plus cher que l'ambiguïté qu'elle lève. */
+.reference {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px dashed var(--trait);
+  border-radius: var(--rayon);
+}
+
+.reference__question {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.reference__candidat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.reference__appui {
+  color: var(--encre-douce);
+  font-size: 0.78rem;
+}

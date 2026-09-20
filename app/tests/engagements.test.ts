@@ -66,6 +66,14 @@ describe('attente envers un tiers', () => {
     expect(element.interlocuteur).toBe('Sophie');
   });
 
+  it('lit un nom en deux mots, ce qui permet de distinguer deux homonymes', () => {
+    // Sans cela, tous les Marc d'un carnet n'en font qu'un, et la Revue ne peut
+    // jamais demander duquel il s'agit.
+    expect(repererInterlocuteur('voir le budget avec Marc Dupuis')?.nom).toBe('Marc Dupuis');
+    // Mais « Marc Lundi » n'est pas quelqu'un : le second mot est abandonné.
+    expect(repererInterlocuteur('voir avec Marc Lundi')?.nom).toBe('Marc');
+  });
+
   it('trouve le responsable quelle que soit la tournure', () => {
     expect(repererInterlocuteur('Thomas doit me rappeler')?.nom).toBe('Thomas');
     expect(repererInterlocuteur('Camille va me confirmer la date')?.nom).toBe('Camille');

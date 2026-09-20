@@ -1,5 +1,6 @@
 package app.zenote.core.memoire
 
+import app.zenote.core.model.ElementId
 import app.zenote.core.model.SEUIL_CONFIANCE
 import app.zenote.core.texte.Texte
 import kotlinx.datetime.Instant
@@ -97,6 +98,11 @@ object ResolutionReferences {
      *   « pour le budget » qui distingue deux Marc, pas le prénom.
      * @param types les types d'entités acceptables, ou vide pour tous. Chercher une
      *   personne parmi les projets produirait des candidats absurdes bien classés.
+     * @param ignorerElement l'élément qu'on cherche à résoudre. Ses propres mentions
+     *   sont écartées : la mémoire l'a déjà observé, et l'entité née de lui porterait
+     *   exactement le nom cherché, à la date d'aujourd'hui. Elle gagnerait donc
+     *   toujours, contre elle-même, et aucune ambiguïté ne serait jamais vue. On
+     *   résout contre ce qu'on savait **avant** cette note.
      */
     fun resoudre(
         memoire: Memoire,
@@ -104,11 +110,26 @@ object ResolutionReferences {
         maintenant: Instant,
         contexte: String = "",
         types: Set<TypeEntite> = emptySet(),
+        ignorerElement: ElementId? = null,
     ): Resolution {
-        val recherchees = memoire.entites().filter { types.isEmpty() || it.type in types }
+        // Seules les entités qui **répondent au nom dit** sont des candidates. Une
+        // entité simplement proche du sujet n'en est pas une : proposer « Sophie »
+        // parce qu'elle travaille aussi sur le budget, quand la note dit « Marc »,
+        // transformerait la question en devinette. La proximité de sujet sert à
+        // classer les homonymes entre eux, pas à en fabriquer.
+        //
+        // Sont écartées aussi les entités qui n'existent **que** par la note qu'on
+        // résout : elles portent exactement le nom cherché, à la date du jour, et
+        // gagneraient toujours contre elles-mêmes. Aucune ambiguïté ne serait vue.
+        val recherchees = memoire.entites()
+            .filter { types.isEmpty() || it.type in types }
+            .filter { nomme(it, reference) }
+            .filter { entite ->
+                entite.mentions.any { it.elementId == null || it.elementId != ignorerElement }
+            }
 
         val candidats = recherchees
-            .map { noter(it, reference, contexte, maintenant) }
+            .map { noter(it, reference, contexte, maintenant, ignorerElement) }
             .filter { it.score > PLANCHER_CANDIDAT }
             .sortedWith(
                 compareByDescending<Candidat> { it.score }
@@ -147,26 +168,29 @@ object ResolutionReferences {
         reference: String,
         contexte: String,
         maintenant: Instant,
+        ignorerElement: ElementId?,
     ): Candidat {
         val nomme = nomme(entite, reference)
+
+        // Ce que la mémoire savait avant la note qu'on résout.
+        val connues = entite.mentions.filter { it.elementId == null || it.elementId != ignorerElement }
 
         // La proximité de sujet se mesure sur ce que la capture dit autour de la
         // référence, comparé à ce qu'on sait déjà de cette entité. C'est elle qui
         // distingue deux homonymes : le prénom, lui, est le même.
-        val surSesMentions = entite.mentions.maxOfOrNull {
+        val surSesMentions = connues.maxOfOrNull {
             Texte.recouvrement(contexte, it.extrait)
         } ?: 0.0
         val proximite = if (nomme) maxOf(surSesMentions, 0.5) else surSesMentions
 
-        val jours = entite.derniereMention
+        val jours = connues.maxByOrNull { it.a }?.a
             ?.let { (maintenant - it).inWholeDays.toDouble() }
             ?: Double.MAX_VALUE
         val recence = if (jours <= 0.0) 1.0 else DEMI_VIE_JOURS / (DEMI_VIE_JOURS + jours)
-        val frequence = min(1.0, entite.frequence / MENTIONS_POUR_FREQUENCE_PLEINE)
+        val frequence = min(1.0, connues.size / MENTIONS_POUR_FREQUENCE_PLEINE)
 
-        val score = if (!nomme && surSesMentions <= 0.0) {
-            // Ni nommée, ni proche du sujet : ce n'est pas un candidat, et lui donner
-            // un score de récence en ferait un.
+        val score = if (connues.isEmpty()) {
+            // Ne subsiste que la note qu'on résout : ce n'est pas une connaissance.
             0.0
         } else {
             POIDS_PROXIMITE * proximite + POIDS_RECENCE * recence + POIDS_FREQUENCE * frequence
@@ -179,7 +203,7 @@ object ResolutionReferences {
             recence = recence,
             frequence = frequence,
             nomme = nomme,
-            appui = appui(entite, nomme, surSesMentions),
+            appui = appui(entite, nomme, surSesMentions, connues),
         )
     }
 
@@ -199,17 +223,19 @@ object ResolutionReferences {
      * Sans elle, l'utilisateur ne peut pas arbitrer et se contente d'accepter — ce
      * qui revient exactement à ce qu'on voulait éviter : choisir silencieusement.
      */
-    private fun appui(entite: Entite, nomme: Boolean, proximite: Double): String {
+    private fun appui(
+        entite: Entite,
+        nomme: Boolean,
+        proximite: Double,
+        connues: List<Mention>,
+    ): String {
         val morceaux = mutableListOf<String>()
         if (nomme) morceaux += "nommée dans la capture"
         if (proximite > 0.0) {
-            val extrait = entite.mentions
-                .maxByOrNull { it.a }
-                ?.extrait
-                ?.take(60)
+            val extrait = connues.maxByOrNull { it.a }?.extrait?.take(60)
             if (extrait != null) morceaux += "déjà citée à propos de « $extrait »"
         }
-        morceaux += when (entite.frequence) {
+        morceaux += when (connues.size) {
             0 -> "jamais mentionnée"
             1 -> "mentionnée une fois"
             else -> "mentionnée ${entite.frequence} fois"

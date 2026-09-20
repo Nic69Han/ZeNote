@@ -10,9 +10,11 @@
 import {
   relancesObjets,
   revueObjets,
+  referencesAResoudre,
   transcriptionLisible,
   type ElementJson,
   type PassageIncertain,
+  type ResolutionJson,
   type EntreeRevueJson,
   type RelanceJson,
 } from '../core/regles.ts';
@@ -20,6 +22,7 @@ import {
   capturesATranscrire,
   capturesEnSouffrance,
   lireCapture,
+  listerCaptures,
   listerElements,
   majCapture,
   retenirCorrections,
@@ -118,6 +121,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   }
   /** Dernier lot traité, pour que toute action reste annulable. */
   let dernierLot: { id: string; avant: ElementStocke }[] = [];
+  /** Ce que la mémoire dit des références, par élément. Refait à chaque rendu. */
+  let references = new Map<string, ResolutionJson>();
 
   // Le type stocké, pas seulement le contrat du cœur : une relance touche `relanceLe`
   // et `faitLe`, que les règles ne connaissent pas et n'ont pas à connaître.
@@ -242,6 +247,21 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const tous = await listerElements();
     const elements = filtrerParSphere(tous, sphere);
     const file = revueObjets(elements, jour);
+
+    // Ce que la mémoire sait des références de ces éléments. Reconstruite à chaque
+    // rendu depuis les captures et les éléments : c'est une couche dérivée, elle n'a
+    // ni stockage ni migration, et elle ne peut pas contredire les notes.
+    references = new Map(
+      referencesAResoudre(
+        (await listerCaptures()).map((c) => ({
+          id: c.id,
+          texte: c.texte,
+          creeLe: c.creeLe,
+        })),
+        elements,
+        new Date().toISOString(),
+      ).map((r) => [r.elementId, r]),
+    );
     // Sans ce filtre, clore une relance ne la faisait pas disparaître : l'élément
     // gardait son verdict « accepté » et remontait le lendemain comme la veille.
     const encoreEnJeu = elements.filter((e) => !e.faitLe);
@@ -999,16 +1019,87 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     zoneAjustement.append(formulaireAjustement(e));
 
     const ecouter = reecoute(e, source);
+    const question = questionDeReference(e);
     ligne.append(
       badges,
       el('p', { class: 'entree__texte', texte: e.texte }),
       justification,
+      ...(question ? [question] : []),
       ...(ecouter ? [ecouter] : []),
       zoneActions,
       zonePlan,
       zoneAjustement,
     );
     return ligne;
+  }
+
+  /**
+   * « Quel Marc ? » — la question posée quand la mémoire ne tranche pas.
+   *
+   * Spec `memoire` — « Ambiguïté non résolue » : les candidats sont classés et la
+   * question est posée, le système ne choisit pas silencieusement. Chaque candidat
+   * porte ce sur quoi il est placé là ; sans cette phrase on accepte le premier, ce
+   * qui revient exactement à laisser choisir à sa place.
+   *
+   * Quand la mémoire tranche, l'écran **propose** au lieu d'appliquer, et dit sur
+   * quoi il s'appuie. Remplacer « Marc » par « Marc Dupuis » sans le demander
+   * reviendrait à réécrire la note de quelqu'un d'autre.
+   *
+   * Rien n'est bloqué dans un cas comme dans l'autre : l'élément se décide comme les
+   * autres, avec sa référence telle qu'elle a été dite. Une question qui empêche
+   * d'avancer coûte plus cher que l'ambiguïté qu'elle lève.
+   */
+  function questionDeReference(e: ElementJson): HTMLElement | null {
+    const resolution = references.get(e.id);
+    if (!resolution) return null;
+    const retenu = resolution.retenu ?? null;
+    if (!retenu && !resolution.aQuestionner) return null;
+
+    const bloc = el(
+      'div',
+      { class: 'reference', 'data-element': e.id },
+      el('p', {
+        class: 'reference__question',
+        texte: retenu
+          // Spec `memoire` — « Prénom résolu par le contexte » : le système propose,
+          // il n'applique pas. Écrire « Marc Dupuis » à la place de ce qui a été dit
+          // sans le demander serait réécrire la note.
+          ? `« ${resolution.reference} » — sans doute ${retenu.nom} ?`
+          : `« ${resolution.reference} » — de qui s’agit-il ?`,
+      }),
+    );
+
+    if (retenu) {
+      bloc.append(el('p', { class: 'reference__appui', texte: retenu.appui }));
+    }
+
+    for (const candidat of resolution.candidats) {
+      bloc.append(
+        el(
+          'div',
+          { class: 'reference__candidat' },
+          el('button', {
+            class: 'bouton bouton--discret reference__choix',
+            type: 'button',
+            'data-nom': candidat.nom,
+            texte:
+              retenu?.entiteId === candidat.entiteId ? `Oui, ${candidat.nom}` : candidat.nom,
+            onclick: () => {
+              void decider(
+                e,
+                { interlocuteur: candidat.nom, corrigeParHumain: true },
+                `Il s’agit de ${candidat.nom}.`,
+              );
+            },
+          }),
+          // L'appui du candidat proposé est déjà écrit au-dessus, en entier.
+          retenu?.entiteId === candidat.entiteId
+            ? null
+            : el('span', { class: 'reference__appui', texte: candidat.appui }),
+        ),
+      );
+    }
+    return bloc;
   }
 
   /**

@@ -104,6 +104,24 @@ export function evaluerPoids(passage: string): {
   };
 }
 
+function premierMot(nom: string): string {
+  return nom.split(/\s+/)[0];
+}
+
+/**
+ * Le nom retenu, prénom seul ou prénom et nom.
+ *
+ * Deux mots plutôt qu'un, parce que c'est ce qui permet de distinguer deux personnes
+ * du même prénom — sans quoi tous les Marc d'un carnet n'en font qu'un, et la Revue
+ * ne peut jamais poser la question. Le second mot est abandonné s'il n'est pas un
+ * nom : « avec Marc Lundi » désigne Marc, pas quelqu'un qui s'appellerait Lundi.
+ */
+function nomPropre(capture: string): string {
+  const mots = capture.split(/\s+/);
+  if (mots.length < 2) return mots[0];
+  return NON_PRENOMS.has(normaliser(mots[1])) ? mots[0] : `${mots[0]} ${mots[1]}`;
+}
+
 /** L'interlocuteur, repéré après « avec / à / pour / chez / auprès de ». */
 export function repererInterlocuteur(
   passage: string,
@@ -116,13 +134,13 @@ export function repererInterlocuteur(
     return { nom: sujet[1], confiance: 0.8 };
   }
 
-  const fort = /\b(?:avec|pour|aupr[èe]s de|chez)\s+([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]{1,})/u.exec(passage);
-  if (fort && !NON_PRENOMS.has(normaliser(fort[1]))) {
-    return { nom: fort[1], confiance: 0.8 };
+  const fort = /\b(?:avec|pour|aupr[èe]s de|chez)\s+([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]{1,}(?:\s+[A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]{1,})?)/u.exec(passage);
+  if (fort && !NON_PRENOMS.has(normaliser(premierMot(fort[1])))) {
+    return { nom: nomPropre(fort[1]), confiance: 0.8 };
   }
-  const faible = /(?:^|[\s,;])(?:[àa]|de|d['\u2019])\s*([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]{1,})/u.exec(passage);
-  if (faible && !NON_PRENOMS.has(normaliser(faible[1]))) {
-    return { nom: faible[1], confiance: 0.6 };
+  const faible = /(?:^|[\s,;])(?:[àa]|de|d['\u2019])\s*([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]{1,}(?:\s+[A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]{1,})?)/u.exec(passage);
+  if (faible && !NON_PRENOMS.has(normaliser(premierMot(faible[1])))) {
+    return { nom: nomPropre(faible[1]), confiance: 0.6 };
   }
   return null;
 }

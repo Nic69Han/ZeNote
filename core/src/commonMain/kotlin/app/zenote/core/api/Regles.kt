@@ -1,5 +1,10 @@
 package app.zenote.core.api
 
+import app.zenote.core.memoire.Candidat
+import app.zenote.core.memoire.Memoire
+import app.zenote.core.memoire.Mention
+import app.zenote.core.memoire.ResolutionReferences
+import app.zenote.core.memoire.TypeEntite
 import app.zenote.core.model.CaptureId
 import app.zenote.core.model.Deduit
 import app.zenote.core.model.ElementDerive
@@ -29,6 +34,7 @@ import app.zenote.core.revue.Suivi
 import app.zenote.core.recherche.Reponse
 import app.zenote.core.recherche.TexteSource
 import app.zenote.core.texte.Disfluences
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -407,6 +413,85 @@ object Regles {
             elements = decoder(elementsJson).map { it.versResolu() },
             reseau = reseau,
         ),
+    )
+
+    /**
+     * Les références d'éléments que la mémoire sait éclairer — ou sur lesquelles elle
+     * demande à trancher.
+     *
+     * La mémoire n'est pas stockée : elle est **reconstruite** à chaque appel depuis
+     * les captures et les éléments. C'est la couche dérivée du modèle à trois
+     * couches, et elle en a la propriété qui compte : rien à migrer, rien à réparer,
+     * et jamais de mémoire qui contredit les notes dont elle sort.
+     *
+     * Seules les références qui apprennent quelque chose sont rendues : une
+     * ambiguïté à trancher, ou un nom complet là où la capture n'avait qu'un prénom.
+     * Rendre les autres obligerait la surface à trier ce que le cœur sait déjà.
+     *
+     * @param capturesJson tableau de [CaptureJson]
+     * @param elementsJson tableau d'[ElementJson]
+     * @param maintenant horodatage ISO complet
+     * @return tableau de [ResolutionJson]
+     */
+    fun referencesAResoudre(
+        capturesJson: String,
+        elementsJson: String,
+        maintenant: String,
+    ): String {
+        val captures = json
+            .decodeFromString(ListSerializer(CaptureJson.serializer()), capturesJson)
+            .associateBy { it.id }
+        val elements = decoder(elementsJson)
+        val instant = Instant.parse(maintenant)
+
+        val memoire = Memoire()
+        for (element in elements.sortedBy { it.id }) {
+            val qui = element.interlocuteur?.takeIf { it.isNotBlank() } ?: continue
+            val capture = captures[element.captureId] ?: continue
+            memoire.observer(
+                type = TypeEntite.PERSONNE,
+                nom = qui,
+                mention = Mention(
+                    captureId = CaptureId(element.captureId),
+                    a = Instant.parse(capture.creeLe),
+                    extrait = element.texte,
+                    elementId = ElementId(element.id),
+                ),
+                sphere = element.sphere?.let { Sphere.valueOf(it) },
+            )
+        }
+
+        val resolutions = elements.mapNotNull { element ->
+            val qui = element.interlocuteur?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val resolution = ResolutionReferences.resoudre(
+                memoire = memoire,
+                reference = qui,
+                maintenant = instant,
+                contexte = element.texte,
+                types = setOf(TypeEntite.PERSONNE),
+                ignorerElement = ElementId(element.id),
+            )
+            val retenu = resolution.retenu
+            val apprend = resolution.aQuestionner ||
+                (retenu != null && !retenu.entite.nom.equals(qui, ignoreCase = true))
+            if (!apprend) return@mapNotNull null
+
+            ResolutionJson(
+                elementId = element.id,
+                reference = qui,
+                retenu = retenu?.let { versCandidat(it) },
+                candidats = resolution.candidats.map { versCandidat(it) },
+                aQuestionner = resolution.aQuestionner,
+            )
+        }
+
+        return json.encodeToString(ListSerializer(ResolutionJson.serializer()), resolutions)
+    }
+
+    private fun versCandidat(candidat: Candidat): CandidatJson = CandidatJson(
+        entiteId = candidat.entite.id.value,
+        nom = candidat.entite.nom,
+        appui = candidat.appui,
     )
 
     // ------------------------------------------------------------------ interne

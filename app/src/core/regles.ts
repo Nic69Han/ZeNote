@@ -57,6 +57,30 @@ export interface ElementJson {
 /** L'ordre de grandeur d'une échéance qu'on n'a pas datée. */
 export type Horizon = 'JOURS' | 'SEMAINES' | 'MOIS';
 
+/** Un candidat à la résolution d'une référence, avec ce qui le place là. */
+export interface CandidatJson {
+  entiteId: string;
+  nom: string;
+  /**
+   * Ce sur quoi le système s'est appuyé, affichable tel quel.
+   *
+   * Sans cette phrase, on ne peut pas arbitrer entre deux homonymes et l'on accepte
+   * le premier — ce qui revient à laisser le système choisir silencieusement,
+   * précisément ce que la question évite.
+   */
+  appui: string;
+}
+
+/** Une référence d'un élément, et ce que la mémoire en dit. */
+export interface ResolutionJson {
+  elementId: string;
+  reference: string;
+  /** Rempli seulement quand un candidat l'emporte nettement. */
+  retenu?: CandidatJson | null;
+  candidats: CandidatJson[];
+  aQuestionner: boolean;
+}
+
 export interface PassageIncertain {
   debutCar: number;
   finCar: number;
@@ -247,11 +271,16 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
   ): string;
   rappels(elementsJson: string, maintenant: string, suivisJson: string): string;
   rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
+  referencesAResoudre(
+    capturesJson: string,
+    elementsJson: string,
+    maintenant: string,
+  ): string;
   readonly version: string;
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '8';
+export const VERSION_CONTRAT_ATTENDUE = '9';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -438,4 +467,22 @@ export function relancesObjets(
   return JSON.parse(
     relances(JSON.stringify(elements), aujourdhui, JSON.stringify(suivis), JSON.stringify(delais)),
   ) as RelanceJson[];
+}
+
+/**
+ * Références à résoudre : captures + éléments → ce que la mémoire sait en dire.
+ *
+ * La mémoire n'est pas stockée : le cœur la reconstruit à chaque appel depuis ce que
+ * la surface détient. C'est la couche dérivée du modèle à trois couches — rien à
+ * migrer, rien à réparer, et jamais une mémoire qui contredit les notes dont elle
+ * sort.
+ */
+export function referencesAResoudre(
+  captures: CaptureJson[],
+  elements: ElementJson[],
+  maintenant: string,
+): ResolutionJson[] {
+  return JSON.parse(
+    Regles.referencesAResoudre(JSON.stringify(captures), JSON.stringify(elements), maintenant),
+  ) as ResolutionJson[];
 }

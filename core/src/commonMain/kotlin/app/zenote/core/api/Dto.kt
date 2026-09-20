@@ -258,3 +258,32 @@ data class ReponseJson(
      */
     val nonPrisEnCompte: List<String> = emptyList(),
 )
+
+/**
+ * Un candidat à la résolution d'une référence, tel que la surface l'affiche.
+ *
+ * [appui] n'est pas un ornement : sans lui, l'utilisateur ne peut pas arbitrer entre
+ * deux homonymes et se contente d'accepter le premier, ce qui revient à laisser le
+ * système choisir silencieusement — précisément ce que la question évite.
+ */
+@Serializable
+data class CandidatJson(
+    val entiteId: String,
+    val nom: String,
+    val appui: String,
+)
+
+/**
+ * Une référence d'un élément, et ce que la mémoire en dit.
+ *
+ * [retenu] n'est rempli que lorsqu'un candidat l'emporte nettement. Sinon la surface
+ * pose la question, avec [candidats] déjà classés.
+ */
+@Serializable
+data class ResolutionJson(
+    val elementId: String,
+    val reference: String,
+    val retenu: CandidatJson? = null,
+    val candidats: List<CandidatJson> = emptyList(),
+    val aQuestionner: Boolean = false,
+)

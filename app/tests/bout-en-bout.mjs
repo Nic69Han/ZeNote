@@ -930,6 +930,57 @@ try {
     `${revenus} élément(s), contre ${avantFiltre} avant`,
   );
 
+  // --- « Quel Marc ? » -----------------------------------------------------------
+  // Spec `memoire` — « Ambiguïté non résolue ». Le classement appartient au cœur ;
+  // ce qui se vérifie ici est que la mémoire, reconstruite depuis les notes, remonte
+  // bien jusqu'à l'écran, et que la question s'y pose au lieu d'un choix silencieux.
+  await page.evaluate(async () => {
+    for (const texte of [
+      'voir le budget Atlas avec Marc Dupuis',
+      'organiser le déménagement des bureaux avec Marc Lefevre',
+      'voir avec Marc pour le budget Atlas',
+    ]) {
+      await window.__zenote.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK' });
+    }
+    await window.__zenote.traiterFileAnalyse();
+  });
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(200);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1200);
+
+  const question = page.locator('.reference').first();
+  const posee = await question
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const intitule = posee ? await question.locator('.reference__question').innerText() : '';
+  verifier(
+    'un prénom est résolu par le sujet, et proposé au lieu d’être appliqué',
+    /sans doute Marc Dupuis/i.test(intitule),
+    intitule || 'aucune proposition',
+  );
+
+  const noms = posee ? await question.locator('.reference__choix').allInnerTexts() : [];
+  const appuis = posee ? await question.locator('.reference__appui').allInnerTexts() : [];
+  verifier(
+    'en disant sur quoi il s’est appuyé, et sans écarter l’autre candidat',
+    noms.length > 1 && (appuis[0] ?? '').includes('budget'),
+    `${noms.join(' · ')} — ${appuis[0] ?? 'sans appui'}`,
+  );
+
+  if (posee) {
+    await question.locator('.reference__choix').first().click();
+    await page.waitForTimeout(900);
+  }
+  const questionsRestantes = await page.locator('.reference').count();
+  verifier(
+    'confirmer la proposition la fait disparaître',
+    posee && questionsRestantes === 0,
+    posee ? `${questionsRestantes} question(s) restante(s)` : 'aucune question n’avait été posée',
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

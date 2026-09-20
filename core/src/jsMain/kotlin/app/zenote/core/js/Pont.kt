@@ -3,7 +3,7 @@ package app.zenote.core.js
 import app.zenote.core.api.Regles
 
 /**
- * Le pont vers le navigateur. Neuf fonctions, un contrat JSON, aucun état.
+ * Le pont vers le navigateur. Dix fonctions, un contrat JSON, aucun état.
  *
  * La PWA détient les données (IndexedDB) et appelle ces règles ; les applications
  * natives appelleront les mêmes, en JVM. C'est ce qui garantit qu'un même jeu de
@@ -73,6 +73,18 @@ object ZeNoteRegles {
     fun rappels(elementsJson: String, maintenant: String, suivisJson: String): String =
         Regles.rappels(elementsJson, maintenant, suivisJson)
 
+    /**
+     * Références à résoudre : `[CaptureJson]` + `[ElementJson]` → `[ResolutionJson]`.
+     *
+     * La mémoire est reconstruite à chaque appel depuis ce que la surface détient :
+     * c'est une couche dérivée, rien n'est stocké et rien n'est à migrer.
+     */
+    fun referencesAResoudre(
+        capturesJson: String,
+        elementsJson: String,
+        maintenant: String,
+    ): String = Regles.referencesAResoudre(capturesJson, elementsJson, maintenant)
+
     /** Recherche par personne : nom + `[ElementJson]` → `ReponseJson`. */
     fun rechercherParPersonne(personne: String, elementsJson: String, reseau: Boolean): String =
         Regles.rechercherParPersonne(personne, elementsJson, reseau)
@@ -80,10 +92,9 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 8 » avec l'horizon des expressions floues, que le contrat
-     * d'élément porte désormais. Une surface qui attend cette version et en trouve
-     * une plus ancienne parle à un cœur qui laisserait tomber ce champ en
-     * silence — ce qui ne se verrait qu'à l'usage.
+     * Passée à « 9 » avec la résolution des références implicites. Une surface qui
+     * attend cette version et en trouve une plus ancienne parle à un cœur sans cette
+     * fonction, et doit le dire au lieu de planter à l'appel.
      */
-    val version: String = "8"
+    val version: String = "9"
 }
