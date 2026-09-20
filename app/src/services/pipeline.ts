@@ -30,6 +30,18 @@ export function aujourdhui(maintenant: Date = new Date()): string {
   return decale.toISOString().slice(0, 10);
 }
 
+/**
+ * Date et heure locales, `AAAA-MM-JJTHH:MM`.
+ *
+ * Les rappels raisonnent sur l'heure vécue — « ce soir » veut dire dix-huit heures
+ * chez soi, pas en temps universel. Le cœur ne connaît aucun fuseau : c'est ici que
+ * l'heure du porteur est établie, une fois.
+ */
+export function maintenantLocal(instant: Date = new Date()): string {
+  const decale = new Date(instant.getTime() - instant.getTimezoneOffset() * 60_000);
+  return decale.toISOString().slice(0, 16);
+}
+
 export interface NouvelleCapture {
   texte: string;
   source: SourceCapture;

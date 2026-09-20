@@ -13,6 +13,14 @@ import app.zenote.core.model.TypeElement
 import app.zenote.core.model.Verdict
 import app.zenote.core.priorisation.ContexteMaintenant
 import app.zenote.core.priorisation.Priorisation
+import app.zenote.core.rappels.Declencheur
+import app.zenote.core.rappels.Echeance
+import app.zenote.core.rappels.Echeancier
+import app.zenote.core.rappels.FileOpportunite
+import app.zenote.core.rappels.Livraison
+import app.zenote.core.rappels.PointDeRupture
+import app.zenote.core.rappels.Rappel
+import app.zenote.core.rappels.RappelId
 import app.zenote.core.recherche.RechercheLocale
 import app.zenote.core.revue.Arriere
 import app.zenote.core.revue.FileRevue
@@ -21,6 +29,9 @@ import app.zenote.core.revue.Suivi
 import app.zenote.core.recherche.Reponse
 import app.zenote.core.recherche.TexteSource
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
@@ -165,6 +176,104 @@ object Regles {
         }
 
         return json.encodeToString(ListSerializer(RelanceJson.serializer()), propositions)
+    }
+
+    /**
+     * Ce qu'un point de rupture doit présenter, et ce qui remonte en Revue.
+     *
+     * Le produit n'a qu'un point de rupture observable depuis un navigateur : la
+     * reprise de l'appareil, c'est-à-dire le retour dans l'application après une
+     * pause. Fin de réunion et fin de créneau demandent l'agenda, qui n'est pas
+     * branché — ils viendront avec lui, sans rien changer ici.
+     *
+     * Trois règles sont tenues par [FileOpportunite], et pas réécrites ici : une
+     * seule notification par point de rupture, les rappels groupés dedans, et
+     * l'escalade en Revue au bout de trois fois ignoré. Les compteurs d'ignorés sont
+     * rejoués depuis ce que la surface a retenu — la file est une machine à états
+     * pure, et la rejouer donne exactement l'état où on l'avait laissée.
+     *
+     * @param elementsJson tableau d'[ElementJson]
+     * @param maintenant date-heure locale `AAAA-MM-JJTHH:MM`
+     * @param suivisJson tableau de [SuiviRappelJson]
+     * @return un [RappelsDuMomentJson]
+     */
+    fun rappels(elementsJson: String, maintenant: String, suivisJson: String): String {
+        val instant = LocalDateTime.parse(maintenant)
+        // La file raisonne en `Instant` ; elle ne fait que comparer les siens entre
+        // eux. Les lire tous dans le même fuseau suffit donc, et évite de faire entrer
+        // une question de fuseau là où il n'y en a pas.
+        val a = instant.toInstant(TimeZone.UTC)
+
+        val suivis = json
+            .decodeFromString(ListSerializer(SuiviRappelJson.serializer()), suivisJson)
+            .associateBy { it.elementId }
+
+        // Seuls les éléments acceptés qui portent un plan sont des rappels : le plan
+        // est ce qui transforme une note en quelque chose qui doit revenir.
+        val candidats = decoder(elementsJson)
+            .map { it.versResolu() }
+            .filter { it.verdict == Verdict.ACCEPTE && it.plan != null }
+            .sortedBy { it.id.value }
+
+        val file = FileOpportunite()
+        val rappels = candidats.map { element ->
+            element to Rappel(
+                id = RappelId(element.id.value),
+                elementId = element.id,
+                texte = element.plan!!.action.ifBlank { element.texte },
+                declencheur = Declencheur.Transition(PointDeRupture.REPRISE_APPAREIL),
+            )
+        }
+
+        // Rejouer les ignorés d'abord : un rappel déjà escaladé doit l'être à nouveau
+        // avant qu'on tente de le déposer, sinon il repasserait une fois de trop.
+        for ((element, rappel) in rappels) {
+            repeat(suivis[element.id.value]?.foisIgnore ?: 0) { file.ignorer(rappel) }
+        }
+
+        val substitutions = mutableMapOf<String, String>()
+        val retards = mutableSetOf<String>()
+        for ((element, rappel) in rappels) {
+            val suivi = suivis[element.id.value] ?: continue
+            val echeance = Echeancier.quand(
+                declencheur = element.plan!!.declencheur,
+                poseLe = LocalDateTime.parse(suivi.planPoseLe),
+            )
+            if (!Echeancier.estArrive(echeance, instant)) continue
+
+            when (echeance) {
+                is Echeance.Substituee -> substitutions[element.id.value] = echeance.explication
+                is Echeance.Observable -> if (echeance.quand < instant) retards += element.id.value
+            }
+            file.deposer(rappel, a)
+        }
+
+        val notification = file.vider(PointDeRupture.REPRISE_APPAREIL, a)
+        val parId = candidats.associateBy { it.id.value }
+
+        return json.encodeToString(
+            RappelsDuMomentJson.serializer(),
+            RappelsDuMomentJson(
+                titre = notification?.titre ?: "",
+                rappels = notification?.rappels.orEmpty().map { r ->
+                    RappelLivreJson(
+                        elementId = r.elementId.value,
+                        texte = r.texte,
+                        declencheur = parId[r.elementId.value]?.plan?.declencheur ?: "",
+                        substitution = substitutions[r.elementId.value] ?: "",
+                        enRetard = r.elementId.value in retards,
+                    )
+                },
+                escalades = file.escalades().map { e ->
+                    EscaladeJson(
+                        elementId = e.rappel.elementId.value,
+                        texte = e.rappel.texte,
+                        motif = e.motif,
+                        options = e.options.map { it.name },
+                    )
+                },
+            ),
+        )
     }
 
     /**

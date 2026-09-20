@@ -103,6 +103,51 @@ export interface CaptureJson {
   jour?: string | null;
 }
 
+/** Ce que la surface retient d'un rappel entre deux ouvertures de l'application. */
+export interface SuiviRappelJson {
+  elementId: string;
+  /** Le moment où le plan a été attaché, en heure locale (`AAAA-MM-JJTHH:MM`). */
+  planPoseLe: string;
+  /** Combien de fois ce rappel a déjà été présenté puis écarté sans être traité. */
+  foisIgnore: number;
+}
+
+/** Un rappel présenté à un point de rupture. */
+export interface RappelLivreJson {
+  elementId: string;
+  texte: string;
+  /** Le signal tel que l'utilisateur l'a formulé. */
+  declencheur: string;
+  /**
+   * Non vide quand ZeNote ne sait pas observer ce signal et l'a ramené à la reprise
+   * de l'appareil. L'écran l'affiche : un rappel qui arrive au mauvais moment sans le
+   * dire est pire qu'un rappel absent.
+   */
+  substitution: string;
+  /** `true` si le signal s'était produit avant ce point de rupture. Un constat. */
+  enRetard: boolean;
+}
+
+/** Un rappel qui ne se représente plus à l'identique, et que la Revue reprend. */
+export interface EscaladeJson {
+  elementId: string;
+  texte: string;
+  motif: string;
+  /** REPLANIFIER, DELEGUER, ABANDONNER. */
+  options: string[];
+}
+
+/**
+ * Ce qu'un point de rupture livre. `titre` est vide quand il n'y a rien à présenter —
+ * et il n'y a alors rien à afficher : une notification vide est une interruption sans
+ * contenu.
+ */
+export interface RappelsDuMomentJson {
+  titre: string;
+  rappels: RappelLivreJson[];
+  escalades: EscaladeJson[];
+}
+
 /** Ce dont une réponse de recherche se réclame. Jamais un score. */
 export interface CitationJson {
   captureId: string;
@@ -165,12 +210,13 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
     aujourdhui: string,
     reseau: boolean,
   ): string;
+  rappels(elementsJson: string, maintenant: string, suivisJson: string): string;
   rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
   readonly version: string;
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '4';
+export const VERSION_CONTRAT_ATTENDUE = '5';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -234,6 +280,18 @@ export function rechercherParQuestion(
   return Regles.rechercherParQuestion(requete, elementsJson, capturesJson, aujourdhui, reseau);
 }
 
+/**
+ * Rappels d'un point de rupture : `ElementJson[]` + date-heure locale +
+ * `SuiviRappelJson[]` → `RappelsDuMomentJson`.
+ */
+export function rappels(
+  elementsJson: string,
+  maintenant: string,
+  suivisJson: string,
+): string {
+  return Regles.rappels(elementsJson, maintenant, suivisJson);
+}
+
 /** Recherche par personne : nom + `ElementJson[]` → `ReponseJson`. */
 export function rechercherParPersonne(
   personne: string,
@@ -286,6 +344,16 @@ export function rechercherParQuestionObjets(
       reseau,
     ),
   ) as ReponseJson;
+}
+
+export function rappelsObjets(
+  elements: ElementJson[],
+  maintenant: string,
+  suivis: SuiviRappelJson[],
+): RappelsDuMomentJson {
+  return JSON.parse(
+    rappels(JSON.stringify(elements), maintenant, JSON.stringify(suivis)),
+  ) as RappelsDuMomentJson;
 }
 
 export function rechercherParPersonneObjets(

@@ -3,7 +3,7 @@ package app.zenote.core.js
 import app.zenote.core.api.Regles
 
 /**
- * Le pont vers le navigateur. Sept fonctions, un contrat JSON, aucun état.
+ * Le pont vers le navigateur. Huit fonctions, un contrat JSON, aucun état.
  *
  * La PWA détient les données (IndexedDB) et appelle ces règles ; les applications
  * natives appelleront les mêmes, en JVM. C'est ce qui garantit qu'un même jeu de
@@ -54,6 +54,13 @@ object ZeNoteRegles {
         reseau: Boolean,
     ): String = Regles.rechercherParQuestion(requete, elementsJson, capturesJson, aujourdhui, reseau)
 
+    /**
+     * Rappels d'un point de rupture : `[ElementJson]` + date-heure locale +
+     * `[SuiviRappelJson]` → `RappelsDuMomentJson`.
+     */
+    fun rappels(elementsJson: String, maintenant: String, suivisJson: String): String =
+        Regles.rappels(elementsJson, maintenant, suivisJson)
+
     /** Recherche par personne : nom + `[ElementJson]` → `ReponseJson`. */
     fun rechercherParPersonne(personne: String, elementsJson: String, reseau: Boolean): String =
         Regles.rechercherParPersonne(personne, elementsJson, reseau)
@@ -61,10 +68,10 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 4 » avec la recherche par question — le repère temporel flou et ce
-     * que la réponse déclare ne pas prendre en compte. Une surface qui attend cette
-     * version et en trouve une plus ancienne parle à un cœur sans ces fonctions, et
-     * doit le dire au lieu de planter à l'appel.
+     * Passée à « 5 » avec les rappels : ce qu'un point de rupture présente, et ce qui
+     * remonte en Revue après trois fois ignoré. Une surface qui attend cette version
+     * et en trouve une plus ancienne parle à un cœur sans ces fonctions, et doit le
+     * dire au lieu de planter à l'appel.
      */
-    val version: String = "4"
+    val version: String = "5"
 }

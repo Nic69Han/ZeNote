@@ -90,6 +90,56 @@ data class RelanceJson(
 @Serializable
 data class SuiviJson(val elementId: String, val derniereNouvelle: String)
 
+/** Ce que la surface retient d'un rappel entre deux ouvertures de l'application. */
+@Serializable
+data class SuiviRappelJson(
+    val elementId: String,
+    /** Le moment où le plan a été attaché, en heure locale (`AAAA-MM-JJTHH:MM`). */
+    val planPoseLe: String,
+    /** Combien de fois ce rappel a déjà été présenté puis écarté sans être traité. */
+    val foisIgnore: Int = 0,
+)
+
+/** Un rappel présenté à un point de rupture. */
+@Serializable
+data class RappelLivreJson(
+    val elementId: String,
+    val texte: String,
+    /** Le signal tel que l'utilisateur l'a formulé. */
+    val declencheur: String,
+    /**
+     * Non vide quand ZeNote ne sait pas observer ce signal et l'a ramené à la reprise
+     * de l'appareil. L'écran affiche cette phrase : un rappel qui arrive au mauvais
+     * moment sans le dire est pire qu'un rappel absent.
+     */
+    val substitution: String = "",
+    /** `true` si le signal s'était produit avant ce point de rupture. Un constat. */
+    val enRetard: Boolean = false,
+)
+
+/** Un rappel qui ne se représente plus à l'identique, et que la Revue reprend. */
+@Serializable
+data class EscaladeJson(
+    val elementId: String,
+    val texte: String,
+    val motif: String,
+    /** REPLANIFIER, DELEGUER, ABANDONNER. */
+    val options: List<String>,
+)
+
+/**
+ * Ce qu'un point de rupture livre : une notification unique, et ce qui remonte en Revue.
+ *
+ * [titre] est vide quand il n'y a rien à présenter — et il n'y a alors rien à
+ * afficher du tout. Une notification vide est une interruption sans contenu.
+ */
+@Serializable
+data class RappelsDuMomentJson(
+    val titre: String = "",
+    val rappels: List<RappelLivreJson> = emptyList(),
+    val escalades: List<EscaladeJson> = emptyList(),
+)
+
 @Serializable
 data class RevueJson(
     val groupes: List<GroupeRevueJson>,

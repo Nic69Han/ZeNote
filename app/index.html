@@ -17,6 +17,10 @@
       <button id="bascule-theme" class="bouton bouton--discret" type="button">Thème : auto</button>
     </header>
 
+    <!-- La bande de rappels vit au-dessus des écrans, et non dedans : chaque écran
+         vide son contenu à chaque rendu, ce qui l'emporterait. -->
+    <div id="rappels" hidden></div>
+
     <main id="vue" tabindex="-1"></main>
 
     <nav id="navigation" class="nav" aria-label="Les trois surfaces"></nav>

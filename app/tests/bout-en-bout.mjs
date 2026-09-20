@@ -566,6 +566,76 @@ try {
     `${avant} capture(s) avant, ${apres} après`,
   );
 
+  // --- Les plans reviennent, et ceux qui ne passent pas changent de forme -----
+  // Spec `rappels`. Un plan attaché en Revue doit revenir à un point de rupture —
+  // ici, la reprise de l'application — en une seule notification groupée. Et s'il est
+  // écarté trois fois, il cesse de se représenter à l'identique.
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1200);
+
+  const bande = page.locator('#rappels .rappels');
+  verifier(
+    'un plan attaché en Revue revient à la reprise de l’application',
+    (await bande.count()) === 1,
+    `${await bande.count()} bande(s) de rappel`,
+  );
+
+  const signal = await bande.locator('.rappels__signal').first().innerText();
+  verifier(
+    'le rappel dit à quel signal il était accroché',
+    /«.+»/.test(signal),
+    signal,
+  );
+
+  // Trois fois écarté : chaque reprise est un point de rupture.
+  for (let fois = 0; fois < 3; fois += 1) {
+    await page.locator('#rappels .bouton--discret').click();
+    await page.waitForTimeout(500);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1000);
+  }
+
+  verifier(
+    'écarté trois fois, le rappel cesse de se représenter à l’identique',
+    (await page.locator('#rappels .rappels').count()) === 0,
+    `${await page.locator('#rappels .rappels').count()} bande(s) restante(s)`,
+  );
+
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(900);
+
+  const escalade = page.locator('.escalades__ligne').first();
+  verifier(
+    'il remonte en Revue au lieu de disparaître',
+    (await page.locator('.escalades__ligne').count()) >= 1,
+    `${await page.locator('.escalades__ligne').count()} escalade(s)`,
+  );
+
+  const issues = await escalade.locator('.escalades__actions .bouton').allInnerTexts();
+  verifier(
+    'avec les trois sorties : replanifier, déléguer, abandonner',
+    /replanifier/i.test(issues.join(' ')) &&
+      /déléguer/i.test(issues.join(' ')) &&
+      /abandonner/i.test(issues.join(' ')),
+    issues.join(' · '),
+  );
+
+  const motifEscalade = await escalade.locator('.escalades__motif').innerText();
+  verifier(
+    'le motif est un constat sur le rappel, pas un reproche',
+    /ignor/i.test(motifEscalade) && !/vous avez|auriez|oublié/i.test(motifEscalade),
+    motifEscalade,
+  );
+
+  await escalade.locator('.escalades__actions .bouton').first().click();
+  await page.waitForTimeout(900);
+  verifier(
+    'replanifier le sort de l’escalade',
+    (await page.locator('.escalades__ligne').count()) === 0,
+    `${await page.locator('.escalades__ligne').count()} escalade(s) restante(s)`,
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

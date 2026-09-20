@@ -20,6 +20,12 @@ import { montrerRevue } from './ui/revue.ts';
 import { montrerRecherche } from './ui/recherche.ts';
 import { montrerReglages } from './ui/reglages.ts';
 import { montrerDeverrouillage } from './ui/deverrouillage.ts';
+import { montrerRappels } from './ui/rappels.ts';
+import {
+  ABSENCE_AVANT_REPRISE_MS,
+  aQuelqueChose,
+  rappelsDuPointDeRupture,
+} from './services/rappels.ts';
 
 type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'reglages';
 
@@ -59,6 +65,7 @@ async function demarrer(): Promise<void> {
     );
   }
 
+  const bandeRappels = document.getElementById('rappels') as HTMLElement;
   const retrait = document.getElementById('retrait') as HTMLElement;
   for (const ecran of ECRANS_RETRAIT) {
     retrait.append(
@@ -125,6 +132,31 @@ async function demarrer(): Promise<void> {
     else await montrerReglages(vue);
   }
 
+  /** La bande en cours, pour ne jamais en empiler deux. */
+  let fermerRappels: (() => void) | undefined;
+
+  /**
+   * Présente ce qu'un point de rupture livre.
+   *
+   * Rien ne s'affiche coffre fermé : les rappels demandent de lire les éléments, et
+   * les lire demande l'authentification. C'est cohérent — une bande qui annoncerait
+   * « trois choses à voir » sans pouvoir les nommer serait pire que le silence.
+   */
+  async function presenterRappels(): Promise<void> {
+    if ((await assurerCoffreCharge()) === 'VERROUILLE') return;
+    try {
+      const moment = await rappelsDuPointDeRupture();
+      if (!aQuelqueChose(moment) || moment.rappels.length === 0) return;
+      fermerRappels?.();
+      fermerRappels = montrerRappels(bandeRappels, moment, () => {
+        fermerRappels = undefined;
+      });
+    } catch {
+      // Un rappel qui ne se calcule pas ne doit rien casser : l'application entière
+      // ne dépend pas de lui.
+    }
+  }
+
   window.addEventListener('hashchange', () => void afficher());
 
   // Fermeture de l'onglet ou passage en arrière-plan : on tente la même sortie propre.
@@ -138,6 +170,10 @@ async function demarrer(): Promise<void> {
   // Une capture faite juste avant de fermer l'application repart d'ici.
   void traiterFileTranscription().catch(() => {}).finally(() => void traiterFileAnalyse());
 
+  // Ouvrir l'application est une reprise : c'est le point de rupture que le produit
+  // sait observer, et donc le moment où les rappels arrivent.
+  void presenterRappels();
+
   /**
    * Le coffre se referme quand l'application reste en arrière-plan.
    *
@@ -149,13 +185,19 @@ async function demarrer(): Promise<void> {
    */
   const REPOS_AVANT_VERROU_MS = 120_000;
   let verrouEnAttente: number | undefined;
+  /** Le moment où l'application a été quittée, pour mesurer l'absence au retour. */
+  let quitteeA: number | undefined;
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       window.clearTimeout(verrouEnAttente);
       verrouEnAttente = undefined;
+      const absence = quitteeA === undefined ? 0 : Date.now() - quitteeA;
+      quitteeA = undefined;
+      if (absence >= ABSENCE_AVANT_REPRISE_MS) void presenterRappels();
       return;
     }
+    quitteeA = Date.now();
     if (etatCoffre() !== 'OUVERT') return;
     verrouEnAttente = window.setTimeout(() => {
       verrouiller();

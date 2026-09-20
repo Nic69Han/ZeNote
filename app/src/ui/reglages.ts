@@ -105,6 +105,16 @@ function faits(coffre: EtatCoffre): Fait[] {
       'sur Chrome passe, elle, par un service distant de l’éditeur.',
   },
   {
+    rassurant: false,
+    titre: 'ZeNote ne vous notifiera pas quand elle est fermée.',
+    detail:
+      'Une page web ne se réveille pas seule : pour vous prévenir application fermée, ' +
+      'il faudrait un serveur qui lui pousse un message, et il n’y a pas de serveur ' +
+      'ZeNote. Vos rappels vous attendent donc à votre retour — regroupés en une seule ' +
+      'fois — au lieu d’arriver pendant votre absence. C’est une limite de la forme ' +
+      'choisie, pas un oubli.',
+  },
+  {
     rassurant: true,
     titre: 'L’enregistrement audio, lui, reste ici.',
     detail:

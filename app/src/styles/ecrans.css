@@ -771,3 +771,118 @@
   color: var(--encre-tres-douce);
   font-style: italic;
 }
+
+/* --- Rappels --------------------------------------------------------------
+   L'unique notification d'un point de rupture. Au-dessus des écrans, jamais
+   dedans, et refermable d'un geste : c'est une information qui passe, pas une
+   surface de plus à traverser. */
+.rappels {
+  margin: 0.75rem 1rem 0;
+  padding: 0.85rem;
+  border: 1px solid var(--trait);
+  border-inline-start: 3px solid var(--signal);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.rappels__titre {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.rappels__liste {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.rappels__ligne + .rappels__ligne {
+  padding-block-start: 0.6rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.rappels__texte {
+  margin: 0;
+  color: var(--encre);
+  font-size: 0.95rem;
+}
+
+.rappels__signal,
+.rappels__retard {
+  margin: 0.2rem 0 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.rappels__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.85rem;
+}
+
+/* --- Escalades ------------------------------------------------------------
+   Un rappel écarté trois fois. Ce n'est plus le moment qui cloche, c'est le
+   plan — d'où trois sorties, et pas un quatrième rappel. */
+.escalades {
+  margin-block: 0 1.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--trait);
+  border-inline-start: 3px solid var(--encre-tres-douce);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.escalades__titre {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.escalades__explication {
+  margin: 0 0 0.85rem;
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+}
+
+.escalades__ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.escalades__ligne + .escalades__ligne {
+  margin-block-start: 0.85rem;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.escalades__texte {
+  margin: 0;
+  color: var(--encre);
+  font-size: 0.95rem;
+}
+
+.escalades__motif {
+  margin: 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.escalades__champ {
+  width: 100%;
+}
+
+.escalades__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

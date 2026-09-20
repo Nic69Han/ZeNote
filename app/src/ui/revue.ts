@@ -14,7 +14,6 @@ import {
   type EntreeRevueJson,
   type RelanceJson,
 } from '../core/regles.ts';
-import { aujourdhui } from '../services/pipeline.ts';
 import {
   capturesATranscrire,
   capturesEnSouffrance,
@@ -27,9 +26,21 @@ import {
   type Capture,
   type ElementStocke,
 } from '../stockage/depot.ts';
-import { traiterFileAnalyse, traiterFileTranscription } from '../services/pipeline.ts';
+import {
+  aujourdhui,
+  maintenantLocal,
+  traiterFileAnalyse,
+  traiterFileTranscription,
+} from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import {
+  abandonner,
+  deleguer,
+  rappelsDuPointDeRupture,
+  replanifier,
+  type RappelsDuMoment,
+} from '../services/rappels.ts';
 
 const LIBELLE_TYPE: Record<ElementJson['type'], string> = {
   TACHE: 'Tâche',
@@ -156,6 +167,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const aRelancer = relancesObjets(encoreEnJeu, jour, suivisDe(encoreEnJeu));
     const enSouffrance = await capturesEnSouffrance();
     const enTranscription = await capturesATranscrire();
+    const moment = await rappelsDuPointDeRupture();
 
     vider(racine);
     const section = el(
@@ -181,6 +193,11 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       transcrirePuisRafraichir();
     }
 
+    // Les escalades viennent avant les relances : ce sont des rappels qu'on a déjà
+    // vus passer trois fois sans rien en faire. Les redemander à l'identique ne sert
+    // plus ; ce qu'il faut, c'est décider autrement.
+    if (moment.escalades.length > 0) section.append(blocEscalades(moment));
+
     // Les relances passent devant la file : ce sont les seules choses que
     // l'utilisateur ne peut pas réclamer, puisqu'il les a précisément oubliées.
     if (aRelancer.length > 0) section.append(blocRelances(aRelancer));
@@ -189,7 +206,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       file.total === 0 &&
       aRelancer.length === 0 &&
       enSouffrance.length === 0 &&
-      enTranscription.length === 0
+      enTranscription.length === 0 &&
+      moment.escalades.length === 0
     ) {
       section.append(
         el(
@@ -240,6 +258,102 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   }
 
   /** Le bloc des relances : ce que le produit se rappelle à votre place. */
+  /**
+   * Les rappels qui ne passent plus, et les trois façons d'en sortir.
+   *
+   * Spec `rappels` — « Escalade d'un rappel ignoré ». Trois fois écarté, un rappel
+   * cesse de se représenter à l'identique : ce n'est plus le moment qui cloche, c'est
+   * le plan. On ne le répète donc pas une quatrième fois — on demande de le
+   * replanifier, de le déléguer, ou de l'abandonner.
+   *
+   * Aucun reproche ici non plus. « Ignoré trois fois » est un constat sur le rappel,
+   * pas sur celui qui l'a écarté.
+   */
+  function blocEscalades(moment: RappelsDuMoment): HTMLElement {
+    const bloc = el(
+      'section',
+      { class: 'escalades', 'aria-labelledby': 'titre-escalades' },
+      el('h2', {
+        id: 'titre-escalades',
+        class: 'escalades__titre',
+        texte:
+          moment.escalades.length === 1
+            ? 'Un rappel ne passe pas'
+            : `${moment.escalades.length} rappels ne passent pas`,
+      }),
+      el('p', {
+        class: 'escalades__explication',
+        texte:
+          'Vous les avez écartés plusieurs fois. Ce n’est sans doute pas le moment qui ' +
+          'cloche, mais le plan : reposez-le, confiez-le, ou laissez-le partir.',
+      }),
+    );
+
+    for (const escalade of moment.escalades) {
+      const champ = el('input', {
+        class: 'champ escalades__champ',
+        type: 'text',
+        placeholder: 'Ou : quand… / à qui…',
+        'aria-label': 'Nouveau déclencheur, ou personne à qui confier',
+      }) as HTMLInputElement;
+
+      const actions = el(
+        'div',
+        { class: 'escalades__actions' },
+        el('button', {
+          class: 'bouton bouton--discret',
+          type: 'button',
+          texte: 'Replanifier',
+          onclick: () => {
+            const valeur = champ.value.trim() || 'au prochain créneau libre';
+            void agirSurEscalade(() => replanifier(escalade.elementId, valeur), `Reposé — ${valeur}.`);
+          },
+        }),
+        el('button', {
+          class: 'bouton bouton--discret',
+          type: 'button',
+          texte: 'Déléguer',
+          onclick: () => {
+            const aQui = champ.value.trim();
+            if (!aQui) {
+              annoncer('À qui ? Écrivez un nom dans le champ.');
+              return;
+            }
+            void agirSurEscalade(
+              () => deleguer(escalade.elementId, aQui),
+              `Confié à ${aQui} — suivi comme une attente.`,
+            );
+          },
+        }),
+        el('button', {
+          class: 'bouton bouton--discret bouton--supprimer',
+          type: 'button',
+          texte: 'Abandonner',
+          onclick: () =>
+            void agirSurEscalade(() => abandonner(escalade.elementId), 'Abandonné.'),
+        }),
+      );
+
+      bloc.append(
+        el(
+          'article',
+          { class: 'escalades__ligne', 'data-element': escalade.elementId },
+          el('p', { class: 'escalades__texte', texte: escalade.texte }),
+          el('p', { class: 'escalades__motif', texte: escalade.motif }),
+          champ,
+          actions,
+        ),
+      );
+    }
+    return bloc;
+  }
+
+  async function agirSurEscalade(action: () => Promise<unknown>, dire: string): Promise<void> {
+    await action();
+    annoncer(dire);
+    await rendre();
+  }
+
   function ligneTranscription(combien: number): HTMLElement {
     return el('p', {
       class: 'transcription-en-cours',
@@ -583,7 +697,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
         bouton(libelle, 'bouton--plan', () => {
           void decider(
             e,
-            { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte },
+            { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte, planPoseLe: maintenantLocal() },
             `Accepté — ${valeur}.`,
           );
         }),
@@ -665,7 +779,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
         if (!valeur) return;
         void decider(
           e,
-          { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte },
+          { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte, planPoseLe: maintenantLocal() },
           `Accepté — ${valeur}.`,
         );
       },
@@ -747,7 +861,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
 
   async function decider(
     e: ElementJson,
-    ajustement: Partial<ElementJson>,
+    ajustement: Partial<ElementStocke>,
     annonce: string,
   ): Promise<void> {
     await appliquer(e, ajustement);
@@ -759,11 +873,12 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     dernierLot = [];
     for (const entree of entrees) {
       const e = entree.element;
-      const ajustement: Partial<ElementJson> = actionnable(e.type)
+      const ajustement: Partial<ElementStocke> = actionnable(e.type)
         ? {
             verdict: 'ACCEPTE',
             planDeclencheur: e.planDeclencheur ?? 'au prochain créneau libre',
             planAction: e.texte,
+            planPoseLe: maintenantLocal(),
           }
         : { verdict: 'ACCEPTE' };
       await appliquer(e, ajustement, true);

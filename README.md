@@ -35,6 +35,20 @@ une suppression.**
 | **La Revue** | Trancher ce qui a été compris, une fois par jour | Relire tout l'historique |
 | **Maintenant** | Voir au plus trois choses, chacune justifiée | Compter ce qui reste |
 
+### Les rappels
+
+Un plan attaché en Revue revient à vous. Le point de rupture est la **reprise de
+l'application** après une absence : une bande unique, groupée, au-dessus de l'écran en
+cours — jamais au milieu d'une tâche, jamais plus d'une par reprise. Écartée trois fois,
+elle cesse de se représenter à l'identique et remonte en Revue avec trois sorties :
+replanifier, déléguer (l'élément devient une attente, suivie par les relances) ou
+abandonner.
+
+Deux limites, dites plutôt que masquées. « Quand je vois Karim » n'est pas observable
+tant que l'agenda n'est pas branché : le rappel est alors ramené à votre retour, et
+l'écran l'écrit. Et **ZeNote ne vous notifiera pas application fermée** — une page web ne
+se réveille pas seule, il lui faudrait un serveur, et il n'y en a pas.
+
 ### Le chiffrement
 
 Il est proposé, jamais imposé : il crée une manière de tout perdre qui n'existait pas avant, et

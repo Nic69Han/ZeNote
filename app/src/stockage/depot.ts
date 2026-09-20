@@ -62,6 +62,33 @@ export interface ElementStocke extends ElementJson {
    * suivis, que le cœur lit pour décider ce qui remonte.
    */
   relanceLe?: string | null;
+  /**
+   * Le moment où le plan a été attaché, en heure locale (`AAAA-MM-JJTHH:MM`).
+   *
+   * Sans lui, « ce soir » n'aurait pas de soir : le cœur ne saurait pas de quel jour
+   * on parle, et le rappel reviendrait tous les soirs.
+   */
+  planPoseLe?: string | null;
+  /**
+   * Combien de fois ce rappel a été présenté puis écarté sans être traité.
+   *
+   * Au troisième, le cœur le sort de la file et le remonte en Revue : répéter à
+   * l'identique au-delà n'use que l'utilisateur.
+   */
+  rappelIgnoreFois?: number;
+}
+
+/** Les suivis de rappel, tels que le cœur les attend, tirés des éléments stockés. */
+export function suivisRappelDe(
+  elements: ElementStocke[],
+): { elementId: string; planPoseLe: string; foisIgnore: number }[] {
+  return elements
+    .filter((e): e is ElementStocke & { planPoseLe: string } => Boolean(e.planPoseLe))
+    .map((e) => ({
+      elementId: e.id,
+      planPoseLe: e.planPoseLe,
+      foisIgnore: e.rappelIgnoreFois ?? 0,
+    }));
 }
 
 /** Les suivis, tels que le cœur les attend, tirés des éléments stockés. */
