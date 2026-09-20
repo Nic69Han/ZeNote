@@ -1293,3 +1293,19 @@
   flex: 0 0 auto;
   color: var(--encre-tres-douce);
 }
+
+/* La bande d'annulation. Elle s'efface seule à la fermeture de la fenêtre : un
+   bouton « Annuler » qui ne fonctionne plus est pire que pas de bouton du tout. */
+.annulation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-block-end: 0.85rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  font-size: 0.85rem;
+}

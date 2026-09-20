@@ -1406,6 +1406,62 @@ try {
     `${echanges} échange(s) cité(s)`,
   );
 
+  // --- Supprimer, et se raviser ---------------------------------------------------
+  // Spec `donnees` — « Suppression d'une capture » et « Fenêtre d'annulation ». Un
+  // geste irréversible à un doigt d'un bouton ordinaire finit toujours par être fait
+  // par erreur, et « êtes-vous sûr ? » ne protège personne : on répond oui sans lire.
+  // Le bouton « Supprimer » vit sur les captures en souffrance — celles dont rien
+  // n'est sorti. C'est là que la suppression a un sens : ailleurs, il y a une note.
+  await page.evaluate(async () => {
+    const capture = await window.__zenote.capturer({
+      texte: '',
+      source: 'VOCALE',
+      etatTranscription: 'ECHEC',
+    });
+    await window.__zenote.majCapture(capture.id, {
+      etatTranscription: 'ECHEC',
+      essaisTranscription: 3,
+    });
+  });
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(200);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1200);
+
+  const avantSuppression = await page.locator('.souffrance__actions').count();
+  let supprime = false;
+  if (avantSuppression > 0) {
+    await page
+      .locator('.souffrance__actions .bouton--supprimer')
+      .first()
+      .click();
+    await page.waitForTimeout(1000);
+    supprime = true;
+  }
+
+  const bandeAnnulation = await page.locator('.annulation:visible').count();
+  verifier(
+    'supprimer laisse une bande pour se raviser',
+    supprime && bandeAnnulation === 1,
+    supprime
+      ? `${bandeAnnulation} bande(s) d’annulation`
+      : 'aucune capture en souffrance à supprimer',
+  );
+
+  if (supprime && bandeAnnulation === 1) {
+    await page.locator('.annulation__bouton').click();
+    await page.waitForTimeout(1200);
+  }
+  const apresAnnulation = await page.locator('.souffrance__actions').count();
+  verifier(
+    'et annuler remet vraiment la capture',
+    supprime && apresAnnulation === avantSuppression,
+    supprime
+      ? `${apresAnnulation} capture(s) en souffrance, contre ${avantSuppression} avant`
+      : 'suppression non exercée',
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

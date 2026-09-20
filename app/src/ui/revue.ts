@@ -34,7 +34,6 @@ import {
   majCapture,
   retenirCorrections,
   majElement,
-  supprimerCapture,
   suivisDe,
   type Capture,
   ecrireReglage,
@@ -53,6 +52,11 @@ import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 import { identifiant } from '../analyse/index.ts';
 import { apprendre } from '../services/lexique.ts';
 import { echosDe } from '../services/echos.ts';
+import {
+  FENETRE_ANNULATION_MS,
+  supprimerAvecAnnulation,
+  type Annulation,
+} from '../services/suppression.ts';
 import {
   abandonner,
   deleguer,
@@ -132,6 +136,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   let dernierLot: { id: string; avant: ElementStocke }[] = [];
   /** Ce que la mémoire dit des références, par élément. Refait à chaque rendu. */
   let references = new Map<string, ResolutionJson>();
+  /** La minuterie qui referme la bande d'annulation. */
+  let minuterieAnnulation: number | undefined;
   /** Les captures et éléments du moment, pour chercher à quoi une note renvoie. */
   let capturesConnues: CaptureJson[] = [];
   let elementsConnus: ElementJson[] = [];
@@ -831,10 +837,60 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     await rendre();
   }
 
+  /**
+   * Supprime une capture, et laisse trente secondes pour se raviser.
+   *
+   * Spec `donnees` — « Fenêtre d'annulation ». Un geste irréversible à un doigt d'un
+   * bouton ordinaire finit toujours par être fait par erreur, et « êtes-vous sûr ? »
+   * ne protège personne : on répond oui sans lire. La suppression a donc lieu
+   * vraiment, tout de suite, et c'est le retour en arrière qui reste ouvert.
+   */
   async function jeter(capture: Capture): Promise<void> {
-    await supprimerCapture(capture.id);
-    annoncer('Capture supprimée.');
+    const annulation = await supprimerAvecAnnulation(capture.id);
+    if (!annulation) {
+      annoncer('Cette capture n’existe plus.');
+      await rendre();
+      return;
+    }
+
+    annoncer(annulation.resume);
     await rendre();
+    proposerAnnulation(annulation);
+  }
+
+  /**
+   * La bande d'annulation : ce qui a été retiré, et de quoi le remettre.
+   *
+   * Elle s'efface seule à la fermeture de la fenêtre. Laisser un bouton « Annuler »
+   * qui ne fonctionne plus est pire que de ne pas en proposer : on appuie, rien ne
+   * se passe, et l'on ne sait pas si la note est revenue.
+   */
+  function proposerAnnulation(annulation: Annulation): void {
+    if (minuterieAnnulation !== undefined) window.clearTimeout(minuterieAnnulation);
+
+    const bande = el(
+      'div',
+      { class: 'annulation', role: 'status' },
+      el('span', { class: 'annulation__texte', texte: annulation.resume }),
+      el('button', {
+        class: 'bouton bouton--discret annulation__bouton',
+        type: 'button',
+        texte: 'Annuler',
+        onclick: () => {
+          void (async () => {
+            const remise = await annulation.annuler();
+            annoncer(remise ? 'Capture remise.' : 'Trop tard : la capture est partie.');
+            bande.remove();
+            await rendre();
+          })();
+        },
+      }),
+    );
+
+    racine.prepend(bande);
+    minuterieAnnulation = window.setTimeout(() => {
+      bande.remove();
+    }, FENETRE_ANNULATION_MS);
   }
 
   function blocRelances(relances: RelanceJson[]): HTMLElement {
