@@ -100,7 +100,16 @@ object Disfluences {
         /** La forme comparable : minuscules, accents pliés, ponctuation retirée. */
         val forme: String = Texte.plier(mot).filter { it.isLetterOrDigit() }
 
-        val estBruit: Boolean = forme.isNotEmpty() && estAllongementDeBruit(forme)
+        /**
+         * Un bruit de langage, et pas un mot qui lui ressemble.
+         *
+         * La majuscule tranche : « ben » est une hésitation, « Ben » est quelqu'un.
+         * Sans cette réserve, un prénom disparaîtrait d'une note sans laisser de
+         * trace — le genre d'erreur qu'on ne découvre qu'en cherchant la note.
+         */
+        val estBruit: Boolean = forme.isNotEmpty() &&
+            mot.firstOrNull()?.isUpperCase() != true &&
+            estAllongementDeBruit(forme)
 
         /** Un groupe qui porte ceci ne se réduit jamais : le risque n'est pas symétrique. */
         val intouchable: Boolean =

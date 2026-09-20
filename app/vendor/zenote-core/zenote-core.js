@@ -6901,28 +6901,42 @@
     tmp.v1i_1 = destination.toString();
     var tmp_0 = this;
     var tmp_1;
+    var tmp_2;
     // Inline function 'kotlin.text.isNotEmpty' call
     var this_0 = this.v1i_1;
     if (charSequenceLength(this_0) > 0) {
+      var tmp0_safe_receiver = firstOrNull(this.t1i_1);
+      var tmp_3;
+      var tmp_4 = tmp0_safe_receiver;
+      if ((tmp_4 == null ? null : new Char(tmp_4)) == null) {
+        tmp_3 = null;
+      } else {
+        tmp_3 = isUpperCase(tmp0_safe_receiver);
+      }
+      tmp_2 = !(tmp_3 === true);
+    } else {
+      tmp_2 = false;
+    }
+    if (tmp_2) {
       tmp_1 = estAllongementDeBruit(Disfluences_getInstance(), this.v1i_1);
     } else {
       tmp_1 = false;
     }
     tmp_0.w1i_1 = tmp_1;
-    var tmp_2 = this;
-    var tmp_3;
-    var tmp_4;
-    var tmp_5;
-    var tmp0_safe_receiver = firstOrNull(this.t1i_1);
+    var tmp_5 = this;
     var tmp_6;
-    var tmp_7 = tmp0_safe_receiver;
-    if ((tmp_7 == null ? null : new Char(tmp_7)) == null) {
-      tmp_6 = null;
+    var tmp_7;
+    var tmp_8;
+    var tmp0_safe_receiver_0 = firstOrNull(this.t1i_1);
+    var tmp_9;
+    var tmp_10 = tmp0_safe_receiver_0;
+    if ((tmp_10 == null ? null : new Char(tmp_10)) == null) {
+      tmp_9 = null;
     } else {
-      tmp_6 = isUpperCase(tmp0_safe_receiver);
+      tmp_9 = isUpperCase(tmp0_safe_receiver_0);
     }
-    if (tmp_6 === true) {
-      tmp_5 = true;
+    if (tmp_9 === true) {
+      tmp_8 = true;
     } else {
       var tmp0_0 = this.v1i_1;
       var tmp$ret$5;
@@ -6940,19 +6954,19 @@
         }
         tmp$ret$5 = false;
       }
-      tmp_5 = tmp$ret$5;
+      tmp_8 = tmp$ret$5;
     }
-    if (tmp_5) {
-      tmp_4 = true;
+    if (tmp_8) {
+      tmp_7 = true;
     } else {
-      tmp_4 = Disfluences_getInstance().t1f_1.p1(this.v1i_1);
+      tmp_7 = Disfluences_getInstance().t1f_1.p1(this.v1i_1);
     }
-    if (tmp_4) {
-      tmp_3 = true;
+    if (tmp_7) {
+      tmp_6 = true;
     } else {
-      tmp_3 = Disfluences_getInstance().u1f_1.p1(this.v1i_1);
+      tmp_6 = Disfluences_getInstance().u1f_1.p1(this.v1i_1);
     }
-    tmp_2.x1i_1 = tmp_3;
+    tmp_5.x1i_1 = tmp_6;
   }
   function estAllongementDeBruit($this, forme) {
     if ($this.s1f_1.p1(forme))

@@ -133,6 +133,16 @@ class DisfluencesTest {
     }
 
     @Test
+    fun `un prenom qui ressemble a une hesitation reste`() {
+        // « ben » est une hésitation ; « Ben » est quelqu'un. Le confondre ferait
+        // disparaître un prénom d'une note, sans trace, et sans que rien ne le dise.
+        assertEquals("voir avec Ben demain", Disfluences.lisible("voir avec Ben demain"))
+        assertEquals("prévenir Hein et Marc", Disfluences.lisible("prévenir Hein et Marc"))
+        // La minuscule, elle, part toujours.
+        assertEquals("voir avec Marc demain", Disfluences.lisible("ben voir avec Marc demain"))
+    }
+
+    @Test
     fun `rien n'est ajoute`() {
         for (phrase in corpus.map { it.first } + aPreserver) {
             val nettoye = Disfluences.lisible(phrase)
