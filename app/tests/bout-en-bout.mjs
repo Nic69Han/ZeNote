@@ -9,12 +9,9 @@
  * données survivent à un rechargement de page.
  */
 import { chromium } from 'playwright';
-import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
 import { cheminNavigateur } from './navigateur.mjs';
+import { servir } from './servir.mjs';
 
-const RACINE = new URL('../dist/', import.meta.url).pathname;
 const PORT = 4178;
 
 // Par défaut la vérification porte sur le `dist/` local, servi ici même. En
@@ -22,41 +19,13 @@ const PORT = 4178;
 // ainsi qu'on prouve que la mise en ligne vaut ce que vaut la construction.
 const CIBLE = process.env.ZENOTE_URL?.replace(/\/$/, '');
 
-const TYPES = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json; charset=utf-8',
-  '.webmanifest': 'application/manifest+json',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.map': 'application/json',
-  '.gz': 'application/gzip',
-  '.wav': 'audio/wav',
-};
-
-function servir() {
-  const serveur = createServer(async (requete, reponse) => {
-    const chemin = decodeURIComponent(new URL(requete.url, 'http://x').pathname);
-    const relatif = normalize(chemin === '/' ? '/index.html' : chemin).replace(/^(\.\.[/\\])+/, '');
-    try {
-      const contenu = await readFile(join(RACINE, relatif));
-      reponse.writeHead(200, { 'content-type': TYPES[extname(relatif)] ?? 'application/octet-stream' });
-      reponse.end(contenu);
-    } catch {
-      reponse.writeHead(404).end('introuvable');
-    }
-  });
-  return new Promise((resoudre) => serveur.listen(PORT, () => resoudre(serveur)));
-}
-
 const constats = [];
 function verifier(intitule, condition, detail = '') {
   constats.push({ intitule, ok: Boolean(condition), detail });
   console.log(`${condition ? '  ok  ' : ' ÉCHEC'} ${intitule}${detail ? ` — ${detail}` : ''}`);
 }
 
-const serveur = CIBLE ? null : await servir();
+const serveur = CIBLE ? null : await servir(PORT);
 const adresse = CIBLE ?? `http://localhost:${PORT}`;
 console.log(`Vérification sur ${adresse}`);
 const mandataire = process.env.HTTPS_PROXY ?? process.env.https_proxy;

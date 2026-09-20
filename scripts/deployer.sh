@@ -25,6 +25,13 @@ if [ -n "$(git -C "$RACINE" status --porcelain)" ]; then
   exit 1
 fi
 
+# La capture sous 300 ms est l'une des trois promesses mesurables, et la seule qui
+# se dégrade sans rien casser. Un rapport qu'on lit ne l'empêche pas ; un seuil qui
+# refuse de publier, si. L'arbre de travail est propre à ce stade — c'est vérifié
+# juste au-dessus — donc ce qui est mesuré est bien ce qui part en ligne.
+echo "==> Mesure de la latence de capture (seuil bloquant)"
+( cd "$RACINE/app" && npm run build >/dev/null && node tests/latence.mjs )
+
 COPIE="$(mktemp -d)"
 trap 'rm -rf "$COPIE"' EXIT
 

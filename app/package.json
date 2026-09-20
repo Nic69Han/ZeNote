@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:bout-en-bout": "npm run build && node tests/bout-en-bout.mjs",
-    "test:arret-brutal": "npm run build && node tests/arret-brutal.mjs"
+    "test:arret-brutal": "npm run build && node tests/arret-brutal.mjs",
+    "test:latence": "npm run build && node tests/latence.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",
