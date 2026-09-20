@@ -154,6 +154,14 @@ export interface Capture {
    * l'écran ne prétend rien dans ce cas.
    */
   passagesIncertains?: PassageIncertain[];
+  /**
+   * La capture à laquelle celle-ci renvoie, quand on l'a dit.
+   *
+   * Spec `memoire` — « Référence à un échange passé ». Posé par l'utilisateur depuis
+   * la Revue, jamais deviné : rattacher une note à la mauvaise conversation fabrique
+   * un souvenir faux, et rien ne le signale ensuite.
+   */
+  captureLiee?: string | null;
 }
 
 /**

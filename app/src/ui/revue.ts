@@ -14,6 +14,7 @@ import {
   transcriptionLisible,
   type ElementJson,
   type PassageIncertain,
+  type CaptureJson,
   type ResolutionJson,
   type EntreeRevueJson,
   type RelanceJson,
@@ -44,6 +45,7 @@ import {
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 import { apprendre } from '../services/lexique.ts';
+import { echosDe } from '../services/echos.ts';
 import {
   abandonner,
   deleguer,
@@ -123,6 +125,9 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   let dernierLot: { id: string; avant: ElementStocke }[] = [];
   /** Ce que la mémoire dit des références, par élément. Refait à chaque rendu. */
   let references = new Map<string, ResolutionJson>();
+  /** Les captures et éléments du moment, pour chercher à quoi une note renvoie. */
+  let capturesConnues: CaptureJson[] = [];
+  let elementsConnus: ElementJson[] = [];
 
   // Le type stocké, pas seulement le contrat du cœur : une relance touche `relanceLe`
   // et `faitLe`, que les règles ne connaissent pas et n'ont pas à connaître.
@@ -251,13 +256,17 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // Ce que la mémoire sait des références de ces éléments. Reconstruite à chaque
     // rendu depuis les captures et les éléments : c'est une couche dérivée, elle n'a
     // ni stockage ni migration, et elle ne peut pas contredire les notes.
+    capturesConnues = (await listerCaptures()).map((c) => ({
+      id: c.id,
+      texte: c.texte,
+      creeLe: c.creeLe,
+      jour: c.creeLe.slice(0, 10),
+    }));
+    elementsConnus = elements;
+
     references = new Map(
       referencesAResoudre(
-        (await listerCaptures()).map((c) => ({
-          id: c.id,
-          texte: c.texte,
-          creeLe: c.creeLe,
-        })),
+        capturesConnues,
         elements,
         new Date().toISOString(),
       ).map((r) => [r.elementId, r]),
@@ -711,6 +720,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
         }),
       ),
       texteSource(capture),
+      ...(capture ? [renvoiAUnEchange(capture)].filter((n) => n !== null) : []),
       lecteur.noeud,
     ) as HTMLDetailsElement;
 
@@ -916,6 +926,71 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     }
     if (curseur < texte.length) ligne.append(texte.slice(curseur));
     return ligne;
+  }
+
+  /**
+   * « Le truc dont on a parlé mardi » — à quoi cette note renvoie.
+   *
+   * Spec `memoire` — « Référence à un échange passé ». Une note qui renvoie à autre
+   * chose qu'elle-même ne veut plus rien dire trois jours plus tard : « le truc »
+   * n'est plus rien, et la note est perdue alors qu'elle a été correctement
+   * capturée, transcrite et rangée.
+   *
+   * Les pistes sont proposées, jamais retenues d'office. Rattacher à la mauvaise
+   * conversation fabrique un souvenir faux, que plus rien ne vient corriger.
+   */
+  function renvoiAUnEchange(capture: Capture): HTMLElement | null {
+    if (capture.captureLiee) {
+      const liee = capturesConnues.find((c) => c.id === capture.captureLiee);
+      return el('p', {
+        class: 'renvoi renvoi--pose',
+        texte: liee
+          ? `Suite de : « ${liee.texte.slice(0, 80)} »`
+          : 'Suite d’une capture qui n’existe plus.',
+      });
+    }
+
+    const pistes = echosDe(
+      capture.texte,
+      capture.id,
+      capturesConnues,
+      elementsConnus,
+      jour,
+    );
+    if (pistes.length === 0) return null;
+
+    const bloc = el(
+      'div',
+      { class: 'renvoi' },
+      el('p', {
+        class: 'renvoi__question',
+        texte: 'Cette note renvoie à quelque chose. S’agit-il de :',
+      }),
+    );
+
+    for (const piste of pistes) {
+      bloc.append(
+        el(
+          'div',
+          { class: 'renvoi__piste' },
+          el('button', {
+            class: 'bouton bouton--discret renvoi__choix',
+            type: 'button',
+            'data-capture': piste.captureId,
+            texte: piste.extrait.slice(0, 70),
+            onclick: () => {
+              void (async () => {
+                await majCapture(capture.id, { captureLiee: piste.captureId });
+                annoncer('Rattaché.');
+                await rendre();
+              })();
+            },
+          }),
+          el('span', { class: 'renvoi__pourquoi', texte: piste.pourquoi }),
+        ),
+      );
+    }
+    return bloc;
   }
 
   function rendreEntree(

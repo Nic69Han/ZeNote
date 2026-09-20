@@ -1018,3 +1018,38 @@
   color: var(--encre-douce);
   font-size: 0.78rem;
 }
+
+/* Le renvoi à un échange passé. Proposé, jamais posé d'office : rattacher à la
+   mauvaise conversation fabrique un souvenir faux, que plus rien ne corrige. */
+.renvoi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.7rem;
+  border-inline-start: 2px solid var(--trait);
+}
+
+.renvoi__question {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--encre-douce);
+}
+
+.renvoi__piste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.renvoi__pourquoi {
+  color: var(--encre-tres-douce);
+  font-size: 0.75rem;
+}
+
+.renvoi--pose {
+  margin: 0;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--encre-douce);
+}

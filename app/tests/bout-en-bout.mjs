@@ -981,6 +981,74 @@ try {
     posee ? `${questionsRestantes} question(s) restante(s)` : 'aucune question n’avait été posée',
   );
 
+  // --- « Le truc dont on a parlé » -----------------------------------------------
+  // Spec `memoire` — « Référence à un échange passé ». La recherche est vérifiée
+  // ailleurs ; ce qui se vérifie ici est qu'une note qui renvoie à autre chose se
+  // reconnaît, que les pistes sont proposées sans être retenues d'office, et que le
+  // rattachement, une fois posé, se lit.
+  await page.evaluate(async () => {
+    await window.__zenote.capturer({
+      // Une vraie conséquence : sans quoi la Revue, réduite aux douze éléments les
+      // plus lourds, laisserait ces deux notes dans la file et rien ne s'afficherait.
+      texte: 'point avec Sophie sur le chiffrage du chantier de Bron, sinon le chantier est bloqué',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.capturer({
+      texte: 'reprendre le truc dont on a parlé avec Sophie, sinon le chantier est bloqué',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.traiterFileAnalyse();
+  });
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(200);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1200);
+
+  const renvoi = page
+    .locator('details.source', { hasText: /le truc dont on a parl/i })
+    .first();
+  const vuRenvoi = await renvoi
+    .waitFor({ state: 'attached', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (vuRenvoi) {
+    await renvoi.locator('.source__resume').click();
+    await page.waitForTimeout(300);
+  }
+  const pistes = vuRenvoi ? await renvoi.locator('.renvoi__choix').allInnerTexts() : [];
+  verifier(
+    'une note qui renvoie à un échange passé propose les pistes',
+    pistes.length > 0 && pistes.some((p) => /chiffrage|Sophie/i.test(p)),
+    pistes.join(' · ') || 'aucune piste proposée',
+  );
+
+  if (pistes.length > 0) {
+    await renvoi.locator('.renvoi__choix').first().click();
+    await page.waitForTimeout(1000);
+  }
+  const rattachee = page
+    .locator('details.source', { hasText: /le truc dont on a parl/i })
+    .first();
+  const ouverte = await rattachee
+    .waitFor({ state: 'attached', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (ouverte) {
+    await rattachee.locator('.source__resume').click();
+    await page.waitForTimeout(300);
+  }
+  const pose = ouverte
+    ? await rattachee.locator('.renvoi--pose').innerText().catch(() => '')
+    : '';
+  verifier(
+    'et le rattachement retenu se lit sur la capture',
+    /suite de/i.test(pose) && /chiffrage/i.test(pose),
+    pose || 'aucun rattachement affiché',
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un
