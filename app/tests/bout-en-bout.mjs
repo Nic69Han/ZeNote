@@ -885,6 +885,51 @@ try {
     indice || 'aucune justification',
   );
 
+  // --- Le filtre de sphère ------------------------------------------------------
+  // Spec `memoire` — « Filtrage à la restitution ». La règle est vérifiée en
+  // unitaire ; ce qui se vérifie ici est le vrai écran, parce que le filtre est
+  // précisément le genre de chose dont on ne remarque pas qu'elle ne marche plus.
+  await page.evaluate(async () => {
+    await window.__zenote.capturer({
+      texte: 'prendre rendez-vous chez le dentiste pour Camille',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.traiterFileAnalyse();
+  });
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(200);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(900);
+
+  const avantFiltre = await page.locator('.entree').count();
+  await page.locator('.spheres__choix[data-sphere="PROFESSIONNEL"]').click();
+  await page.waitForTimeout(700);
+  const apresFiltre = await page.locator('.entree').count();
+  const dentiste = await page.locator('.entree', { hasText: /dentiste/i }).count();
+  verifier(
+    'filtrer sur une sphère retire ce qui n’en est pas',
+    apresFiltre < avantFiltre && dentiste === 0,
+    `${avantFiltre} élément(s) sans filtre, ${apresFiltre} en professionnel`,
+  );
+
+  const masques = await page.locator('.spheres__masques').innerText().catch(() => '');
+  verifier(
+    'et dit combien d’éléments sont de côté, pour qu’on ne les croie pas perdus',
+    /de c[ôo]t[ée]/i.test(masques),
+    masques || 'rien n’est dit',
+  );
+
+  await page.locator('.spheres__choix[data-sphere="TOUT"]').click();
+  await page.waitForTimeout(700);
+  const revenus = await page.locator('.entree').count();
+  verifier(
+    'lever le filtre rend tout : rien n’avait été déplacé',
+    revenus === avantFiltre,
+    `${revenus} élément(s), contre ${avantFiltre} avant`,
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

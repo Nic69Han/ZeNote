@@ -10,7 +10,13 @@
 
 import { maintenantObjets, type ElementJson, type PropositionJson } from '../core/regles.ts';
 import { aujourdhui } from '../services/pipeline.ts';
-import { lireCapture, listerElementsActifs, majElement, type Capture } from '../stockage/depot.ts';
+import {
+  lireCapture,
+  lireReglages,
+  listerElementsActifs,
+  majElement,
+  type Capture,
+} from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 
@@ -37,8 +43,15 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
 
   async function rendre(): Promise<void> {
     libererLecteurs();
+    const sphere = (await lireReglages()).filtreSphere;
     const actifs = await listerElementsActifs();
-    const candidats = actifs.filter((e) => !ecartes.has(e.id));
+    // Le même filtre qu'en Revue, et la même règle : un élément dont la sphère n'a
+    // pas pu être déduite reste visible partout. Le filtre trie ce qu'on sait ranger,
+    // il ne cache pas ce qu'on ne sait pas — et il ne déplace rien.
+    const candidats = actifs.filter(
+      (e) =>
+        !ecartes.has(e.id) && (sphere === 'TOUT' || !e.sphere || e.sphere === sphere),
+    );
     const propositions = maintenantObjets(candidats, aujourdhui());
 
     // Les sources des trois propositions, chargées d'avance : trois lectures, pas une

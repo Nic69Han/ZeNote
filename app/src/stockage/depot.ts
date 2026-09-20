@@ -168,9 +168,21 @@ export type CaptureAEcrire = Omit<Capture, 'aAudio' | 'audioOctets' | 'audioType
 export interface Reglages {
   theme: 'auto' | 'clair' | 'sombre';
   sonConfirmation: boolean;
+  /**
+   * La sphère regardée en ce moment. Une préférence d'affichage, pas un rangement.
+   *
+   * Spec `memoire` — « Filtrage à la restitution » : le filtre choisit ce qui est
+   * présenté, et rien d'autre. Aucune donnée n'est déplacée ni dupliquée, et la
+   * capture ne demande toujours rien.
+   */
+  filtreSphere: 'TOUT' | 'PROFESSIONNEL' | 'PERSONNEL';
 }
 
-export const REGLAGES_PAR_DEFAUT: Reglages = { theme: 'auto', sonConfirmation: true };
+export const REGLAGES_PAR_DEFAUT: Reglages = {
+  theme: 'auto',
+  sonConfirmation: true,
+  filtreSphere: 'TOUT',
+};
 
 // ------------------------------------------------- scellement et ouverture
 

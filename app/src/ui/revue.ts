@@ -27,7 +27,10 @@ import {
   supprimerCapture,
   suivisDe,
   type Capture,
+  ecrireReglage,
+  lireReglages,
   type ElementStocke,
+  type Reglages,
 } from '../stockage/depot.ts';
 import {
   aujourdhui,
@@ -166,15 +169,83 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     await rendre();
   }
 
+  /**
+   * Ce que le filtre laisse passer.
+   *
+   * Spec `memoire` — « Filtrage à la restitution ». Un élément dont la sphère n'a
+   * pas pu être déduite reste visible dans toutes les vues : le filtre trie ce qu'on
+   * sait ranger, il ne fait pas disparaître ce qu'on ne sait pas. Cacher l'indécidé
+   * transformerait une aide à la lecture en perte de notes, silencieuse.
+   */
+  function filtrerParSphere(
+    elements: ElementStocke[],
+    sphere: Reglages['filtreSphere'],
+  ): ElementStocke[] {
+    if (sphere === 'TOUT') return elements;
+    return elements.filter((e) => !e.sphere || e.sphere === sphere);
+  }
+
+  /**
+   * Le choix de sphère : trois boutons, et ce qu'ils mettent de côté.
+   *
+   * Le compte de ce qui est masqué est affiché, parce qu'un filtre actif qu'on a
+   * oublié d'enlever est la façon la plus sûre de croire qu'une note a disparu.
+   */
+  async function choixSphere(
+    courante: Reglages['filtreSphere'],
+    masques: number,
+  ): Promise<HTMLElement> {
+    const bloc = el('div', { class: 'spheres', role: 'group', 'aria-label': 'Sphère' });
+    const choix: [Reglages['filtreSphere'], string][] = [
+      ['TOUT', 'Tout'],
+      ['PROFESSIONNEL', 'Professionnel'],
+      ['PERSONNEL', 'Personnel'],
+    ];
+
+    for (const [valeur, libelle] of choix) {
+      bloc.append(
+        el('button', {
+          class: `bouton bouton--discret spheres__choix${valeur === courante ? ' spheres__choix--actif' : ''}`,
+          type: 'button',
+          'aria-pressed': valeur === courante ? 'true' : 'false',
+          'data-sphere': valeur,
+          texte: libelle,
+          onclick: () => {
+            void (async () => {
+              await ecrireReglage('filtreSphere', valeur);
+              await rendre();
+            })();
+          },
+        }),
+      );
+    }
+
+    if (courante !== 'TOUT' && masques > 0) {
+      bloc.append(
+        el('p', {
+          class: 'spheres__masques',
+          texte:
+            masques === 1
+              ? '1 élément d’une autre sphère est de côté.'
+              : `${masques} éléments d’une autre sphère sont de côté.`,
+        }),
+      );
+    }
+    return bloc;
+  }
+
   async function rendre(): Promise<void> {
     // Chaque rendu repose de nouveaux lecteurs : sans cette libération, décider dix
     // éléments laisserait dix enregistrements accrochés en mémoire.
     libererLecteurs();
-    const elements = await listerElements();
+    const sphere = (await lireReglages()).filtreSphere;
+    const tous = await listerElements();
+    const elements = filtrerParSphere(tous, sphere);
     const file = revueObjets(elements, jour);
     // Sans ce filtre, clore une relance ne la faisait pas disparaître : l'élément
     // gardait son verdict « accepté » et remontait le lendemain comme la veille.
     const encoreEnJeu = elements.filter((e) => !e.faitLe);
+    const masques = tous.length - elements.length;
     const aRelancer = relancesObjets(encoreEnJeu, jour, suivisDe(encoreEnJeu));
     const enSouffrance = await capturesEnSouffrance();
     const enTranscription = await capturesATranscrire();
@@ -194,6 +265,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // Les captures en souffrance passent avant tout le reste : ce sont des dépôts
     // dont il ne sortira rien tant que personne ne s'en occupe. Les laisser derrière
     // la file reviendrait à les enterrer sous ce qui, lui, a bien fonctionné.
+    section.append(await choixSphere(sphere, masques));
+
     if (enSouffrance.length > 0) section.append(blocSouffrance(enSouffrance));
 
     // Ce que la transcription embarquée n'a pas encore lu. Une ligne, pas un bloc :
