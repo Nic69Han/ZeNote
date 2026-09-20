@@ -19,7 +19,16 @@ export interface ElementJson {
   finMs?: number | null;
   echeance?: string | null;
   echeanceConfiance?: number | null;
+  /** L'expression qui a produit l'échéance, telle qu'elle a été dite. */
   echeanceIndice?: string | null;
+  /**
+   * L'horizon d'une expression floue, quand aucune date ferme n'est déductible.
+   *
+   * « Dans les prochaines semaines » ne donne pas de date, et en inventer une serait
+   * pire que de n'en donner aucune : elle deviendrait une échéance qu'on croit avoir
+   * promise, avec le reproche qui va avec quand elle passe.
+   */
+  horizon?: Horizon | null;
   poids?: 'FAIBLE' | 'MOYEN' | 'FORT' | null;
   poidsConfiance?: number | null;
   poidsIndice?: string | null;
@@ -45,6 +54,9 @@ export interface ElementJson {
  * Les bornes sont des positions de caractères dans la transcription brute — la même
  * référence que l'ancrage des éléments, ce qui permet de savoir lesquels en viennent.
  */
+/** L'ordre de grandeur d'une échéance qu'on n'a pas datée. */
+export type Horizon = 'JOURS' | 'SEMAINES' | 'MOIS';
+
 export interface PassageIncertain {
   debutCar: number;
   finCar: number;
@@ -239,7 +251,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '7';
+export const VERSION_CONTRAT_ATTENDUE = '8';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(

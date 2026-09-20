@@ -952,3 +952,12 @@
   color: var(--encre-douce);
   font-size: 0.78rem;
 }
+
+/* Un horizon, pas une date. Il ne doit pas ressembler à une échéance : ni chiffres,
+   ni couleur d'urgence — seulement un ordre de grandeur, dit en toutes lettres. */
+.badge--horizon {
+  border: 1px dashed var(--trait);
+  background: none;
+  color: var(--encre-douce);
+  font-style: italic;
+}

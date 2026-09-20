@@ -75,6 +75,13 @@ function actionnable(type: ElementJson['type']): boolean {
   return type === 'TACHE' || type === 'ENGAGEMENT';
 }
 
+/** Un horizon dit en français, jamais en chiffres : ce n'est pas une date. */
+const LIBELLE_HORIZON: Record<string, string> = {
+  JOURS: 'dans les prochains jours',
+  SEMAINES: 'dans les prochaines semaines',
+  MOIS: 'dans les prochains mois',
+};
+
 function dateLisible(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', {
     weekday: 'short',
@@ -842,15 +849,33 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
             texte: `${dateLisible(e.echeance)} · ${LIBELLE_URGENCE[entree.urgence] ?? ''}`,
           })
         : null,
+      // Spec `extraction` — « Expression floue ». Un horizon n'est pas une date, et
+      // ne doit pas lui ressembler : pas de chiffres, pas d'urgence, et le mot
+      // « sans date ferme » écrit en toutes lettres. Une date inventée passerait
+      // pour une échéance promise, et le produit la dirait en retard.
+      !e.echeance && e.horizon
+        ? el('span', {
+            class: 'badge badge--horizon',
+            texte: `sans date ferme · ${LIBELLE_HORIZON[e.horizon]}`,
+          })
+        : null,
       e.interlocuteur ? el('span', { class: 'badge', texte: e.interlocuteur }) : null,
       entree.aConfirmer
         ? el('span', { class: 'badge badge--doute', texte: 'à confirmer' })
         : null,
     );
 
+    // Spec `extraction` — « Expression relative » : l'expression d'origine reste
+    // visible sur l'élément. La date est une déduction ; « avant vendredi » est ce
+    // qui a été dit, et c'est lui qui permet de voir d'un coup d'œil qu'elle est
+    // juste — ou qu'elle ne l'est pas.
+    const raisons = [
+      e.poidsIndice ? `Poids : ${e.poidsIndice}.` : '',
+      e.echeanceIndice ? `Échéance : « ${e.echeanceIndice} ».` : '',
+    ].filter((r) => r !== '');
     const justification = el('p', {
       class: 'entree__indice',
-      texte: e.poidsIndice ? `Poids : ${e.poidsIndice}.` : '',
+      texte: raisons.join(' '),
     });
 
     const zoneActions = el('div', { class: 'entree__actions' });

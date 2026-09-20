@@ -24,7 +24,23 @@ data class ElementJson(
     /** Date ISO `AAAA-MM-JJ`. */
     val echeance: String? = null,
     val echeanceConfiance: Double? = null,
+    /**
+     * L'expression qui a produit l'échéance, telle qu'elle a été dite.
+     *
+     * « avant vendredi » vaut mieux affiché que traduit en date seule : la date est
+     * une déduction, l'expression est ce qui a été dit, et c'est elle qui permet de
+     * voir d'un coup d'œil que la déduction est juste.
+     */
     val echeanceIndice: String? = null,
+    /**
+     * L'horizon d'une expression floue, quand aucune date ferme n'est déductible.
+     *
+     * JOURS, SEMAINES ou MOIS. « Dans les prochaines semaines » ne donne pas de date,
+     * et en inventer une serait pire que de n'en donner aucune : elle deviendrait une
+     * échéance qu'on croit avoir promise. L'élément porte donc un horizon indicatif,
+     * et reste sans échéance.
+     */
+    val horizon: String? = null,
     /** FAIBLE, MOYEN, FORT */
     val poids: String? = null,
     val poidsConfiance: Double? = null,

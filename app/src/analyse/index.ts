@@ -158,6 +158,7 @@ function elementDe(
     echeance: echeance?.date ?? null,
     echeanceConfiance: echeance?.confiance ?? null,
     echeanceIndice: echeance?.indice ?? null,
+    horizon: echeance?.horizon ?? null,
     poids: poids.poids,
     poidsConfiance: poids.confiance,
     poidsIndice: poids.indice,

@@ -80,10 +80,10 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 7 » avec les passages incertains : `filtrerAncrage` prend un
-     * argument de plus. Une surface qui attend cette version et en trouve une plus
-     * ancienne parle à un cœur sans ces fonctions, et doit le dire au lieu de
-     * planter à l'appel.
+     * Passée à « 8 » avec l'horizon des expressions floues, que le contrat
+     * d'élément porte désormais. Une surface qui attend cette version et en trouve
+     * une plus ancienne parle à un cœur qui laisserait tomber ce champ en
+     * silence — ce qui ne se verrait qu'à l'usage.
      */
-    val version: String = "7"
+    val version: String = "8"
 }

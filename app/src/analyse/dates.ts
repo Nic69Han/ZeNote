@@ -1,18 +1,49 @@
 /**
- * Repérage des dates relatives en français.
+ * Repérage des dates relatives en français, et refus d'en inventer.
  *
  * PROVISOIRE au même titre que le reste de `analyse/` : cet analyseur local sera
  * remplacé par un appel à un modèle. Il reste volontairement honnête — chaque
  * déduction porte l'indice qui la fonde et une confiance basse quand elle devine.
  */
 
+import type { Horizon } from '../core/regles.ts';
+
 export interface EcheanceDeduite {
-  /** Date ISO `AAAA-MM-JJ`. */
-  date: string;
+  /** Date ISO `AAAA-MM-JJ`, ou `null` quand l'expression est trop floue pour dater. */
+  date: string | null;
   confiance: number;
-  /** Le bout de phrase qui a produit la date, affichable tel quel. */
+  /** Le bout de phrase qui a produit la déduction, affichable tel quel. */
   indice: string;
+  /**
+   * L'ordre de grandeur, posé seulement quand [date] est `null`.
+   *
+   * Spec `extraction` — « Expression floue » : aucune date ferme n'est inventée, et
+   * l'élément porte un horizon indicatif. Inventer une date à partir de « dans les
+   * prochaines semaines » serait pire que de n'en donner aucune : elle passerait
+   * pour une échéance qu'on a promise, et le produit la présenterait en retard.
+   */
+  horizon?: Horizon;
 }
+
+/**
+ * Les expressions trop floues pour être datées, et l'ordre de grandeur qu'elles
+ * portent malgré tout.
+ *
+ * Elles sont reconnues **avant** les règles qui datent : « dans les prochaines
+ * semaines » contient « semaines », et une règle de durée relative en tirerait une
+ * date au jour près, ce qui est précisément l'erreur à éviter.
+ */
+const FLOUES: { motif: RegExp; horizon: Horizon }[] = [
+  { motif: /\b(dans|d'?ici)\s+(les\s+)?(tout\s+)?prochains?\s+jours\b/, horizon: 'JOURS' },
+  { motif: /\bces\s+prochains?\s+jours\b/, horizon: 'JOURS' },
+  { motif: /\b(dans|d'?ici)\s+(les\s+)?(quelques\s+)?prochaines?\s+semaines?\b/, horizon: 'SEMAINES' },
+  { motif: /\bces\s+prochaines?\s+semaines?\b/, horizon: 'SEMAINES' },
+  { motif: /\b(dans|d'?ici)\s+quelques\s+semaines?\b/, horizon: 'SEMAINES' },
+  { motif: /\b(dans|d'?ici)\s+(les\s+)?(quelques\s+)?prochains?\s+mois\b/, horizon: 'MOIS' },
+  { motif: /\bces\s+prochains?\s+mois\b/, horizon: 'MOIS' },
+  { motif: /\b(dans|d'?ici)\s+quelques\s+mois\b/, horizon: 'MOIS' },
+  { motif: /\b(bient[oô]t|prochainement|un de ces jours|quand j'?aurai le temps)\b/, horizon: 'SEMAINES' },
+];
 
 const JOUR_MS = 86_400_000;
 
@@ -105,6 +136,13 @@ function finDeMois(isoJour: string): string {
  */
 export function repererEcheance(passage: string, aujourdhui: string): EcheanceDeduite | null {
   const t = normaliser(passage);
+
+  // 0. Trop flou pour dater. Passe en premier : « dans les prochaines semaines »
+  //    contient « semaines », et la règle de durée relative en tirerait une date.
+  for (const { motif, horizon } of FLOUES) {
+    const trouve = motif.exec(t);
+    if (trouve) return { date: null, confiance: 0.4, indice: trouve[0], horizon };
+  }
 
   // 1. Date explicite : « le 12 mars », « le 3 avril ».
   const explicite = /\ble\s+(\d{1,2})(?:er)?\s+([a-z]+)/.exec(t);

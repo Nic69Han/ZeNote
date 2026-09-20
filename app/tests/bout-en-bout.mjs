@@ -843,6 +843,48 @@ try {
     retenu || 'lexique vide',
   );
 
+  // --- Une échéance floue ne devient pas une date -----------------------------
+  // Spec `extraction` — « Expression floue ». Le calcul est vérifié en unitaire ;
+  // ce qui se vérifie ici est ce que l'écran en fait, parce que c'est là que
+  // l'erreur ferait mal : un horizon présenté comme une date se lit comme une
+  // promesse, et le produit la dirait en retard.
+  await page.evaluate(async () => {
+    const capture = await window.__zenote.capturer({
+      texte: 'relancer Thomas sur le contrat dans les prochaines semaines',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.traiterFileAnalyse();
+    return capture.id;
+  });
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(200);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(900);
+
+  const floue = page.locator('.entree', { hasText: /Thomas/i }).first();
+  const vueFloue = await floue
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const horizon = vueFloue
+    ? await floue.locator('.badge--horizon').innerText().catch(() => '')
+    : '';
+  const dates = vueFloue ? await floue.locator('.badge--echeance').count() : -1;
+  verifier(
+    'une expression floue donne un horizon, pas une date',
+    /sans date ferme/i.test(horizon) && dates === 0,
+    `${horizon || 'aucun horizon'} — ${dates} badge(s) de date`,
+  );
+
+  const indice = vueFloue ? await floue.locator('.entree__indice').innerText() : '';
+  verifier(
+    'et l’expression dite reste visible sur l’élément',
+    /prochaines semaines/i.test(indice),
+    indice || 'aucune justification',
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un
