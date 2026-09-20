@@ -63,6 +63,15 @@ data class ElementJson(
      * par la confirmation de l'utilisateur au lieu d'être créé tel quel.
      */
     val transcriptionIncertaine: Boolean = false,
+    /**
+     * `true` quand cet élément vient d'un compte rendu de réunion importé.
+     *
+     * Spec `reunions` — « Confirmation avant engagement ». Un engagement tiré d'un
+     * compte rendu n'a pas été dit par celui qui le porte : il a été écrit par
+     * quelqu'un d'autre, parfois mal, parfois en son absence. Le traiter d'emblée
+     * comme ferme reviendrait à se faire engager par un document.
+     */
+    val issuDeReunion: Boolean = false,
 )
 
 /**

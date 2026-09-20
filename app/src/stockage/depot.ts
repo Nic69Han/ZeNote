@@ -224,6 +224,14 @@ export interface Reglages {
   creneauRenoncements: number;
   /** Le jour où le créneau a été pris ou décliné, pour ne compter qu'une fois par jour. */
   creneauVuLe: string | null;
+  /**
+   * Le nom sous lequel l'utilisateur apparaît dans les comptes rendus de réunion.
+   *
+   * Sans lui, aucune ligne d'un compte rendu n'est attribuée : deviner ferait porter
+   * à quelqu'un des engagements qui ne sont pas les siens, ce qui est exactement la
+   * panne que l'import répare.
+   */
+  monNom: string;
 }
 
 export const REGLAGES_PAR_DEFAUT: Reglages = {
@@ -233,6 +241,7 @@ export const REGLAGES_PAR_DEFAUT: Reglages = {
   creneauProtegeDebut: '09:00',
   creneauRenoncements: 0,
   creneauVuLe: null,
+  monNom: '',
 };
 
 // ------------------------------------------------- scellement et ouverture

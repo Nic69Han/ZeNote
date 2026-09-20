@@ -625,12 +625,15 @@ object Regles {
     /**
      * Ce qui doit être confirmé avant d'être tenu pour acquis.
      *
-     * Deux sources d'incertitude, de nature différente et de même conséquence : une
-     * déduction peu sûre (l'échéance, le poids, l'interlocuteur), et un élément qui
-     * ne vient que d'un passage mal entendu. Dans le second cas ce n'est pas la
-     * déduction qui est fragile, c'est la phrase dont elle part.
+     * Trois sources d'incertitude, de nature différente et de même conséquence :
+     * une déduction peu sûre (l'échéance, le poids, l'interlocuteur), un élément qui
+     * ne vient que d'un passage mal entendu, et un engagement tiré d'un compte rendu
+     * de réunion. Dans le deuxième cas ce n'est pas la déduction qui est fragile,
+     * c'est la phrase dont elle part ; dans le troisième, c'est que la phrase a été
+     * écrite par quelqu'un d'autre.
      */
-    private fun ElementJson.aConfirmer(): Boolean = transcriptionIncertaine || listOfNotNull(
+    private fun ElementJson.aConfirmer(): Boolean =
+        transcriptionIncertaine || issuDeReunion || listOfNotNull(
         echeanceConfiance,
         poidsConfiance,
         interlocuteurConfiance,

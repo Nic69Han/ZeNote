@@ -1238,6 +1238,66 @@ try {
     `${renoncements} renoncement(s) compté(s)`,
   );
 
+  // --- Importer un compte rendu de réunion ---------------------------------------
+  // Spec `reunions` — « Compte rendu importé » et « Engagement extrait à confirmer ».
+  // L'extraction est vérifiée en unitaire ; ce qui se vérifie ici est le geste, et
+  // surtout que rien n'en sort comme un engagement ferme.
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: /importer un compte rendu/i }).click();
+  await page.waitForTimeout(300);
+  await page.locator('.bloc-import input.champ').fill('Nicolas');
+  await page.locator('.bloc-import textarea').fill(
+    [
+      'Réunion chantier du 22 septembre',
+      // Une conséquence explicite sur chaque ligne : la Revue est réduite aux douze
+      // éléments les plus lourds, et le parcours en a déjà produit davantage.
+      '- Nicolas : envoyer le planning révisé au maître d’ouvrage, sinon le chantier est bloqué',
+      '- Sophie : relancer le fournisseur sur le chiffrage du lot 3, sinon tout est bloqué',
+    ].join('\n'),
+  );
+  await page.locator('.bloc-import .bouton--plein').click();
+  await page.waitForTimeout(1200);
+
+  const retourImport = await page.locator('.import__retour').innerText().catch(() => '');
+  verifier(
+    'un compte rendu importé rend des éléments, sans perdre le document',
+    /\d+ élément/i.test(retourImport) && /gardé entier/i.test(retourImport),
+    retourImport || 'aucun retour',
+  );
+
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1200);
+
+  const monEngagement = page.locator('.entree', { hasText: /planning révisé/i }).first();
+  const vuEngagement = await monEngagement
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const typeEngagement = vuEngagement
+    ? await monEngagement.locator('.badge--type').innerText()
+    : '';
+  const douteEngagement = vuEngagement
+    ? await monEngagement.locator('.badge--doute').count()
+    : 0;
+  verifier(
+    'ce que j’ai promis arrive comme engagement, à confirmer',
+    /engagement/i.test(typeEngagement) && douteEngagement === 1,
+    `${typeEngagement || 'type introuvable'} — ${douteEngagement} marque(s) « à confirmer »`,
+  );
+
+  const sonAttente = page.locator('.entree', { hasText: /relancer le fournisseur/i }).first();
+  const vuAttente = await sonAttente
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
+  const badgesAttente = vuAttente ? await sonAttente.locator('.badge').allInnerTexts() : [];
+  verifier(
+    'ce que les autres ont promis arrive comme attente, portée par eux',
+    /attente/i.test(badgesAttente.join(' ')) && /sophie/i.test(badgesAttente.join(' ')),
+    badgesAttente.join(' · ') || 'aucune attente',
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

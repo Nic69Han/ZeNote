@@ -46,6 +46,14 @@ export interface ElementJson {
    * une opinion sur le contenu. La Revue le fait alors confirmer.
    */
   transcriptionIncertaine?: boolean;
+  /**
+   * `true` quand cet élément vient d'un compte rendu de réunion importé.
+   *
+   * Un engagement tiré d'un compte rendu n'a pas été dit par celui qui le porte : il
+   * a été écrit par quelqu'un d'autre, parfois mal, parfois en son absence. La Revue
+   * le fait donc confirmer avant qu'il ne devienne ferme.
+   */
+  issuDeReunion?: boolean;
 }
 
 /**
@@ -311,7 +319,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '11';
+export const VERSION_CONTRAT_ATTENDUE = '12';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(

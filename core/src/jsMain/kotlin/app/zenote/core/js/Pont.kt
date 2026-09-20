@@ -115,9 +115,10 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 11 » avec le créneau protégé. Une surface qui attend cette version
-     * et en trouve une plus ancienne parle à un cœur sans ces fonctions, et doit le
-     * dire au lieu de planter à l'appel.
+     * Passée à « 12 » avec les engagements tirés d'un compte rendu, que le contrat
+     * d'élément porte désormais et que la Revue fait confirmer. Une surface qui
+     * attend cette version et en trouve une plus ancienne parle à un cœur qui
+     * laisserait tomber ce champ en silence.
      */
-    val version: String = "11"
+    val version: String = "12"
 }

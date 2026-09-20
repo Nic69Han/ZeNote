@@ -8,10 +8,23 @@
 import { Enregistreur, audioDisponible, prechauffer } from '../audio/enregistreur.ts';
 import { retourDebut, retourEchec, retourEcrite } from '../audio/retour.ts';
 import { transcriptionLocaleDisponible } from '../audio/transcripteurLocal.ts';
-import { capturer, traiterFileAnalyse, traiterFileTranscription } from '../services/pipeline.ts';
+import {
+  aujourdhui,
+  capturer,
+  traiterFileAnalyse,
+  traiterFileTranscription,
+} from '../services/pipeline.ts';
+import { deposerCompteRendu } from '../services/reunion.ts';
 import { CoffreVerrouille } from '../securite/coffre.ts';
 import { espaceLiberable, estManqueDePlace, libererEspace } from '../services/espace.ts';
-import { aTranscrire, listerCaptures, type Capture, type Reglages } from '../stockage/depot.ts';
+import {
+  aTranscrire,
+  ecrireReglage,
+  lireReglages,
+  listerCaptures,
+  type Capture,
+  type Reglages,
+} from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 
 type Etat = 'REPOS' | 'ENREGISTRE' | 'ECRITURE' | 'CONFIRME' | 'ECHEC';
@@ -60,6 +73,53 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
   });
   const deposer = el('button', { class: 'bouton bouton--plein', type: 'button', texte: 'Déposer' });
   const blocEcrit = el('form', { class: 'bloc-ecrit', hidden: true }, zoneEcrite, deposer);
+
+  // ------------------------------------------------- l'import d'un compte rendu
+  //
+  // Spec `reunions` — « Traitement d'un compte rendu externe ». Un compte rendu fait
+  // dix écrans et contient le mélange habituel : ce qu'on a promis, ce que les
+  // autres ont promis, et le reste. Relu deux jours plus tard, on n'y retrouve pas
+  // ses propres engagements — qui sont pourtant la seule raison de l'ouvrir.
+  //
+  // Le nom est demandé, et retenu. Sans lui rien n'est attribué : deviner ferait
+  // porter à quelqu'un des engagements qui ne sont pas les siens.
+  const zoneImport = el('textarea', {
+    class: 'zone-import',
+    rows: 6,
+    placeholder: 'Coller le compte rendu…',
+    'aria-label': 'Compte rendu de réunion',
+  }) as HTMLTextAreaElement;
+
+  const champNom = el('input', {
+    class: 'champ',
+    type: 'text',
+    placeholder: 'Votre nom dans le compte rendu',
+    'aria-label': 'Votre nom dans le compte rendu',
+  }) as HTMLInputElement;
+
+  const retourImport = el('p', { class: 'import__retour', hidden: true });
+
+  const importer = el('button', {
+    class: 'bouton bouton--plein',
+    type: 'button',
+    texte: 'Importer',
+  });
+
+  const blocImport = el(
+    'div',
+    { class: 'bloc-import', hidden: true },
+    champNom,
+    zoneImport,
+    importer,
+    retourImport,
+  );
+
+  const basculeImport = el('button', {
+    class: 'bouton bouton--discret',
+    type: 'button',
+    texte: 'Importer un compte rendu',
+    'aria-expanded': 'false',
+  });
 
   const basculeEcrite = el('button', {
     class: 'bouton bouton--discret',
@@ -375,6 +435,46 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     }
   });
 
+  basculeImport.addEventListener('click', () => {
+    const ouvert = blocImport.hidden;
+    blocImport.hidden = !ouvert;
+    basculeImport.setAttribute('aria-expanded', String(ouvert));
+    if (ouvert) {
+      void lireReglages().then((r) => {
+        if (champNom.value === '') champNom.value = r.monNom;
+        champNom.focus();
+      });
+    }
+  });
+
+  importer.addEventListener('click', () => {
+    void (async () => {
+      const texte = zoneImport.value.trim();
+      if (texte === '') {
+        annoncer('Collez d’abord le compte rendu.');
+        return;
+      }
+      const monNom = champNom.value.trim();
+      await ecrireReglage('monNom', monNom);
+
+      try {
+        const rendu = await deposerCompteRendu(texte, monNom, aujourdhui());
+        zoneImport.value = '';
+        retourImport.hidden = false;
+        retourImport.textContent =
+          rendu.elements === 0
+            ? 'Rien n’a pu être rattaché à une ligne du compte rendu. Il est gardé tel quel.'
+            : `${rendu.elements} élément(s) en Revue, à confirmer. Le compte rendu est gardé entier.`;
+        annoncer(retourImport.textContent);
+        await rafraichirJournal();
+      } catch (erreur) {
+        await signalerEchecEcriture(erreur, async () => {
+          importer.click();
+        });
+      }
+    })();
+  });
+
   basculeEcrite.addEventListener('click', () => {
     modeEcrit = !modeEcrit;
     blocEcrit.hidden = !modeEcrit;
@@ -429,8 +529,9 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       message,
       secours,
       ...avertissements,
-      el('div', { class: 'actions' }, basculeEcrite),
+      el('div', { class: 'actions' }, basculeEcrite, basculeImport),
       blocEcrit,
+      blocImport,
       el('h2', { class: 'titre-section', texte: 'Dernières captures' }),
       journal,
     ),
