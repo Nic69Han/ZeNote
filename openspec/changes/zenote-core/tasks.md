@@ -95,6 +95,6 @@ Une case n'est cochée que lorsqu'un test nommé la couvre. Les tâches cochées
 ## 8. Validation d'ensemble
 
 - [ ] 8.1 Constituer un jeu d'évaluation de captures réelles annotées (intention, échéance, poids, entités, plan) et mesurer la qualité de l'extraction et de la résolution de contexte ; consigner le seuil de qualité en dessous duquel les rappels automatiques restent désactivés
-- [ ] 8.2 Vérifier scénario par scénario chaque spécification de ce changement et consigner les écarts
+- [x] 8.2 Vérifier scénario par scénario chaque spécification de ce changement et consigner les écarts — `verification.md` passe les 112 scénarios des dix spécifications un par un : 83 tenus par un test nommé, 8 partiels dont l'écart est dit, 21 non tenus. Trois causes reviennent, et aucune ne se règle en écrivant du code depuis ici : les surfaces natives Android et Windows, l'agenda, et l'analyse distante. Le document dit aussi ce qu'il ne dit pas : les trois promesses mesurables ne sont tenues que par des mesures de laboratoire, et le palier 8 demande quelqu'un qui s'en sert
 - [ ] 8.3 Mener un usage réel continu d'au moins deux semaines et vérifier les trois promesses mesurables : capture sous 300 ms, Revue sous deux minutes, aucune capture perdue
 - [ ] 8.4 Mesurer le coût d'analyse par capture sur cet usage réel et vérifier qu'il tient le budget fixé
