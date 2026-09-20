@@ -725,11 +725,11 @@ if (typeof String.prototype.endsWith === 'undefined') {
   function coerceAtLeast(_this__u8e3s4, minimumValue) {
     return _this__u8e3s4 < minimumValue ? minimumValue : _this__u8e3s4;
   }
-  function coerceAtMost(_this__u8e3s4, maximumValue) {
-    return _this__u8e3s4 > maximumValue ? maximumValue : _this__u8e3s4;
-  }
   function downTo(_this__u8e3s4, to) {
     return Companion_instance_9.w(_this__u8e3s4, to, -1);
+  }
+  function coerceAtMost(_this__u8e3s4, maximumValue) {
+    return _this__u8e3s4 > maximumValue ? maximumValue : _this__u8e3s4;
   }
   function coerceIn(_this__u8e3s4, minimumValue, maximumValue) {
     if (minimumValue > maximumValue)
@@ -778,6 +778,26 @@ if (typeof String.prototype.endsWith === 'undefined') {
     result.p(_this__u8e3s4);
     addAll(result, elements);
     return result;
+  }
+  function firstOrNull_0(_this__u8e3s4) {
+    var tmp;
+    // Inline function 'kotlin.text.isEmpty' call
+    if (charSequenceLength(_this__u8e3s4) === 0) {
+      tmp = null;
+    } else {
+      tmp = charSequenceGet(_this__u8e3s4, 0);
+    }
+    return tmp;
+  }
+  function lastOrNull_0(_this__u8e3s4) {
+    var tmp;
+    // Inline function 'kotlin.text.isEmpty' call
+    if (charSequenceLength(_this__u8e3s4) === 0) {
+      tmp = null;
+    } else {
+      tmp = charSequenceGet(_this__u8e3s4, charSequenceLength(_this__u8e3s4) - 1 | 0);
+    }
+    return tmp;
   }
   function _Char___init__impl__6a9atx(value) {
     return value;
@@ -2403,6 +2423,17 @@ if (typeof String.prototype.endsWith === 'undefined') {
   function isLetterImpl(_this__u8e3s4) {
     return !(getLetterType(_this__u8e3s4) === 0);
   }
+  function isUpperCaseImpl(_this__u8e3s4) {
+    var tmp;
+    if (getLetterType(_this__u8e3s4) === 2) {
+      tmp = true;
+    } else {
+      // Inline function 'kotlin.code' call
+      var tmp$ret$0 = Char__toInt_impl_vasixd(_this__u8e3s4);
+      tmp = isOtherUppercase(tmp$ret$0);
+    }
+    return tmp;
+  }
   function getLetterType(_this__u8e3s4) {
     // Inline function 'kotlin.code' call
     var ch = Char__toInt_impl_vasixd(_this__u8e3s4);
@@ -2485,6 +2516,9 @@ if (typeof String.prototype.endsWith === 'undefined') {
     if (Letter_instance == null)
       new Letter();
     return Letter_instance;
+  }
+  function isOtherUppercase(_this__u8e3s4) {
+    return (8544 <= _this__u8e3s4 ? _this__u8e3s4 <= 8559 : false) || (9398 <= _this__u8e3s4 ? _this__u8e3s4 <= 9423 : false);
   }
   function isWhitespaceImpl(_this__u8e3s4) {
     // Inline function 'kotlin.code' call
@@ -5117,6 +5151,24 @@ if (typeof String.prototype.endsWith === 'undefined') {
     }
     return isDigitImpl(_this__u8e3s4) || isLetterImpl(_this__u8e3s4);
   }
+  function isUpperCase(_this__u8e3s4) {
+    if (_Char___init__impl__6a9atx(65) <= _this__u8e3s4 ? _this__u8e3s4 <= _Char___init__impl__6a9atx(90) : false) {
+      return true;
+    }
+    if (Char__compareTo_impl_ypi4mb(_this__u8e3s4, _Char___init__impl__6a9atx(128)) < 0) {
+      return false;
+    }
+    return isUpperCaseImpl(_this__u8e3s4);
+  }
+  function isDigit(_this__u8e3s4) {
+    if (_Char___init__impl__6a9atx(48) <= _this__u8e3s4 ? _this__u8e3s4 <= _Char___init__impl__6a9atx(57) : false) {
+      return true;
+    }
+    if (Char__compareTo_impl_ypi4mb(_this__u8e3s4, _Char___init__impl__6a9atx(128)) < 0) {
+      return false;
+    }
+    return isDigitImpl(_this__u8e3s4);
+  }
   function isWhitespace(_this__u8e3s4) {
     return isWhitespaceImpl(_this__u8e3s4);
   }
@@ -7554,50 +7606,55 @@ if (typeof String.prototype.endsWith === 'undefined') {
   _.$_$.q5 = KProperty1;
   _.$_$.r5 = contains_1;
   _.$_$.s5 = equals_0;
-  _.$_$.t5 = indexOf_1;
-  _.$_$.u5 = indexOf_0;
-  _.$_$.v5 = isBlank;
-  _.$_$.w5 = isLetterOrDigit;
-  _.$_$.x5 = get_lastIndex_3;
-  _.$_$.y5 = lastIndexOf;
-  _.$_$.z5 = padStart;
-  _.$_$.a6 = removePrefix;
-  _.$_$.b6 = removeSuffix;
-  _.$_$.c6 = repeat;
-  _.$_$.d6 = split;
-  _.$_$.e6 = split_0;
-  _.$_$.f6 = startsWith;
-  _.$_$.g6 = substringAfter_0;
-  _.$_$.h6 = substringAfter;
-  _.$_$.i6 = substringBefore;
-  _.$_$.j6 = toDouble;
-  _.$_$.k6 = toIntOrNull;
-  _.$_$.l6 = toInt;
-  _.$_$.m6 = trim;
-  _.$_$.n6 = Char;
-  _.$_$.o6 = Comparable;
-  _.$_$.p6 = Comparator;
-  _.$_$.q6 = DeepRecursiveFunction;
-  _.$_$.r6 = DeepRecursiveScope;
-  _.$_$.s6 = Enum;
-  _.$_$.t6 = Exception;
-  _.$_$.u6 = IllegalArgumentException;
-  _.$_$.v6 = Long;
-  _.$_$.w6 = RuntimeException;
-  _.$_$.x6 = THROW_CCE;
-  _.$_$.y6 = THROW_IAE;
-  _.$_$.z6 = Unit;
-  _.$_$.a7 = countTrailingZeroBits;
-  _.$_$.b7 = createFailure;
-  _.$_$.c7 = ensureNotNull;
-  _.$_$.d7 = invoke;
-  _.$_$.e7 = isFinite;
-  _.$_$.f7 = lazy;
-  _.$_$.g7 = lazy_0;
-  _.$_$.h7 = noWhenBranchMatchedException;
-  _.$_$.i7 = plus_1;
-  _.$_$.j7 = toString_0;
-  _.$_$.k7 = to;
+  _.$_$.t5 = firstOrNull_0;
+  _.$_$.u5 = indexOf_1;
+  _.$_$.v5 = indexOf_0;
+  _.$_$.w5 = isBlank;
+  _.$_$.x5 = isDigit;
+  _.$_$.y5 = isLetterOrDigit;
+  _.$_$.z5 = isUpperCase;
+  _.$_$.a6 = isWhitespace;
+  _.$_$.b6 = get_lastIndex_3;
+  _.$_$.c6 = lastIndexOf;
+  _.$_$.d6 = lastOrNull_0;
+  _.$_$.e6 = padStart;
+  _.$_$.f6 = removePrefix;
+  _.$_$.g6 = removeSuffix;
+  _.$_$.h6 = repeat;
+  _.$_$.i6 = split;
+  _.$_$.j6 = split_0;
+  _.$_$.k6 = startsWith;
+  _.$_$.l6 = substringAfter_0;
+  _.$_$.m6 = substringAfter;
+  _.$_$.n6 = substringBefore;
+  _.$_$.o6 = toDouble;
+  _.$_$.p6 = toIntOrNull;
+  _.$_$.q6 = toInt;
+  _.$_$.r6 = trim;
+  _.$_$.s6 = Char;
+  _.$_$.t6 = Comparable;
+  _.$_$.u6 = Comparator;
+  _.$_$.v6 = DeepRecursiveFunction;
+  _.$_$.w6 = DeepRecursiveScope;
+  _.$_$.x6 = Enum;
+  _.$_$.y6 = Exception;
+  _.$_$.z6 = IllegalArgumentException;
+  _.$_$.a7 = Long;
+  _.$_$.b7 = RuntimeException;
+  _.$_$.c7 = THROW_CCE;
+  _.$_$.d7 = THROW_IAE;
+  _.$_$.e7 = Unit;
+  _.$_$.f7 = countTrailingZeroBits;
+  _.$_$.g7 = createFailure;
+  _.$_$.h7 = ensureNotNull;
+  _.$_$.i7 = invoke;
+  _.$_$.j7 = isFinite;
+  _.$_$.k7 = lazy;
+  _.$_$.l7 = lazy_0;
+  _.$_$.m7 = noWhenBranchMatchedException;
+  _.$_$.n7 = plus_1;
+  _.$_$.o7 = toString_0;
+  _.$_$.p7 = to;
   //endregion
   return _;
 }));

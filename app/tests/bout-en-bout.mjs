@@ -682,6 +682,56 @@ try {
     `${await page.locator('.escalades__ligne').count()} escalade(s) restante(s)`,
   );
 
+  // --- La transcription lisible, et ce qui a été dit --------------------------
+  // Spec `transcription` — « Suppression des hésitations » et « Reformulation
+  // réversible ». Le jeu annoté qui prouve que rien de porteur ne disparaît vit dans
+  // le cœur (`DisfluencesTest`) ; ce qui se vérifie ici est l'autre moitié, celle que
+  // le cœur ne peut pas voir : que la Revue montre bien la version lisible, et que le
+  // brut reste atteignable au lieu d'être remplacé.
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: /écrire plutôt/i }).click();
+  await page.locator('.zone-ecrite').fill(
+    "euh il faut que je je rappelle Sophie euh avant vendredi pour le devis de 1500 euros",
+  );
+  await page.getByRole('button', { name: /^déposer$/i }).click();
+  await page.waitForTimeout(900);
+
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(900);
+
+  // L'analyse tourne en arrière-plan, et le bloc source est replié : la Revue le
+  // présente refermé pour ne pas répéter la transcription sous chaque élément.
+  const source = page.locator('details.source', { hasText: /rappelle Sophie/i }).first();
+  const vu = await source
+    .waitFor({ state: 'attached', timeout: 20_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (vu) {
+    await source.locator('.source__resume').click();
+    await page.waitForTimeout(300);
+  }
+  const bloc = source.locator('.source__transcription');
+  const lisible = vu ? await bloc.locator('.source__texte').innerText() : '';
+  verifier(
+    'la Revue montre la transcription sans les hésitations',
+    vu && lisible !== '' && !/\beuh\b/i.test(lisible) && !/\bje je\b/i.test(lisible),
+    lisible || 'transcription lisible non trouvée',
+  );
+  verifier(
+    'et sans rien perdre du nom, du chiffre ni de la date',
+    /Sophie/.test(lisible) && /1500/.test(lisible) && /vendredi/i.test(lisible),
+    lisible,
+  );
+
+  await bloc.locator('.source__bascule').click();
+  const brut = await bloc.locator('.source__texte').innerText();
+  verifier(
+    'ce qui a été dit reste atteignable, mot pour mot',
+    /\beuh\b/i.test(brut) && /\bje je\b/i.test(brut),
+    brut,
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

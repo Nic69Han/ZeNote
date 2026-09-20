@@ -29,7 +29,7 @@
   var Unit_instance = kotlin_kotlin.$_$.r1;
   var StringSerializer_getInstance = kotlin_org_jetbrains_kotlinx_kotlinx_serialization_core.$_$.m;
   var DoubleSerializer_getInstance = kotlin_org_jetbrains_kotlinx_kotlinx_serialization_core.$_$.j;
-  var THROW_CCE = kotlin_kotlin.$_$.x6;
+  var THROW_CCE = kotlin_kotlin.$_$.c7;
   var UnknownFieldException_init_$Create$ = kotlin_org_jetbrains_kotlinx_kotlinx_serialization_core.$_$.b;
   var IntSerializer_getInstance = kotlin_org_jetbrains_kotlinx_kotlinx_serialization_core.$_$.k;
   var get_nullable = kotlin_org_jetbrains_kotlinx_kotlinx_serialization_core.$_$.p;
@@ -40,7 +40,7 @@
   var VOID = kotlin_kotlin.$_$.c;
   var throwMissingFieldException = kotlin_org_jetbrains_kotlinx_kotlinx_serialization_core.$_$.m1;
   var objectCreate = kotlin_kotlin.$_$.b5;
-  var toString = kotlin_kotlin.$_$.j7;
+  var toString = kotlin_kotlin.$_$.o7;
   var getStringHashCode = kotlin_kotlin.$_$.k4;
   var getNumberHashCode = kotlin_kotlin.$_$.i4;
   var getBooleanHashCode = kotlin_kotlin.$_$.h4;
@@ -56,15 +56,15 @@
   var Companion_getInstance = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.n;
   var Companion_instance = kotlin_kotlin.$_$.q1;
   var _Result___init__impl__xyqfz8 = kotlin_kotlin.$_$.l1;
-  var createFailure = kotlin_kotlin.$_$.b7;
+  var createFailure = kotlin_kotlin.$_$.g7;
   var _Result___get_isFailure__impl__jpiriv = kotlin_kotlin.$_$.m1;
-  var isBlank = kotlin_kotlin.$_$.v5;
+  var isBlank = kotlin_kotlin.$_$.w5;
   var _Result___get_value__impl__bjfvqg = kotlin_kotlin.$_$.n1;
   var listOfNotNull = kotlin_kotlin.$_$.w2;
   var Collection = kotlin_kotlin.$_$.t1;
   var isInterface = kotlin_kotlin.$_$.u4;
   var FunctionAdapter = kotlin_kotlin.$_$.v3;
-  var Comparator = kotlin_kotlin.$_$.p6;
+  var Comparator = kotlin_kotlin.$_$.u6;
   var compareValues = kotlin_kotlin.$_$.q3;
   var NoSuchElementException_init_$Create$ = kotlin_kotlin.$_$.b1;
   var compareTo = kotlin_kotlin.$_$.d4;
@@ -84,14 +84,14 @@
   var Companion_getInstance_0 = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.o;
   var Companion_getInstance_1 = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.p;
   var toInstant = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.v;
-  var ensureNotNull = kotlin_kotlin.$_$.c7;
-  var to = kotlin_kotlin.$_$.k7;
+  var ensureNotNull = kotlin_kotlin.$_$.h7;
+  var to = kotlin_kotlin.$_$.p7;
   var LinkedHashSet_init_$Create$ = kotlin_kotlin.$_$.n;
-  var noWhenBranchMatchedException = kotlin_kotlin.$_$.h7;
+  var noWhenBranchMatchedException = kotlin_kotlin.$_$.m7;
   var IllegalArgumentException_init_$Create$ = kotlin_kotlin.$_$.x;
-  var THROW_IAE = kotlin_kotlin.$_$.y6;
-  var Enum = kotlin_kotlin.$_$.s6;
-  var Long = kotlin_kotlin.$_$.v6;
+  var THROW_IAE = kotlin_kotlin.$_$.d7;
+  var Enum = kotlin_kotlin.$_$.x6;
+  var Long = kotlin_kotlin.$_$.a7;
   var daysUntil = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.q;
   var take = kotlin_kotlin.$_$.l3;
   var LocalTime_init_$Create$ = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.l;
@@ -100,7 +100,7 @@
   var contains = kotlin_kotlin.$_$.r5;
   var Companion_getInstance_2 = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.m;
   var plus = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.u;
-  var toInt = kotlin_kotlin.$_$.l6;
+  var toInt = kotlin_kotlin.$_$.q6;
   var LocalDateTime_init_$Create$_0 = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.k;
   var single = kotlin_kotlin.$_$.i3;
   var listOf = kotlin_kotlin.$_$.y2;
@@ -112,22 +112,22 @@
   var charSequenceLength = kotlin_kotlin.$_$.b4;
   var charSequenceGet = kotlin_kotlin.$_$.a4;
   var _Char___init__impl__6a9atx = kotlin_kotlin.$_$.h1;
-  var isLetterOrDigit = kotlin_kotlin.$_$.w5;
-  var Char = kotlin_kotlin.$_$.n6;
+  var isLetterOrDigit = kotlin_kotlin.$_$.y5;
+  var Char = kotlin_kotlin.$_$.s6;
   var joinToString = kotlin_kotlin.$_$.p2;
   var charArrayOf = kotlin_kotlin.$_$.y3;
-  var split = kotlin_kotlin.$_$.d6;
+  var split = kotlin_kotlin.$_$.i6;
   var get_isoDayNumber = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.r;
   var DatePeriod_init_$Create$ = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.h;
   var minus = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.s;
   var plus_1 = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.t;
   var LocalDate_init_$Create$ = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.i;
-  var substringAfter = kotlin_kotlin.$_$.h6;
+  var substringAfter = kotlin_kotlin.$_$.m6;
   var isCharSequence = kotlin_kotlin.$_$.t4;
-  var trim = kotlin_kotlin.$_$.m6;
-  var split_0 = kotlin_kotlin.$_$.e6;
-  var toIntOrNull = kotlin_kotlin.$_$.k6;
-  var startsWith = kotlin_kotlin.$_$.f6;
+  var trim = kotlin_kotlin.$_$.r6;
+  var split_0 = kotlin_kotlin.$_$.j6;
+  var toIntOrNull = kotlin_kotlin.$_$.p6;
+  var startsWith = kotlin_kotlin.$_$.k6;
   var minOf = kotlin_kotlin.$_$.r3;
   var DayOfWeek_SATURDAY_getInstance = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.c;
   var DayOfWeek_MONDAY_getInstance = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.b;
@@ -137,9 +137,16 @@
   var DayOfWeek_FRIDAY_getInstance = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.a;
   var DayOfWeek_SUNDAY_getInstance = kotlin_org_jetbrains_kotlinx_kotlinx_datetime.$_$.d;
   var mapOf = kotlin_kotlin.$_$.a3;
+  var StringBuilder_init_$Create$ = kotlin_kotlin.$_$.q;
+  var firstOrNull = kotlin_kotlin.$_$.t5;
+  var isUpperCase = kotlin_kotlin.$_$.z5;
+  var isDigit = kotlin_kotlin.$_$.x5;
+  var lastOrNull = kotlin_kotlin.$_$.d6;
+  var isWhitespace = kotlin_kotlin.$_$.a6;
+  var until = kotlin_kotlin.$_$.m5;
   var setOf = kotlin_kotlin.$_$.g3;
-  var StringBuilder_init_$Create$ = kotlin_kotlin.$_$.p;
-  var indexOf = kotlin_kotlin.$_$.u5;
+  var StringBuilder_init_$Create$_0 = kotlin_kotlin.$_$.p;
+  var indexOf = kotlin_kotlin.$_$.v5;
   var checkCountOverflow = kotlin_kotlin.$_$.z1;
   var defineProp = kotlin_kotlin.$_$.e4;
   //endregion
@@ -247,6 +254,8 @@
   initMetadataForClass(OptionRelance, 'OptionRelance', VOID, Enum);
   initMetadataForClass(PropositionRelance, 'PropositionRelance');
   initMetadataForObject(Relance, 'Relance');
+  initMetadataForClass(Jeton, 'Jeton');
+  initMetadataForObject(Disfluences, 'Disfluences');
   initMetadataForObject(Texte, 'Texte');
   initMetadataForObject(ZeNoteRegles, 'ZeNoteRegles');
   //endregion
@@ -3659,7 +3668,10 @@
     }
     return this.l1b_1.ix(tmp_3, new RappelsDuMomentJson(tmp_4, tmp_6, destination_5));
   };
-  protoOf(Regles).k1f = function (texteSource, elementsJson) {
+  protoOf(Regles).k1f = function (brut) {
+    return Disfluences_getInstance().p1f(brut);
+  };
+  protoOf(Regles).q1f = function (texteSource, elementsJson) {
     // Inline function 'kotlin.collections.mutableListOf' call
     var retenus = ArrayList_init_$Create$_0();
     // Inline function 'kotlin.collections.mutableListOf' call
@@ -3681,7 +3693,7 @@
     }
     return this.l1b_1.ix(Companion_getInstance_14().w16(), new AncrageJson(retenus, ecartes));
   };
-  protoOf(Regles).l1f = function (requete, elementsJson, capturesJson, reseau) {
+  protoOf(Regles).r1f = function (requete, elementsJson, capturesJson, reseau) {
     var tmp = RechercheLocale_getInstance();
     // Inline function 'kotlin.collections.map' call
     var this_0 = decoder(this, elementsJson);
@@ -3694,9 +3706,9 @@
       var tmp$ret$0 = versResolu(item, Regles_getInstance());
       destination.e(tmp$ret$0);
     }
-    return rendre(this, tmp.p1f(requete, destination, sources(this, capturesJson), reseau));
+    return rendre(this, tmp.v1f(requete, destination, sources(this, capturesJson), reseau));
   };
-  protoOf(Regles).q1f = function (requete, elementsJson, capturesJson, aujourdhui, reseau) {
+  protoOf(Regles).w1f = function (requete, elementsJson, capturesJson, aujourdhui, reseau) {
     var tmp = RechercheLocale_getInstance();
     // Inline function 'kotlin.collections.map' call
     var this_0 = decoder(this, elementsJson);
@@ -3709,9 +3721,9 @@
       var tmp$ret$0 = versResolu(item, Regles_getInstance());
       destination.e(tmp$ret$0);
     }
-    return rendre(this, tmp.r1f(requete, destination, sources(this, capturesJson), Companion_getInstance().lw(aujourdhui), reseau));
+    return rendre(this, tmp.x1f(requete, destination, sources(this, capturesJson), Companion_getInstance().lw(aujourdhui), reseau));
   };
-  protoOf(Regles).s1f = function (personne, elementsJson, reseau) {
+  protoOf(Regles).y1f = function (personne, elementsJson, reseau) {
     var tmp = RechercheLocale_getInstance();
     // Inline function 'kotlin.collections.map' call
     var this_0 = decoder(this, elementsJson);
@@ -3724,7 +3736,7 @@
       var tmp$ret$0 = versResolu(item, Regles_getInstance());
       destination.e(tmp$ret$0);
     }
-    return rendre(this, tmp.t1f(personne, destination, reseau));
+    return rendre(this, tmp.z1f(personne, destination, reseau));
   };
   var Regles_instance;
   function Regles_getInstance() {
@@ -3816,7 +3828,7 @@
   function TypeElement(name, ordinal) {
     Enum.call(this, name, ordinal);
   }
-  protoOf(TypeElement).w1f = function () {
+  protoOf(TypeElement).c1g = function () {
     return this.equals(TypeElement_TACHE_getInstance()) || this.equals(TypeElement_ENGAGEMENT_getInstance());
   };
   var Poids_FAIBLE_instance;
@@ -3955,7 +3967,7 @@
       var message = "Un \xE9l\xE9ment sans texte n'a rien \xE0 proposer.";
       throw IllegalArgumentException_init_$Create$(toString_0(message));
     }
-    this.h1c_1 = new ElementId(this.y1b_1.toString() + ':' + this.b1c_1.x1f_1 + '-' + this.b1c_1.y1f_1 + ':' + this.z1b_1.toString());
+    this.h1c_1 = new ElementId(this.y1b_1.toString() + ':' + this.b1c_1.d1g_1 + '-' + this.b1c_1.e1g_1 + ':' + this.z1b_1.toString());
   }
   protoOf(ElementDerive).toString = function () {
     return 'ElementDerive(captureId=' + this.y1b_1.toString() + ', type=' + this.z1b_1.toString() + ', texte=' + this.a1c_1 + ', passage=' + this.b1c_1.toString() + ', echeance=' + toString(this.c1c_1) + ', poids=' + toString(this.d1c_1) + ', interlocuteur=' + toString(this.e1c_1) + ', sphere=' + toString(this.f1c_1) + ', plan=' + toString(this.g1c_1) + ')';
@@ -4199,31 +4211,31 @@
   function Passage(debutCar, finCar, debutMs, finMs) {
     debutMs = debutMs === VOID ? null : debutMs;
     finMs = finMs === VOID ? null : finMs;
-    this.x1f_1 = debutCar;
-    this.y1f_1 = finCar;
-    this.z1f_1 = debutMs;
-    this.a1g_1 = finMs;
+    this.d1g_1 = debutCar;
+    this.e1g_1 = finCar;
+    this.f1g_1 = debutMs;
+    this.g1g_1 = finMs;
     // Inline function 'kotlin.require' call
-    if (!(this.x1f_1 >= 0)) {
+    if (!(this.d1g_1 >= 0)) {
       // Inline function 'app.zenote.core.model.Passage.<anonymous>' call
       var message = 'Le d\xE9but du passage ne peut pas \xEAtre n\xE9gatif.';
       throw IllegalArgumentException_init_$Create$(toString_0(message));
     }
     // Inline function 'kotlin.require' call
-    if (!(this.y1f_1 > this.x1f_1)) {
+    if (!(this.e1g_1 > this.d1g_1)) {
       // Inline function 'app.zenote.core.model.Passage.<anonymous>' call
       var message_0 = 'Le passage doit couvrir au moins un caract\xE8re.';
       throw IllegalArgumentException_init_$Create$(toString_0(message_0));
     }
     // Inline function 'kotlin.require' call
-    if (!(this.z1f_1 == null === (this.a1g_1 == null))) {
+    if (!(this.f1g_1 == null === (this.g1g_1 == null))) {
       // Inline function 'app.zenote.core.model.Passage.<anonymous>' call
       var message_1 = 'Les bornes audio vont par paire, ou pas du tout.';
       throw IllegalArgumentException_init_$Create$(toString_0(message_1));
     }
-    if (!(this.z1f_1 == null) && !(this.a1g_1 == null)) {
+    if (!(this.f1g_1 == null) && !(this.g1g_1 == null)) {
       // Inline function 'kotlin.require' call
-      if (!(this.z1f_1.b1(new Long(0, 0)) >= 0 && this.a1g_1.b1(this.z1f_1) > 0)) {
+      if (!(this.f1g_1.b1(new Long(0, 0)) >= 0 && this.g1g_1.b1(this.f1g_1) > 0)) {
         // Inline function 'app.zenote.core.model.Passage.<anonymous>' call
         var message_2 = 'Bornes audio incoh\xE9rentes.';
         throw IllegalArgumentException_init_$Create$(toString_0(message_2));
@@ -4231,13 +4243,13 @@
     }
   }
   protoOf(Passage).toString = function () {
-    return 'Passage(debutCar=' + this.x1f_1 + ', finCar=' + this.y1f_1 + ', debutMs=' + toString(this.z1f_1) + ', finMs=' + toString(this.a1g_1) + ')';
+    return 'Passage(debutCar=' + this.d1g_1 + ', finCar=' + this.e1g_1 + ', debutMs=' + toString(this.f1g_1) + ', finMs=' + toString(this.g1g_1) + ')';
   };
   protoOf(Passage).hashCode = function () {
-    var result = this.x1f_1;
-    result = imul(result, 31) + this.y1f_1 | 0;
-    result = imul(result, 31) + (this.z1f_1 == null ? 0 : this.z1f_1.hashCode()) | 0;
-    result = imul(result, 31) + (this.a1g_1 == null ? 0 : this.a1g_1.hashCode()) | 0;
+    var result = this.d1g_1;
+    result = imul(result, 31) + this.e1g_1 | 0;
+    result = imul(result, 31) + (this.f1g_1 == null ? 0 : this.f1g_1.hashCode()) | 0;
+    result = imul(result, 31) + (this.g1g_1 == null ? 0 : this.g1g_1.hashCode()) | 0;
     return result;
   };
   protoOf(Passage).equals = function (other) {
@@ -4246,13 +4258,13 @@
     if (!(other instanceof Passage))
       return false;
     var tmp0_other_with_cast = other instanceof Passage ? other : THROW_CCE();
-    if (!(this.x1f_1 === tmp0_other_with_cast.x1f_1))
+    if (!(this.d1g_1 === tmp0_other_with_cast.d1g_1))
       return false;
-    if (!(this.y1f_1 === tmp0_other_with_cast.y1f_1))
+    if (!(this.e1g_1 === tmp0_other_with_cast.e1g_1))
       return false;
-    if (!equals(this.z1f_1, tmp0_other_with_cast.z1f_1))
+    if (!equals(this.f1g_1, tmp0_other_with_cast.f1g_1))
       return false;
-    if (!equals(this.a1g_1, tmp0_other_with_cast.a1g_1))
+    if (!equals(this.g1g_1, tmp0_other_with_cast.g1g_1))
       return false;
     return true;
   };
@@ -4297,10 +4309,10 @@
   function Urgence(name, ordinal) {
     Enum.call(this, name, ordinal);
   }
-  protoOf(Urgence).d1g = function () {
+  protoOf(Urgence).j1g = function () {
     return this.equals(Urgence_DEPASSEE_getInstance()) || this.equals(Urgence_AUJOURD_HUI_getInstance());
   };
-  protoOf(Urgence).e1g = function () {
+  protoOf(Urgence).k1g = function () {
     var tmp;
     switch (this.d2_1) {
       case 0:
@@ -4328,13 +4340,13 @@
     return tmp;
   };
   function ContexteMaintenant(aujourdhui) {
-    this.f1g_1 = aujourdhui;
+    this.l1g_1 = aujourdhui;
   }
   protoOf(ContexteMaintenant).toString = function () {
-    return 'ContexteMaintenant(aujourdhui=' + this.f1g_1.toString() + ')';
+    return 'ContexteMaintenant(aujourdhui=' + this.l1g_1.toString() + ')';
   };
   protoOf(ContexteMaintenant).hashCode = function () {
-    return this.f1g_1.hashCode();
+    return this.l1g_1.hashCode();
   };
   protoOf(ContexteMaintenant).equals = function (other) {
     if (this === other)
@@ -4342,7 +4354,7 @@
     if (!(other instanceof ContexteMaintenant))
       return false;
     var tmp0_other_with_cast = other instanceof ContexteMaintenant ? other : THROW_CCE();
-    if (!this.f1g_1.equals(tmp0_other_with_cast.f1g_1))
+    if (!this.l1g_1.equals(tmp0_other_with_cast.l1g_1))
       return false;
     return true;
   };
@@ -4381,7 +4393,7 @@
   function raison($this, element, urgence) {
     var tmp0_elvis_lhs = element.a1d_1;
     var consequence = tmp0_elvis_lhs == null ? 'poids non d\xE9termin\xE9, \xE0 confirmer en Revue' : tmp0_elvis_lhs;
-    return consequence + ' \u2014 ' + urgence.e1g();
+    return consequence + ' \u2014 ' + urgence.k1g();
   }
   function dUnCranPlusHaut(_this__u8e3s4, $this) {
     var tmp;
@@ -4402,16 +4414,16 @@
     return tmp;
   }
   function sam$kotlin_Comparator$0_1(function_0) {
-    this.g1g_1 = function_0;
+    this.m1g_1 = function_0;
   }
   protoOf(sam$kotlin_Comparator$0_1).dc = function (a, b) {
-    return this.g1g_1(a, b);
+    return this.m1g_1(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_1).compare = function (a, b) {
     return this.dc(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_1).u2 = function () {
-    return this.g1g_1;
+    return this.m1g_1;
   };
   protoOf(sam$kotlin_Comparator$0_1).equals = function (other) {
     var tmp;
@@ -4478,13 +4490,13 @@
     this.c1d_1 = 3;
     this.d1d_1 = Poids_MOYEN_getInstance();
   }
-  protoOf(Priorisation).h1g = function (echeance, aujourdhui) {
+  protoOf(Priorisation).n1g = function (echeance, aujourdhui) {
     if (echeance == null)
       return Urgence_AUCUNE_getInstance();
     var tmp0_subject = daysUntil(aujourdhui, echeance);
     return (-2147483648 <= tmp0_subject ? tmp0_subject <= -1 : false) ? Urgence_DEPASSEE_getInstance() : tmp0_subject === 0 ? Urgence_AUJOURD_HUI_getInstance() : tmp0_subject === 1 ? Urgence_DEMAIN_getInstance() : (2 <= tmp0_subject ? tmp0_subject <= 7 : false) ? Urgence_CETTE_SEMAINE_getInstance() : Urgence_PLUS_TARD_getInstance();
   };
-  protoOf(Priorisation).i1g = function (elements, contexte) {
+  protoOf(Priorisation).o1g = function (elements, contexte) {
     // Inline function 'kotlin.collections.filter' call
     // Inline function 'kotlin.collections.filterTo' call
     var destination = ArrayList_init_$Create$_0();
@@ -4492,7 +4504,7 @@
     while (_iterator__ex2g4s.h()) {
       var element = _iterator__ex2g4s.i();
       // Inline function 'app.zenote.core.priorisation.Priorisation.classer.<anonymous>' call
-      if (element.x1c_1.equals(Verdict_ACCEPTE_getInstance()) && element.p1c_1.w1f()) {
+      if (element.x1c_1.equals(Verdict_ACCEPTE_getInstance()) && element.p1c_1.c1g()) {
         destination.e(element);
       }
     }
@@ -4503,10 +4515,10 @@
     while (_iterator__ex2g4s_0.h()) {
       var item = _iterator__ex2g4s_0.i();
       // Inline function 'app.zenote.core.priorisation.Priorisation.classer.<anonymous>' call
-      var urgence = Priorisation_getInstance().h1g(item.s1c_1, contexte.f1g_1);
+      var urgence = Priorisation_getInstance().n1g(item.s1c_1, contexte.l1g_1);
       var tmp0_elvis_lhs = item.t1c_1;
       var poids = tmp0_elvis_lhs == null ? Priorisation_getInstance().d1d_1 : tmp0_elvis_lhs;
-      var effectif = urgence.d1g() ? dUnCranPlusHaut(poids, Priorisation_getInstance()) : poids;
+      var effectif = urgence.j1g() ? dUnCranPlusHaut(poids, Priorisation_getInstance()) : poids;
       var tmp$ret$3 = new Proposition(item, raison(Priorisation_getInstance(), item, urgence), effectif, urgence);
       destination_0.e(tmp$ret$3);
     }
@@ -4523,7 +4535,7 @@
     return sortedWith(tmp, tmp$ret$8);
   };
   protoOf(Priorisation).e1d = function (elements, contexte) {
-    return take(this.i1g(elements, contexte), 3);
+    return take(this.o1g(elements, contexte), 3);
   };
   var Priorisation_instance;
   function Priorisation_getInstance() {
@@ -4556,13 +4568,13 @@
     return Urgence_AUCUNE_instance;
   }
   function Transition(point) {
-    this.j1g_1 = point;
+    this.p1g_1 = point;
   }
   protoOf(Transition).toString = function () {
-    return 'Transition(point=' + this.j1g_1.toString() + ')';
+    return 'Transition(point=' + this.p1g_1.toString() + ')';
   };
   protoOf(Transition).hashCode = function () {
-    return this.j1g_1.hashCode();
+    return this.p1g_1.hashCode();
   };
   protoOf(Transition).equals = function (other) {
     if (this === other)
@@ -4570,7 +4582,7 @@
     if (!(other instanceof Transition))
       return false;
     var tmp0_other_with_cast = other instanceof Transition ? other : THROW_CCE();
-    if (!this.j1g_1.equals(tmp0_other_with_cast.j1g_1))
+    if (!this.p1g_1.equals(tmp0_other_with_cast.p1g_1))
       return false;
     return true;
   };
@@ -4639,7 +4651,7 @@
     this.p1e_1 = Regex_init_$Create$('(\\d{4})-(\\d{2})-(\\d{2})');
   }
   protoOf(Echeancier).q1e = function (declencheur, poseLe) {
-    var plie = Texte_getInstance().n1g(declencheur);
+    var plie = Texte_getInstance().t1g(declencheur);
     if (contains(plie, 'ce soir')) {
       return new Observable(LocalDateTime_init_$Create$(poseLe.uw(), this.m1e_1));
     }
@@ -4682,15 +4694,15 @@
     return Echeancier_instance;
   }
   function Immediate(rappel, motif) {
-    this.o1g_1 = rappel;
-    this.p1g_1 = motif;
+    this.u1g_1 = rappel;
+    this.v1g_1 = motif;
   }
   protoOf(Immediate).toString = function () {
-    return 'Immediate(rappel=' + this.o1g_1.toString() + ', motif=' + this.p1g_1 + ')';
+    return 'Immediate(rappel=' + this.u1g_1.toString() + ', motif=' + this.v1g_1 + ')';
   };
   protoOf(Immediate).hashCode = function () {
-    var result = this.o1g_1.hashCode();
-    result = imul(result, 31) + getStringHashCode(this.p1g_1) | 0;
+    var result = this.u1g_1.hashCode();
+    result = imul(result, 31) + getStringHashCode(this.v1g_1) | 0;
     return result;
   };
   protoOf(Immediate).equals = function (other) {
@@ -4699,22 +4711,22 @@
     if (!(other instanceof Immediate))
       return false;
     var tmp0_other_with_cast = other instanceof Immediate ? other : THROW_CCE();
-    if (!this.o1g_1.equals(tmp0_other_with_cast.o1g_1))
+    if (!this.u1g_1.equals(tmp0_other_with_cast.u1g_1))
       return false;
-    if (!(this.p1g_1 === tmp0_other_with_cast.p1g_1))
+    if (!(this.v1g_1 === tmp0_other_with_cast.v1g_1))
       return false;
     return true;
   };
   function MiseEnFile(rappel, motif) {
-    this.q1g_1 = rappel;
-    this.r1g_1 = motif;
+    this.w1g_1 = rappel;
+    this.x1g_1 = motif;
   }
   protoOf(MiseEnFile).toString = function () {
-    return 'MiseEnFile(rappel=' + this.q1g_1.toString() + ', motif=' + this.r1g_1 + ')';
+    return 'MiseEnFile(rappel=' + this.w1g_1.toString() + ', motif=' + this.x1g_1 + ')';
   };
   protoOf(MiseEnFile).hashCode = function () {
-    var result = this.q1g_1.hashCode();
-    result = imul(result, 31) + getStringHashCode(this.r1g_1) | 0;
+    var result = this.w1g_1.hashCode();
+    result = imul(result, 31) + getStringHashCode(this.x1g_1) | 0;
     return result;
   };
   protoOf(MiseEnFile).equals = function (other) {
@@ -4723,20 +4735,20 @@
     if (!(other instanceof MiseEnFile))
       return false;
     var tmp0_other_with_cast = other instanceof MiseEnFile ? other : THROW_CCE();
-    if (!this.q1g_1.equals(tmp0_other_with_cast.q1g_1))
+    if (!this.w1g_1.equals(tmp0_other_with_cast.w1g_1))
       return false;
-    if (!(this.r1g_1 === tmp0_other_with_cast.r1g_1))
+    if (!(this.x1g_1 === tmp0_other_with_cast.x1g_1))
       return false;
     return true;
   };
   function Escaladee(escalade) {
-    this.s1g_1 = escalade;
+    this.y1g_1 = escalade;
   }
   protoOf(Escaladee).toString = function () {
-    return 'Escaladee(escalade=' + this.s1g_1.toString() + ')';
+    return 'Escaladee(escalade=' + this.y1g_1.toString() + ')';
   };
   protoOf(Escaladee).hashCode = function () {
-    return this.s1g_1.hashCode();
+    return this.y1g_1.hashCode();
   };
   protoOf(Escaladee).equals = function (other) {
     if (this === other)
@@ -4744,7 +4756,7 @@
     if (!(other instanceof Escaladee))
       return false;
     var tmp0_other_with_cast = other instanceof Escaladee ? other : THROW_CCE();
-    if (!this.s1g_1.equals(tmp0_other_with_cast.s1g_1))
+    if (!this.y1g_1.equals(tmp0_other_with_cast.y1g_1))
       return false;
     return true;
   };
@@ -4835,23 +4847,23 @@
     return true;
   };
   function Companion_16() {
-    this.t1g_1 = 3;
+    this.z1g_1 = 3;
   }
   var Companion_instance_17;
   function Companion_getInstance_20() {
     return Companion_instance_17;
   }
   function sam$kotlin_Comparator$0_2(function_0) {
-    this.u1g_1 = function_0;
+    this.a1h_1 = function_0;
   }
   protoOf(sam$kotlin_Comparator$0_2).dc = function (a, b) {
-    return this.u1g_1(a, b);
+    return this.a1h_1(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_2).compare = function (a, b) {
     return this.dc(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_2).u2 = function () {
-    return this.u1g_1;
+    return this.a1h_1;
   };
   protoOf(sam$kotlin_Comparator$0_2).equals = function (other) {
     var tmp;
@@ -4872,16 +4884,16 @@
     return hashCode(this.u2());
   };
   function sam$kotlin_Comparator$0_3(function_0) {
-    this.v1g_1 = function_0;
+    this.b1h_1 = function_0;
   }
   protoOf(sam$kotlin_Comparator$0_3).dc = function (a, b) {
-    return this.v1g_1(a, b);
+    return this.b1h_1(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_3).compare = function (a, b) {
     return this.dc(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_3).u2 = function () {
-    return this.v1g_1;
+    return this.b1h_1;
   };
   protoOf(sam$kotlin_Comparator$0_3).equals = function (other) {
     var tmp;
@@ -4904,25 +4916,25 @@
   function FileOpportunite$vider$lambda(a, b) {
     // Inline function 'kotlin.comparisons.compareValuesBy' call
     // Inline function 'app.zenote.core.rappels.FileOpportunite.vider.<anonymous>' call
-    var tmp = a.b1f_1.w1g_1;
+    var tmp = a.b1f_1.c1h_1;
     // Inline function 'app.zenote.core.rappels.FileOpportunite.vider.<anonymous>' call
-    var tmp$ret$1 = b.b1f_1.w1g_1;
+    var tmp$ret$1 = b.b1f_1.c1h_1;
     return compareValues(tmp, tmp$ret$1);
   }
   function FileOpportunite$vider$lambda_0(a, b) {
     // Inline function 'kotlin.comparisons.compareValuesBy' call
     // Inline function 'app.zenote.core.rappels.FileOpportunite.vider.<anonymous>' call
-    var tmp = a.w1g_1;
+    var tmp = a.c1h_1;
     // Inline function 'app.zenote.core.rappels.FileOpportunite.vider.<anonymous>' call
-    var tmp$ret$1 = b.w1g_1;
+    var tmp$ret$1 = b.c1h_1;
     return compareValues(tmp, tmp$ret$1);
   }
   function FileOpportunite$escalades$lambda(a, b) {
     // Inline function 'kotlin.comparisons.compareValuesBy' call
     // Inline function 'app.zenote.core.rappels.FileOpportunite.escalades.<anonymous>' call
-    var tmp = a.h1f_1.b1f_1.w1g_1;
+    var tmp = a.h1f_1.b1f_1.c1h_1;
     // Inline function 'app.zenote.core.rappels.FileOpportunite.escalades.<anonymous>' call
-    var tmp$ret$1 = b.h1f_1.b1f_1.w1g_1;
+    var tmp$ret$1 = b.h1f_1.b1f_1.c1h_1;
     return compareValues(tmp, tmp$ret$1);
   }
   function FileOpportunite(silences) {
@@ -4969,7 +4981,7 @@
       while (_iterator__ex2g4s.h()) {
         var element = _iterator__ex2g4s.i();
         // Inline function 'app.zenote.core.rappels.FileOpportunite.vider.<anonymous>' call
-        if (element.z1g(a)) {
+        if (element.f1h(a)) {
           tmp$ret$0 = true;
           break $l$block_0;
         }
@@ -5070,9 +5082,9 @@
     return OptionEscalade_ABANDONNER_instance;
   }
   function RappelId(value) {
-    this.w1g_1 = value;
+    this.c1h_1 = value;
     // Inline function 'kotlin.text.isNotBlank' call
-    var this_0 = this.w1g_1;
+    var this_0 = this.c1h_1;
     // Inline function 'kotlin.require' call
     if (!!isBlank(this_0)) {
       // Inline function 'app.zenote.core.rappels.RappelId.<anonymous>' call
@@ -5081,10 +5093,10 @@
     }
   }
   protoOf(RappelId).toString = function () {
-    return this.w1g_1;
+    return this.c1h_1;
   };
   protoOf(RappelId).hashCode = function () {
-    return getStringHashCode(this.w1g_1);
+    return getStringHashCode(this.c1h_1);
   };
   protoOf(RappelId).equals = function (other) {
     if (this === other)
@@ -5092,7 +5104,7 @@
     if (!(other instanceof RappelId))
       return false;
     var tmp0_other_with_cast = other instanceof RappelId ? other : THROW_CCE();
-    if (!(this.w1g_1 === tmp0_other_with_cast.w1g_1))
+    if (!(this.c1h_1 === tmp0_other_with_cast.c1h_1))
       return false;
     return true;
   };
@@ -5143,19 +5155,19 @@
   };
   function TexteSource(captureId, texte, quand, jour) {
     jour = jour === VOID ? null : jour;
-    this.a1h_1 = captureId;
-    this.b1h_1 = texte;
-    this.c1h_1 = quand;
-    this.d1h_1 = jour;
+    this.g1h_1 = captureId;
+    this.h1h_1 = texte;
+    this.i1h_1 = quand;
+    this.j1h_1 = jour;
   }
   protoOf(TexteSource).toString = function () {
-    return 'TexteSource(captureId=' + this.a1h_1.toString() + ', texte=' + this.b1h_1 + ', quand=' + this.c1h_1 + ', jour=' + toString(this.d1h_1) + ')';
+    return 'TexteSource(captureId=' + this.g1h_1.toString() + ', texte=' + this.h1h_1 + ', quand=' + this.i1h_1 + ', jour=' + toString(this.j1h_1) + ')';
   };
   protoOf(TexteSource).hashCode = function () {
-    var result = this.a1h_1.hashCode();
-    result = imul(result, 31) + getStringHashCode(this.b1h_1) | 0;
-    result = imul(result, 31) + getStringHashCode(this.c1h_1) | 0;
-    result = imul(result, 31) + (this.d1h_1 == null ? 0 : this.d1h_1.hashCode()) | 0;
+    var result = this.g1h_1.hashCode();
+    result = imul(result, 31) + getStringHashCode(this.h1h_1) | 0;
+    result = imul(result, 31) + getStringHashCode(this.i1h_1) | 0;
+    result = imul(result, 31) + (this.j1h_1 == null ? 0 : this.j1h_1.hashCode()) | 0;
     return result;
   };
   protoOf(TexteSource).equals = function (other) {
@@ -5164,13 +5176,13 @@
     if (!(other instanceof TexteSource))
       return false;
     var tmp0_other_with_cast = other instanceof TexteSource ? other : THROW_CCE();
-    if (!this.a1h_1.equals(tmp0_other_with_cast.a1h_1))
+    if (!this.g1h_1.equals(tmp0_other_with_cast.g1h_1))
       return false;
-    if (!(this.b1h_1 === tmp0_other_with_cast.b1h_1))
+    if (!(this.h1h_1 === tmp0_other_with_cast.h1h_1))
       return false;
-    if (!(this.c1h_1 === tmp0_other_with_cast.c1h_1))
+    if (!(this.i1h_1 === tmp0_other_with_cast.i1h_1))
       return false;
-    if (!equals(this.d1h_1, tmp0_other_with_cast.d1h_1))
+    if (!equals(this.j1h_1, tmp0_other_with_cast.j1h_1))
       return false;
     return true;
   };
@@ -5220,16 +5232,16 @@
     // Inline function 'kotlin.collections.isNotEmpty' call
     return !this.o1b_1.j();
   };
-  protoOf(Reponse).e1h = function (question, enonce, citations, indisponibleHorsLigne, nonPrisEnCompte) {
+  protoOf(Reponse).k1h = function (question, enonce, citations, indisponibleHorsLigne, nonPrisEnCompte) {
     return new Reponse(question, enonce, citations, indisponibleHorsLigne, nonPrisEnCompte);
   };
-  protoOf(Reponse).f1h = function (question, enonce, citations, indisponibleHorsLigne, nonPrisEnCompte, $super) {
+  protoOf(Reponse).l1h = function (question, enonce, citations, indisponibleHorsLigne, nonPrisEnCompte, $super) {
     question = question === VOID ? this.m1b_1 : question;
     enonce = enonce === VOID ? this.n1b_1 : enonce;
     citations = citations === VOID ? this.o1b_1 : citations;
     indisponibleHorsLigne = indisponibleHorsLigne === VOID ? this.p1b_1 : indisponibleHorsLigne;
     nonPrisEnCompte = nonPrisEnCompte === VOID ? this.q1b_1 : nonPrisEnCompte;
-    return $super === VOID ? this.e1h(question, enonce, citations, indisponibleHorsLigne, nonPrisEnCompte) : $super.e1h.call(this, question, enonce, citations, indisponibleHorsLigne, nonPrisEnCompte);
+    return $super === VOID ? this.k1h(question, enonce, citations, indisponibleHorsLigne, nonPrisEnCompte) : $super.k1h.call(this, question, enonce, citations, indisponibleHorsLigne, nonPrisEnCompte);
   };
   protoOf(Reponse).toString = function () {
     return 'Reponse(question=' + this.m1b_1 + ', enonce=' + this.n1b_1 + ', citations=' + toString_0(this.o1b_1) + ', indisponibleHorsLigne=' + toString_0(this.p1b_1) + ', nonPrisEnCompte=' + toString_0(this.q1b_1) + ')';
@@ -5268,7 +5280,7 @@
     while (_iterator__ex2g4s.h()) {
       var item = _iterator__ex2g4s.i();
       // Inline function 'app.zenote.core.recherche.RechercheLocale.tout.<anonymous>' call
-      var tmp$ret$0 = new Citation(item.o1c_1, item.q1c_1, libelle(RechercheLocale_getInstance(), item.p1c_1) + ' de ' + periode.i1h_1, item.n1c_1);
+      var tmp$ret$0 = new Citation(item.o1c_1, item.q1c_1, libelle(RechercheLocale_getInstance(), item.p1c_1) + ' de ' + periode.o1h_1, item.n1c_1);
       destination.e(tmp$ret$0);
     }
     var surElements = destination;
@@ -5290,7 +5302,7 @@
     while (_iterator__ex2g4s_1.h()) {
       var element = _iterator__ex2g4s_1.i();
       // Inline function 'app.zenote.core.recherche.RechercheLocale.tout.<anonymous>' call
-      if (!dejaCitees.p1(element.a1h_1)) {
+      if (!dejaCitees.p1(element.g1h_1)) {
         destination_1.e(element);
       }
     }
@@ -5301,7 +5313,7 @@
     while (_iterator__ex2g4s_2.h()) {
       var item_1 = _iterator__ex2g4s_2.i();
       // Inline function 'app.zenote.core.recherche.RechercheLocale.tout.<anonymous>' call
-      var tmp$ret$9 = new Citation(item_1.a1h_1, item_1.b1h_1, 'capture du ' + item_1.c1h_1);
+      var tmp$ret$9 = new Citation(item_1.g1h_1, item_1.h1h_1, 'capture du ' + item_1.i1h_1);
       destination_2.e(tmp$ret$9);
     }
     var surCaptures = destination_2;
@@ -5311,7 +5323,7 @@
     return reponse($this, '', citations, emptyList());
   }
   function avec(_this__u8e3s4, $this, ecarte) {
-    return ecarte.j() ? _this__u8e3s4 : _this__u8e3s4.f1h(VOID, VOID, VOID, VOID, ecarte);
+    return ecarte.j() ? _this__u8e3s4 : _this__u8e3s4.l1h(VOID, VOID, VOID, VOID, ecarte);
   }
   function reponse($this, question, citations, indisponibles) {
     var tmp;
@@ -5392,16 +5404,16 @@
     return tmp;
   }
   function sam$kotlin_Comparator$0_4(function_0) {
-    this.j1h_1 = function_0;
+    this.p1h_1 = function_0;
   }
   protoOf(sam$kotlin_Comparator$0_4).dc = function (a, b) {
-    return this.j1h_1(a, b);
+    return this.p1h_1(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_4).compare = function (a, b) {
     return this.dc(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_4).u2 = function () {
-    return this.j1h_1;
+    return this.p1h_1;
   };
   protoOf(sam$kotlin_Comparator$0_4).equals = function (other) {
     var tmp;
@@ -5483,12 +5495,12 @@
   }
   function RechercheLocale() {
     RechercheLocale_instance = this;
-    this.m1f_1 = 'Rien \xE0 ce sujet dans ce qui a \xE9t\xE9 captur\xE9.';
-    this.n1f_1 = listOf(['analyse des captures pas encore trait\xE9es', 'reformulation de la r\xE9ponse en langage naturel']);
-    this.o1f_1 = 10;
+    this.s1f_1 = 'Rien \xE0 ce sujet dans ce qui a \xE9t\xE9 captur\xE9.';
+    this.t1f_1 = listOf(['analyse des captures pas encore trait\xE9es', 'reformulation de la r\xE9ponse en langage naturel']);
+    this.u1f_1 = 10;
   }
-  protoOf(RechercheLocale).k1h = function (requete, elements, captures, reseau, max) {
-    var indisponibles = reseau ? emptyList() : this.n1f_1;
+  protoOf(RechercheLocale).q1h = function (requete, elements, captures, reseau, max) {
+    var indisponibles = reseau ? emptyList() : this.t1f_1;
     // Inline function 'kotlin.collections.map' call
     // Inline function 'kotlin.collections.mapTo' call
     var destination = ArrayList_init_$Create$(collectionSizeOrDefault(elements, 10));
@@ -5496,7 +5508,7 @@
     while (_iterator__ex2g4s.h()) {
       var item = _iterator__ex2g4s.i();
       // Inline function 'app.zenote.core.recherche.RechercheLocale.parMots.<anonymous>' call
-      var tmp$ret$0 = to(item, Texte_getInstance().l1h(requete, item.q1c_1));
+      var tmp$ret$0 = to(item, Texte_getInstance().r1h(requete, item.q1c_1));
       destination.e(tmp$ret$0);
     }
     // Inline function 'kotlin.collections.filter' call
@@ -5541,7 +5553,7 @@
     while (_iterator__ex2g4s_3.h()) {
       var element_1 = _iterator__ex2g4s_3.i();
       // Inline function 'app.zenote.core.recherche.RechercheLocale.parMots.<anonymous>' call
-      if (!dejaCitees.p1(element_1.a1h_1)) {
+      if (!dejaCitees.p1(element_1.g1h_1)) {
         destination_3.e(element_1);
       }
     }
@@ -5552,7 +5564,7 @@
     while (_iterator__ex2g4s_4.h()) {
       var item_2 = _iterator__ex2g4s_4.i();
       // Inline function 'app.zenote.core.recherche.RechercheLocale.parMots.<anonymous>' call
-      var tmp$ret$15 = to(item_2, Texte_getInstance().l1h(requete, item_2.b1h_1));
+      var tmp$ret$15 = to(item_2, Texte_getInstance().r1h(requete, item_2.h1h_1));
       destination_4.e(tmp$ret$15);
     }
     // Inline function 'kotlin.collections.filter' call
@@ -5575,7 +5587,7 @@
       // Inline function 'app.zenote.core.recherche.RechercheLocale.parMots.<anonymous>' call
       var source = item_3.sb();
       var note_0 = item_3.tb();
-      var tmp$ret$21 = to(note_0, new Citation(source.a1h_1, source.b1h_1, 'capture du ' + source.c1h_1 + ' contenant les mots cherch\xE9s'));
+      var tmp$ret$21 = to(note_0, new Citation(source.g1h_1, source.h1h_1, 'capture du ' + source.i1h_1 + ' contenant les mots cherch\xE9s'));
       destination_6.e(tmp$ret$21);
     }
     var surCaptures = destination_6;
@@ -5603,15 +5615,15 @@
     var citations = destination_7;
     return reponse(this, requete, citations, indisponibles);
   };
-  protoOf(RechercheLocale).p1f = function (requete, elements, captures, reseau, max, $super) {
+  protoOf(RechercheLocale).v1f = function (requete, elements, captures, reseau, max, $super) {
     captures = captures === VOID ? emptyList() : captures;
     reseau = reseau === VOID ? false : reseau;
     max = max === VOID ? 10 : max;
-    return $super === VOID ? this.k1h(requete, elements, captures, reseau, max) : $super.k1h.call(this, requete, elements, captures, reseau, max);
+    return $super === VOID ? this.q1h(requete, elements, captures, reseau, max) : $super.q1h.call(this, requete, elements, captures, reseau, max);
   };
-  protoOf(RechercheLocale).m1h = function (requete, elements, captures, aujourdhui, reseau, max) {
+  protoOf(RechercheLocale).s1h = function (requete, elements, captures, aujourdhui, reseau, max) {
     var tmp;
-    if (RepereTemporel_getInstance().r1h(requete) == null) {
+    if (RepereTemporel_getInstance().x1h(requete) == null) {
       tmp = null;
     } else {
       // Inline function 'kotlin.let' call
@@ -5619,10 +5631,10 @@
       tmp = "le contexte de capture (le lieu, l'activit\xE9) : ZeNote ne l'enregistre pas \u2014 aucun signal de position n'est collect\xE9";
     }
     var ecarte = listOfNotNull_0(tmp);
-    var tmp1_elvis_lhs = RepereTemporel_getInstance().s1h(requete, aujourdhui);
+    var tmp1_elvis_lhs = RepereTemporel_getInstance().y1h(requete, aujourdhui);
     var tmp_0;
     if (tmp1_elvis_lhs == null) {
-      return avec(this.k1h(requete, elements, captures, reseau, max), this, ecarte);
+      return avec(this.q1h(requete, elements, captures, reseau, max), this, ecarte);
     } else {
       tmp_0 = tmp1_elvis_lhs;
     }
@@ -5634,7 +5646,7 @@
     while (_iterator__ex2g4s.h()) {
       var element = _iterator__ex2g4s.i();
       // Inline function 'app.zenote.core.recherche.RechercheLocale.parQuestion.<anonymous>' call
-      if (!(element.d1h_1 == null) && repere.t1h_1.v1h(element.d1h_1)) {
+      if (!(element.j1h_1 == null) && repere.z1h_1.b1i(element.j1h_1)) {
         destination.e(element);
       }
     }
@@ -5646,7 +5658,7 @@
     while (_iterator__ex2g4s_0.h()) {
       var item = _iterator__ex2g4s_0.i();
       // Inline function 'app.zenote.core.recherche.RechercheLocale.parQuestion.<anonymous>' call
-      var tmp$ret$5 = item.a1h_1;
+      var tmp$ret$5 = item.g1h_1;
       destination_0.e(tmp$ret$5);
     }
     var idsPeriode = toSet(destination_0);
@@ -5662,21 +5674,21 @@
       }
     }
     var elementsPeriode = destination_1;
-    var reste = RepereTemporel_getInstance().w1h(requete, repere);
-    var parLesMots = isBlank(reste) ? null : this.k1h(reste, elementsPeriode, dansLaPeriode, reseau, max);
+    var reste = RepereTemporel_getInstance().c1i(requete, repere);
+    var parLesMots = isBlank(reste) ? null : this.q1h(reste, elementsPeriode, dansLaPeriode, reseau, max);
     var motsMuets = parLesMots == null || parLesMots.o1b_1.j();
-    var brut = motsMuets ? tout(this, dansLaPeriode, elementsPeriode, repere.t1h_1, max) : ensureNotNull(parLesMots);
-    var enonce = brut.o1b_1.j() ? 'Rien de captur\xE9 ' + repere.t1h_1.i1h_1 + '.' : motsMuets && !isBlank(reste) ? 'Aucun de ces mots dans les captures de ' + repere.t1h_1.i1h_1 + ' ; ' + ('voici les ' + brut.o1b_1.l() + " qu'elle contient.") : '' + brut.o1b_1.l() + ' \xE9l\xE9ment(s) de ' + repere.t1h_1.i1h_1 + ', ' + 'chacun rattach\xE9 \xE0 sa capture source.';
-    return brut.f1h(requete, enonce, VOID, reseau ? emptyList() : this.n1f_1, ecarte);
+    var brut = motsMuets ? tout(this, dansLaPeriode, elementsPeriode, repere.z1h_1, max) : ensureNotNull(parLesMots);
+    var enonce = brut.o1b_1.j() ? 'Rien de captur\xE9 ' + repere.z1h_1.o1h_1 + '.' : motsMuets && !isBlank(reste) ? 'Aucun de ces mots dans les captures de ' + repere.z1h_1.o1h_1 + ' ; ' + ('voici les ' + brut.o1b_1.l() + " qu'elle contient.") : '' + brut.o1b_1.l() + ' \xE9l\xE9ment(s) de ' + repere.z1h_1.o1h_1 + ', ' + 'chacun rattach\xE9 \xE0 sa capture source.';
+    return brut.l1h(requete, enonce, VOID, reseau ? emptyList() : this.t1f_1, ecarte);
   };
-  protoOf(RechercheLocale).r1f = function (requete, elements, captures, aujourdhui, reseau, max, $super) {
+  protoOf(RechercheLocale).x1f = function (requete, elements, captures, aujourdhui, reseau, max, $super) {
     captures = captures === VOID ? emptyList() : captures;
     reseau = reseau === VOID ? false : reseau;
     max = max === VOID ? 10 : max;
-    return $super === VOID ? this.m1h(requete, elements, captures, aujourdhui, reseau, max) : $super.m1h.call(this, requete, elements, captures, aujourdhui, reseau, max);
+    return $super === VOID ? this.s1h(requete, elements, captures, aujourdhui, reseau, max) : $super.s1h.call(this, requete, elements, captures, aujourdhui, reseau, max);
   };
-  protoOf(RechercheLocale).x1h = function (personne, elements, reseau, max) {
-    var indisponibles = reseau ? emptyList() : this.n1f_1;
+  protoOf(RechercheLocale).d1i = function (personne, elements, reseau, max) {
+    var indisponibles = reseau ? emptyList() : this.t1f_1;
     // Inline function 'kotlin.collections.filter' call
     // Inline function 'kotlin.collections.filterTo' call
     var destination = ArrayList_init_$Create$_0();
@@ -5684,7 +5696,7 @@
     while (_iterator__ex2g4s.h()) {
       var element = _iterator__ex2g4s.i();
       // Inline function 'app.zenote.core.recherche.RechercheLocale.parPersonne.<anonymous>' call
-      if (!(element.u1c_1 == null) && Texte_getInstance().y1h(element.u1c_1, personne)) {
+      if (!(element.u1c_1 == null) && Texte_getInstance().e1i(element.u1c_1, personne)) {
         destination.e(element);
       }
     }
@@ -5704,10 +5716,10 @@
     var citations = destination_0;
     return reponse(this, 'ce qui est en cours avec ' + personne, citations, indisponibles);
   };
-  protoOf(RechercheLocale).t1f = function (personne, elements, reseau, max, $super) {
+  protoOf(RechercheLocale).z1f = function (personne, elements, reseau, max, $super) {
     reseau = reseau === VOID ? false : reseau;
     max = max === VOID ? 10 : max;
-    return $super === VOID ? this.x1h(personne, elements, reseau, max) : $super.x1h.call(this, personne, elements, reseau, max);
+    return $super === VOID ? this.d1i(personne, elements, reseau, max) : $super.d1i.call(this, personne, elements, reseau, max);
   };
   var RechercheLocale_instance;
   function RechercheLocale_getInstance() {
@@ -5716,26 +5728,26 @@
     return RechercheLocale_instance;
   }
   function Periode(du, au, libelle) {
-    this.g1h_1 = du;
-    this.h1h_1 = au;
-    this.i1h_1 = libelle;
+    this.m1h_1 = du;
+    this.n1h_1 = au;
+    this.o1h_1 = libelle;
     // Inline function 'kotlin.require' call
-    if (!(this.g1h_1.nw(this.h1h_1) <= 0)) {
+    if (!(this.m1h_1.nw(this.n1h_1) <= 0)) {
       // Inline function 'app.zenote.core.recherche.Periode.<anonymous>' call
       var message = 'Une p\xE9riode dont le d\xE9but suit la fin ne d\xE9signe aucun jour.';
       throw IllegalArgumentException_init_$Create$(toString_0(message));
     }
   }
-  protoOf(Periode).v1h = function (jour) {
-    return jour.nw(this.g1h_1) >= 0 && jour.nw(this.h1h_1) <= 0;
+  protoOf(Periode).b1i = function (jour) {
+    return jour.nw(this.m1h_1) >= 0 && jour.nw(this.n1h_1) <= 0;
   };
   protoOf(Periode).toString = function () {
-    return 'Periode(du=' + this.g1h_1.toString() + ', au=' + this.h1h_1.toString() + ', libelle=' + this.i1h_1 + ')';
+    return 'Periode(du=' + this.m1h_1.toString() + ', au=' + this.n1h_1.toString() + ', libelle=' + this.o1h_1 + ')';
   };
   protoOf(Periode).hashCode = function () {
-    var result = this.g1h_1.hashCode();
-    result = imul(result, 31) + this.h1h_1.hashCode() | 0;
-    result = imul(result, 31) + getStringHashCode(this.i1h_1) | 0;
+    var result = this.m1h_1.hashCode();
+    result = imul(result, 31) + this.n1h_1.hashCode() | 0;
+    result = imul(result, 31) + getStringHashCode(this.o1h_1) | 0;
     return result;
   };
   protoOf(Periode).equals = function (other) {
@@ -5744,24 +5756,24 @@
     if (!(other instanceof Periode))
       return false;
     var tmp0_other_with_cast = other instanceof Periode ? other : THROW_CCE();
-    if (!this.g1h_1.equals(tmp0_other_with_cast.g1h_1))
+    if (!this.m1h_1.equals(tmp0_other_with_cast.m1h_1))
       return false;
-    if (!this.h1h_1.equals(tmp0_other_with_cast.h1h_1))
+    if (!this.n1h_1.equals(tmp0_other_with_cast.n1h_1))
       return false;
-    if (!(this.i1h_1 === tmp0_other_with_cast.i1h_1))
+    if (!(this.o1h_1 === tmp0_other_with_cast.o1h_1))
       return false;
     return true;
   };
   function Repere(periode, expression) {
-    this.t1h_1 = periode;
-    this.u1h_1 = expression;
+    this.z1h_1 = periode;
+    this.a1i_1 = expression;
   }
   protoOf(Repere).toString = function () {
-    return 'Repere(periode=' + this.t1h_1.toString() + ', expression=' + this.u1h_1 + ')';
+    return 'Repere(periode=' + this.z1h_1.toString() + ', expression=' + this.a1i_1 + ')';
   };
   protoOf(Repere).hashCode = function () {
-    var result = this.t1h_1.hashCode();
-    result = imul(result, 31) + getStringHashCode(this.u1h_1) | 0;
+    var result = this.z1h_1.hashCode();
+    result = imul(result, 31) + getStringHashCode(this.a1i_1) | 0;
     return result;
   };
   protoOf(Repere).equals = function (other) {
@@ -5770,15 +5782,15 @@
     if (!(other instanceof Repere))
       return false;
     var tmp0_other_with_cast = other instanceof Repere ? other : THROW_CCE();
-    if (!this.t1h_1.equals(tmp0_other_with_cast.t1h_1))
+    if (!this.z1h_1.equals(tmp0_other_with_cast.z1h_1))
       return false;
-    if (!(this.u1h_1 === tmp0_other_with_cast.u1h_1))
+    if (!(this.a1i_1 === tmp0_other_with_cast.a1i_1))
       return false;
     return true;
   };
   function aplatir($this, requete) {
     // Inline function 'kotlin.text.map' call
-    var this_0 = Texte_getInstance().n1g(requete);
+    var this_0 = Texte_getInstance().t1g(requete);
     // Inline function 'kotlin.text.mapTo' call
     var destination = ArrayList_init_$Create$(charSequenceLength(this_0));
     var inductionVariable = 0;
@@ -5852,7 +5864,7 @@
     if (apres.l() < 2)
       return null;
     var tmp1_elvis_lhs = toIntOrNull(apres.k(0));
-    var tmp2_elvis_lhs = tmp1_elvis_lhs == null ? $this.q1h_1.v1(apres.k(0)) : tmp1_elvis_lhs;
+    var tmp2_elvis_lhs = tmp1_elvis_lhs == null ? $this.w1h_1.v1(apres.k(0)) : tmp1_elvis_lhs;
     var tmp_0;
     if (tmp2_elvis_lhs == null) {
       return null;
@@ -5905,7 +5917,7 @@
     return semaineDe(RepereTemporel_getInstance(), d, 'cette semaine');
   }
   function RepereTemporel$formes$lambda_7(d) {
-    var samedi = dernier(RepereTemporel_getInstance(), d, DayOfWeek_SATURDAY_getInstance(), '').g1h_1;
+    var samedi = dernier(RepereTemporel_getInstance(), d, DayOfWeek_SATURDAY_getInstance(), '').m1h_1;
     return new Periode(samedi, plus_1(samedi, DatePeriod_init_$Create$(VOID, VOID, 1)), 'le week-end dernier');
   }
   function RepereTemporel$formes$lambda_8(d) {
@@ -5940,8 +5952,8 @@
   }
   function RepereTemporel() {
     RepereTemporel_instance = this;
-    this.n1h_1 = listOf(['en voiture', 'dans le train', 'dans l avion', 'en marchant', 'en reunion', 'au bureau', 'a la maison', 'au telephone', 'en visio', 'dans le metro']);
-    this.o1h_1 = "le contexte de capture (le lieu, l'activit\xE9) : ZeNote ne l'enregistre pas \u2014 aucun signal de position n'est collect\xE9";
+    this.t1h_1 = listOf(['en voiture', 'dans le train', 'dans l avion', 'en marchant', 'en reunion', 'au bureau', 'a la maison', 'au telephone', 'en visio', 'dans le metro']);
+    this.u1h_1 = "le contexte de capture (le lieu, l'activit\xE9) : ZeNote ne l'enregistre pas \u2014 aucun signal de position n'est collect\xE9";
     var tmp = this;
     var tmp_0 = to('avant hier', RepereTemporel$formes$lambda);
     var tmp_1 = to('hier', RepereTemporel$formes$lambda_0);
@@ -5961,12 +5973,12 @@
     var tmp_15 = to('jeudi dernier', RepereTemporel$formes$lambda_14);
     var tmp_16 = to('vendredi dernier', RepereTemporel$formes$lambda_15);
     var tmp_17 = to('samedi dernier', RepereTemporel$formes$lambda_16);
-    tmp.p1h_1 = listOf([tmp_0, tmp_1, tmp_2, tmp_3, tmp_4, tmp_5, tmp_6, tmp_7, tmp_8, tmp_9, tmp_10, tmp_11, tmp_12, tmp_13, tmp_14, tmp_15, tmp_16, tmp_17, to('dimanche dernier', RepereTemporel$formes$lambda_17)]);
-    this.q1h_1 = mapOf([to('un', 1), to('une', 1), to('deux', 2), to('trois', 3), to('quatre', 4), to('cinq', 5), to('six', 6), to('sept', 7), to('huit', 8), to('neuf', 9), to('dix', 10), to('quinze', 15)]);
+    tmp.v1h_1 = listOf([tmp_0, tmp_1, tmp_2, tmp_3, tmp_4, tmp_5, tmp_6, tmp_7, tmp_8, tmp_9, tmp_10, tmp_11, tmp_12, tmp_13, tmp_14, tmp_15, tmp_16, tmp_17, to('dimanche dernier', RepereTemporel$formes$lambda_17)]);
+    this.w1h_1 = mapOf([to('un', 1), to('une', 1), to('deux', 2), to('trois', 3), to('quatre', 4), to('cinq', 5), to('six', 6), to('sept', 7), to('huit', 8), to('neuf', 9), to('dix', 10), to('quinze', 15)]);
   }
-  protoOf(RepereTemporel).r1h = function (requete) {
+  protoOf(RepereTemporel).x1h = function (requete) {
     var plie = aplatir(this, requete);
-    var tmp0 = this.n1h_1;
+    var tmp0 = this.t1h_1;
     var tmp$ret$1;
     $l$block: {
       // Inline function 'kotlin.collections.firstOrNull' call
@@ -5983,9 +5995,9 @@
     }
     return tmp$ret$1;
   };
-  protoOf(RepereTemporel).s1h = function (requete, aujourdhui) {
+  protoOf(RepereTemporel).y1h = function (requete, aujourdhui) {
     var plie = aplatir(this, requete);
-    var _iterator__ex2g4s = this.p1h_1.g();
+    var _iterator__ex2g4s = this.v1h_1.g();
     while (_iterator__ex2g4s.h()) {
       var _destruct__k2r9zo = _iterator__ex2g4s.i();
       var expression = _destruct__k2r9zo.sb();
@@ -5995,10 +6007,10 @@
     }
     return depuisCompte(this, plie, aujourdhui);
   };
-  protoOf(RepereTemporel).w1h = function (requete, repere) {
-    var motsDuRepere = toSet(Texte_getInstance().z1h(repere.u1h_1));
+  protoOf(RepereTemporel).c1i = function (requete, repere) {
+    var motsDuRepere = toSet(Texte_getInstance().f1i(repere.a1i_1));
     // Inline function 'kotlin.collections.filterNot' call
-    var tmp0 = Texte_getInstance().z1h(requete);
+    var tmp0 = Texte_getInstance().f1i(requete);
     // Inline function 'kotlin.collections.filterNotTo' call
     var destination = ArrayList_init_$Create$_0();
     var _iterator__ex2g4s = tmp0.g();
@@ -6050,16 +6062,16 @@
     return true;
   };
   function sam$kotlin_Comparator$0_5(function_0) {
-    this.a1i_1 = function_0;
+    this.g1i_1 = function_0;
   }
   protoOf(sam$kotlin_Comparator$0_5).dc = function (a, b) {
-    return this.a1i_1(a, b);
+    return this.g1i_1(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_5).compare = function (a, b) {
     return this.dc(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_5).u2 = function () {
-    return this.a1i_1;
+    return this.g1i_1;
   };
   protoOf(sam$kotlin_Comparator$0_5).equals = function (other) {
     var tmp;
@@ -6126,7 +6138,7 @@
   function Arriere() {
     this.m1d_1 = 12;
   }
-  protoOf(Arriere).b1i = function (entrees, charge) {
+  protoOf(Arriere).h1i = function (entrees, charge) {
     // Inline function 'kotlin.require' call
     if (!(charge > 0)) {
       // Inline function 'app.zenote.core.revue.Arriere.revueReduite.<anonymous>' call
@@ -6185,7 +6197,7 @@
   };
   protoOf(Arriere).n1d = function (entrees, charge, $super) {
     charge = charge === VOID ? 12 : charge;
-    return $super === VOID ? this.b1i(entrees, charge) : $super.b1i.call(this, entrees, charge);
+    return $super === VOID ? this.h1i(entrees, charge) : $super.h1i.call(this, entrees, charge);
   };
   var Arriere_instance;
   function Arriere_getInstance() {
@@ -6227,16 +6239,16 @@
     return true;
   };
   function sam$kotlin_Comparator$0_6(function_0) {
-    this.c1i_1 = function_0;
+    this.i1i_1 = function_0;
   }
   protoOf(sam$kotlin_Comparator$0_6).dc = function (a, b) {
-    return this.c1i_1(a, b);
+    return this.i1i_1(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_6).compare = function (a, b) {
     return this.dc(a, b);
   };
   protoOf(sam$kotlin_Comparator$0_6).u2 = function () {
-    return this.c1i_1;
+    return this.i1i_1;
   };
   protoOf(sam$kotlin_Comparator$0_6).equals = function (other) {
     var tmp;
@@ -6312,7 +6324,7 @@
     tmp.k1d_1 = new sam$kotlin_Comparator$0_6(tmp_2);
   }
   protoOf(FileRevue).l1d = function (element, aujourdhui) {
-    return new EntreeRevue(element, Priorisation_getInstance().h1g(element.s1c_1, aujourdhui), element.y1c_1, element.p1c_1.w1f() && element.w1c_1 == null);
+    return new EntreeRevue(element, Priorisation_getInstance().n1g(element.s1c_1, aujourdhui), element.y1c_1, element.p1c_1.c1g() && element.w1c_1 == null);
   };
   var FileRevue_instance;
   function FileRevue_getInstance() {
@@ -6321,15 +6333,15 @@
     return FileRevue_instance;
   }
   function Suivi(elementId, derniereNouvelle) {
-    this.d1i_1 = elementId;
-    this.e1i_1 = derniereNouvelle;
+    this.j1i_1 = elementId;
+    this.k1i_1 = derniereNouvelle;
   }
   protoOf(Suivi).toString = function () {
-    return 'Suivi(elementId=' + this.d1i_1.toString() + ', derniereNouvelle=' + this.e1i_1.toString() + ')';
+    return 'Suivi(elementId=' + this.j1i_1.toString() + ', derniereNouvelle=' + this.k1i_1.toString() + ')';
   };
   protoOf(Suivi).hashCode = function () {
-    var result = this.d1i_1.hashCode();
-    result = imul(result, 31) + this.e1i_1.hashCode() | 0;
+    var result = this.j1i_1.hashCode();
+    result = imul(result, 31) + this.k1i_1.hashCode() | 0;
     return result;
   };
   protoOf(Suivi).equals = function (other) {
@@ -6338,9 +6350,9 @@
     if (!(other instanceof Suivi))
       return false;
     var tmp0_other_with_cast = other instanceof Suivi ? other : THROW_CCE();
-    if (!this.d1i_1.equals(tmp0_other_with_cast.d1i_1))
+    if (!this.j1i_1.equals(tmp0_other_with_cast.j1i_1))
       return false;
-    if (!this.e1i_1.equals(tmp0_other_with_cast.e1i_1))
+    if (!this.k1i_1.equals(tmp0_other_with_cast.k1i_1))
       return false;
     return true;
   };
@@ -6418,7 +6430,7 @@
     if (depuis == null)
       return null;
     var silence = daysUntil(depuis, aujourdhui);
-    var delai = $this.f1i(element.u1c_1, delaisObserves);
+    var delai = $this.l1i(element.u1c_1, delaisObserves);
     if (silence <= delai)
       return null;
     var tmp0_elvis_lhs = element.u1c_1;
@@ -6443,7 +6455,7 @@
         // Inline function 'app.zenote.core.revue.Relance.attente.<anonymous>' call
         var tmp_0 = Texte_getInstance();
         var tmp0_elvis_lhs_0 = element.u1c_1;
-        if (tmp_0.y1h(element_0, tmp0_elvis_lhs_0 == null ? '' : tmp0_elvis_lhs_0)) {
+        if (tmp_0.e1i(element_0, tmp0_elvis_lhs_0 == null ? '' : tmp0_elvis_lhs_0)) {
           tmp$ret$0 = true;
           break $l$block_0;
         }
@@ -6466,7 +6478,7 @@
     this.y1d_1 = 3;
     this.z1d_1 = 7;
   }
-  protoOf(Relance).f1i = function (personne, observes) {
+  protoOf(Relance).l1i = function (personne, observes) {
     if (personne == null)
       return 7;
     // Inline function 'kotlin.collections.filter' call
@@ -6477,7 +6489,7 @@
     while (_iterator__ex2g4s.h()) {
       var element = _iterator__ex2g4s.i();
       // Inline function 'app.zenote.core.revue.Relance.delaiHabituel.<anonymous>' call
-      if (Texte_getInstance().y1h(element.r1(), personne)) {
+      if (Texte_getInstance().e1i(element.r1(), personne)) {
         destination.e(element);
       }
     }
@@ -6522,7 +6534,7 @@
       var element = _iterator__ex2g4s.i();
       // Inline function 'app.zenote.core.revue.Relance.aRelancer.<anonymous>' call
       // Inline function 'kotlin.collections.plusAssign' call
-      var pair = to(element.d1i_1, element.e1i_1);
+      var pair = to(element.j1i_1, element.k1i_1);
       destination.y1(pair.qb_1, pair.rb_1);
     }
     var parElement = destination;
@@ -6589,17 +6601,324 @@
     OptionRelance_initEntries();
     return OptionRelance_CLORE_instance;
   }
+  function Jeton(mot, suite) {
+    this.m1i_1 = mot;
+    this.n1i_1 = suite;
+    var tmp = this;
+    // Inline function 'kotlin.text.filter' call
+    var tmp0 = Texte_getInstance().t1g(this.m1i_1);
+    // Inline function 'kotlin.text.filterTo' call
+    var destination = StringBuilder_init_$Create$();
+    var inductionVariable = 0;
+    var last = charSequenceLength(tmp0);
+    if (inductionVariable < last)
+      do {
+        var index = inductionVariable;
+        inductionVariable = inductionVariable + 1 | 0;
+        var element = charSequenceGet(tmp0, index);
+        // Inline function 'app.zenote.core.texte.Jeton.forme.<anonymous>' call
+        if (isLetterOrDigit(element)) {
+          destination.g7(element);
+        }
+      }
+       while (inductionVariable < last);
+    tmp.o1i_1 = destination.toString();
+    var tmp_0 = this;
+    var tmp_1;
+    // Inline function 'kotlin.text.isNotEmpty' call
+    var this_0 = this.o1i_1;
+    if (charSequenceLength(this_0) > 0) {
+      tmp_1 = estAllongementDeBruit(Disfluences_getInstance(), this.o1i_1);
+    } else {
+      tmp_1 = false;
+    }
+    tmp_0.p1i_1 = tmp_1;
+    var tmp_2 = this;
+    var tmp_3;
+    var tmp_4;
+    var tmp_5;
+    var tmp0_safe_receiver = firstOrNull(this.m1i_1);
+    var tmp_6;
+    var tmp_7 = tmp0_safe_receiver;
+    if ((tmp_7 == null ? null : new Char(tmp_7)) == null) {
+      tmp_6 = null;
+    } else {
+      tmp_6 = isUpperCase(tmp0_safe_receiver);
+    }
+    if (tmp_6 === true) {
+      tmp_5 = true;
+    } else {
+      var tmp0_0 = this.o1i_1;
+      var tmp$ret$5;
+      $l$block: {
+        // Inline function 'kotlin.text.any' call
+        var inductionVariable_0 = 0;
+        while (inductionVariable_0 < charSequenceLength(tmp0_0)) {
+          var element_0 = charSequenceGet(tmp0_0, inductionVariable_0);
+          inductionVariable_0 = inductionVariable_0 + 1 | 0;
+          // Inline function 'app.zenote.core.texte.Jeton.intouchable.<anonymous>' call
+          if (isDigit(element_0)) {
+            tmp$ret$5 = true;
+            break $l$block;
+          }
+        }
+        tmp$ret$5 = false;
+      }
+      tmp_5 = tmp$ret$5;
+    }
+    if (tmp_5) {
+      tmp_4 = true;
+    } else {
+      tmp_4 = Disfluences_getInstance().m1f_1.p1(this.o1i_1);
+    }
+    if (tmp_4) {
+      tmp_3 = true;
+    } else {
+      tmp_3 = Disfluences_getInstance().n1f_1.p1(this.o1i_1);
+    }
+    tmp_2.q1i_1 = tmp_3;
+  }
+  function estAllongementDeBruit($this, forme) {
+    if ($this.l1f_1.p1(forme))
+      return true;
+    // Inline function 'kotlin.text.buildString' call
+    // Inline function 'kotlin.apply' call
+    var this_0 = StringBuilder_init_$Create$();
+    // Inline function 'app.zenote.core.texte.Disfluences.estAllongementDeBruit.<anonymous>' call
+    // Inline function 'kotlin.text.forEach' call
+    var inductionVariable = 0;
+    while (inductionVariable < charSequenceLength(forme)) {
+      var element = charSequenceGet(forme, inductionVariable);
+      inductionVariable = inductionVariable + 1 | 0;
+      // Inline function 'app.zenote.core.texte.Disfluences.estAllongementDeBruit.<anonymous>.<anonymous>' call
+      var tmp = lastOrNull(this_0);
+      if (!equals(tmp == null ? null : new Char(tmp), new Char(element))) {
+        this_0.g7(element);
+      }
+    }
+    var ecrasee = this_0.toString();
+    return $this.l1f_1.p1(ecrasee);
+  }
+  function decouper($this, texte) {
+    // Inline function 'kotlin.collections.mutableListOf' call
+    var jetons = ArrayList_init_$Create$_0();
+    var i = 0;
+    $l$loop: while (i < texte.length) {
+      if (isWhitespace(charSequenceGet(texte, i))) {
+        i = i + 1 | 0;
+        continue $l$loop;
+      }
+      var debut = i;
+      while (i < texte.length && !isWhitespace(charSequenceGet(texte, i))) {
+        i = i + 1 | 0;
+      }
+      // Inline function 'kotlin.text.substring' call
+      var endIndex = i;
+      // Inline function 'kotlin.js.asDynamic' call
+      var brut = texte.substring(debut, endIndex);
+      var tmp$ret$4;
+      $l$block: {
+        // Inline function 'kotlin.text.indexOfLast' call
+        var inductionVariable = charSequenceLength(brut) - 1 | 0;
+        if (0 <= inductionVariable)
+          do {
+            var index = inductionVariable;
+            inductionVariable = inductionVariable + -1 | 0;
+            // Inline function 'app.zenote.core.texte.Disfluences.decouper.<anonymous>' call
+            var it = charSequenceGet(brut, index);
+            if (isLetterOrDigit(it)) {
+              tmp$ret$4 = index;
+              break $l$block;
+            }
+          }
+           while (0 <= inductionVariable);
+        tmp$ret$4 = -1;
+      }
+      var fin = tmp$ret$4 + 1 | 0;
+      var tmp;
+      if (fin > 0) {
+        // Inline function 'kotlin.text.substring' call
+        // Inline function 'kotlin.js.asDynamic' call
+        var tmp_0 = brut.substring(0, fin);
+        // Inline function 'kotlin.text.substring' call
+        // Inline function 'kotlin.js.asDynamic' call
+        var tmp$ret$8 = brut.substring(fin);
+        tmp = new Jeton(tmp_0, tmp$ret$8);
+      } else {
+        tmp = new Jeton(brut, '');
+      }
+      // Inline function 'kotlin.collections.plusAssign' call
+      var element = tmp;
+      jetons.e(element);
+    }
+    return jetons;
+  }
+  function reduireRepetitions($this, jetons) {
+    var courant = jetons;
+    var inductionVariable = 3;
+    if (1 <= inductionVariable)
+      do {
+        var taille = inductionVariable;
+        inductionVariable = inductionVariable + -1 | 0;
+        courant = reduireGroupesDe($this, courant, taille);
+      }
+       while (1 <= inductionVariable);
+    return courant;
+  }
+  function reduireGroupesDe($this, jetons, taille) {
+    if (jetons.l() < imul(taille, 2))
+      return jetons;
+    // Inline function 'kotlin.collections.mutableListOf' call
+    var garde = ArrayList_init_$Create$_0();
+    var i = 0;
+    while (i < jetons.l()) {
+      var finGroupe = i + taille | 0;
+      var finSuivant = finGroupe + taille | 0;
+      var tmp;
+      var tmp_0;
+      if (finSuivant <= jetons.l()) {
+        var tmp0 = until(i, finGroupe);
+        var tmp$ret$1;
+        $l$block_0: {
+          // Inline function 'kotlin.collections.all' call
+          var tmp_1;
+          if (isInterface(tmp0, Collection)) {
+            tmp_1 = tmp0.j();
+          } else {
+            tmp_1 = false;
+          }
+          if (tmp_1) {
+            tmp$ret$1 = true;
+            break $l$block_0;
+          }
+          var inductionVariable = tmp0.t_1;
+          var last = tmp0.u_1;
+          if (inductionVariable <= last)
+            do {
+              var element = inductionVariable;
+              inductionVariable = inductionVariable + 1 | 0;
+              // Inline function 'app.zenote.core.texte.Disfluences.reduireGroupesDe.<anonymous>' call
+              var it = element;
+              if (!(jetons.k(it).o1i_1 === jetons.k(it + taille | 0).o1i_1)) {
+                tmp$ret$1 = false;
+                break $l$block_0;
+              }
+            }
+             while (!(element === last));
+          tmp$ret$1 = true;
+        }
+        tmp_0 = tmp$ret$1;
+      } else {
+        tmp_0 = false;
+      }
+      if (tmp_0) {
+        var tmp2 = until(i, finGroupe);
+        var tmp$ret$3;
+        $l$block_2: {
+          // Inline function 'kotlin.collections.none' call
+          var tmp_2;
+          if (isInterface(tmp2, Collection)) {
+            tmp_2 = tmp2.j();
+          } else {
+            tmp_2 = false;
+          }
+          if (tmp_2) {
+            tmp$ret$3 = true;
+            break $l$block_2;
+          }
+          var inductionVariable_0 = tmp2.t_1;
+          var last_0 = tmp2.u_1;
+          if (inductionVariable_0 <= last_0)
+            do {
+              var element_0 = inductionVariable_0;
+              inductionVariable_0 = inductionVariable_0 + 1 | 0;
+              // Inline function 'app.zenote.core.texte.Disfluences.reduireGroupesDe.<anonymous>' call
+              var it_0 = element_0;
+              var tmp_3;
+              // Inline function 'kotlin.text.isEmpty' call
+              var this_0 = jetons.k(it_0).o1i_1;
+              if (charSequenceLength(this_0) === 0) {
+                tmp_3 = true;
+              } else {
+                tmp_3 = jetons.k(it_0).q1i_1;
+              }
+              if (tmp_3) {
+                tmp$ret$3 = false;
+                break $l$block_2;
+              }
+            }
+             while (!(element_0 === last_0));
+          tmp$ret$3 = true;
+        }
+        tmp = tmp$ret$3;
+      } else {
+        tmp = false;
+      }
+      var repetition = tmp;
+      if (repetition) {
+        i = i + taille | 0;
+      } else {
+        // Inline function 'kotlin.collections.plusAssign' call
+        var element_1 = jetons.k(i);
+        garde.e(element_1);
+        i = i + 1 | 0;
+      }
+    }
+    return garde;
+  }
+  function recomposer($this, jetons) {
+    // Inline function 'kotlin.text.trim' call
+    var this_0 = joinToString(jetons, ' ', VOID, VOID, VOID, VOID, Disfluences$recomposer$lambda);
+    return toString_0(trim(isCharSequence(this_0) ? this_0 : THROW_CCE()));
+  }
+  function Disfluences$recomposer$lambda(it) {
+    return it.m1i_1 + it.n1i_1;
+  }
+  function Disfluences() {
+    Disfluences_instance = this;
+    this.l1f_1 = setOf(['euh', 'heu', 'eh', 'hum', 'hmm', 'mmh', 'mm', 'hein', 'ben', 'bah', 'beh']);
+    this.m1f_1 = setOf(['ne', 'n', 'pas', 'non', 'jamais', 'rien', 'aucun', 'aucune', 'ni', 'sans']);
+    this.n1f_1 = setOf(['zero', 'un', 'une', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf', 'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'cent', 'cents', 'mille', 'million', 'millions', 'milliard', 'milliards', 'demi', 'quart']);
+    this.o1f_1 = 3;
+  }
+  protoOf(Disfluences).p1f = function (brut) {
+    var jetons = decouper(this, brut);
+    if (jetons.j())
+      return brut;
+    // Inline function 'kotlin.collections.filterNot' call
+    // Inline function 'kotlin.collections.filterNotTo' call
+    var destination = ArrayList_init_$Create$_0();
+    var _iterator__ex2g4s = jetons.g();
+    while (_iterator__ex2g4s.h()) {
+      var element = _iterator__ex2g4s.i();
+      // Inline function 'app.zenote.core.texte.Disfluences.lisible.<anonymous>' call
+      if (!element.p1i_1) {
+        destination.e(element);
+      }
+    }
+    var sansBruits = destination;
+    var sansRepetitions = reduireRepetitions(this, sansBruits);
+    if (sansRepetitions.l() === jetons.l())
+      return brut;
+    return recomposer(this, sansRepetitions);
+  };
+  var Disfluences_instance;
+  function Disfluences_getInstance() {
+    if (Disfluences_instance == null)
+      new Disfluences();
+    return Disfluences_instance;
+  }
   function Texte() {
     Texte_instance = this;
-    this.k1g_1 = '\xE0\xE1\xE2\xE3\xE4\xE5\xE7\xE8\xE9\xEA\xEB\xEC\xED\xEE\xEF\xF1\xF2\xF3\xF4\xF5\xF6\xF9\xFA\xFB\xFC\xFD\xFF';
-    this.l1g_1 = 'aaaaaaceeeeiiiinooooouuuuyy';
-    this.m1g_1 = setOf(['le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'au', 'aux', 'et', 'ou', 'a', '\xE0', 'en', 'dans', 'sur', 'pour', 'par', 'avec', 'que', 'qui', 'quoi', 'ce', 'cet', 'cette', 'ces', 'se', 'sa', 'son', 'ses', 'mon', 'ma', 'mes', 'je', 'tu', 'il', 'elle', 'on', 'nous', 'vous', 'ils', 'elles', 'est', 'sont', 'ai', 'as', 'ont', 'etait', 'ete', 'pas', 'ne', 'plus']);
+    this.q1g_1 = '\xE0\xE1\xE2\xE3\xE4\xE5\xE7\xE8\xE9\xEA\xEB\xEC\xED\xEE\xEF\xF1\xF2\xF3\xF4\xF5\xF6\xF9\xFA\xFB\xFC\xFD\xFF';
+    this.r1g_1 = 'aaaaaaceeeeiiiinooooouuuuyy';
+    this.s1g_1 = setOf(['le', 'la', 'les', 'un', 'une', 'des', 'du', 'de', 'au', 'aux', 'et', 'ou', 'a', '\xE0', 'en', 'dans', 'sur', 'pour', 'par', 'avec', 'que', 'qui', 'quoi', 'ce', 'cet', 'cette', 'ces', 'se', 'sa', 'son', 'ses', 'mon', 'ma', 'mes', 'je', 'tu', 'il', 'elle', 'on', 'nous', 'vous', 'ils', 'elles', 'est', 'sont', 'ai', 'as', 'ont', 'etait', 'ete', 'pas', 'ne', 'plus']);
   }
-  protoOf(Texte).n1g = function (texte) {
+  protoOf(Texte).t1g = function (texte) {
     // Inline function 'kotlin.text.buildString' call
     var capacity = texte.length;
     // Inline function 'kotlin.apply' call
-    var this_0 = StringBuilder_init_$Create$(capacity);
+    var this_0 = StringBuilder_init_$Create$_0(capacity);
     // Inline function 'app.zenote.core.texte.Texte.plier.<anonymous>' call
     // Inline function 'kotlin.text.lowercase' call
     // Inline function 'kotlin.js.asDynamic' call
@@ -6615,9 +6934,9 @@
     }
     return this_0.toString();
   };
-  protoOf(Texte).z1h = function (texte) {
+  protoOf(Texte).f1i = function (texte) {
     // Inline function 'kotlin.text.map' call
-    var this_0 = this.n1g(texte);
+    var this_0 = this.t1g(texte);
     // Inline function 'kotlin.text.mapTo' call
     var destination = ArrayList_init_$Create$(charSequenceLength(this_0));
     var inductionVariable = 0;
@@ -6636,20 +6955,20 @@
     while (_iterator__ex2g4s.h()) {
       var element = _iterator__ex2g4s.i();
       // Inline function 'app.zenote.core.texte.Texte.mots.<anonymous>' call
-      if (element.length > 1 && !Texte_getInstance().m1g_1.p1(element)) {
+      if (element.length > 1 && !Texte_getInstance().s1g_1.p1(element)) {
         destination_0.e(element);
       }
     }
     return destination_0;
   };
-  protoOf(Texte).g1i = function (texte) {
-    return toSet(this.z1h(texte));
+  protoOf(Texte).r1i = function (texte) {
+    return toSet(this.f1i(texte));
   };
-  protoOf(Texte).l1h = function (requete, texte) {
-    var demandes = this.g1i(requete);
+  protoOf(Texte).r1h = function (requete, texte) {
+    var demandes = this.r1i(requete);
     if (demandes.j())
       return 0.0;
-    var presents = this.g1i(texte);
+    var presents = this.r1i(texte);
     var tmp$ret$0;
     $l$block: {
       // Inline function 'kotlin.collections.count' call
@@ -6677,13 +6996,13 @@
     }
     return tmp$ret$0 / demandes.l();
   };
-  protoOf(Texte).y1h = function (a, b) {
+  protoOf(Texte).e1i = function (a, b) {
     // Inline function 'kotlin.text.trim' call
     var tmp$ret$0 = toString_0(trim(isCharSequence(a) ? a : THROW_CCE()));
-    var tmp = this.n1g(tmp$ret$0);
+    var tmp = this.t1g(tmp$ret$0);
     // Inline function 'kotlin.text.trim' call
     var tmp$ret$1 = toString_0(trim(isCharSequence(b) ? b : THROW_CCE()));
-    return tmp === this.n1g(tmp$ret$1);
+    return tmp === this.t1g(tmp$ret$1);
   };
   var Texte_instance;
   function Texte_getInstance() {
@@ -6692,7 +7011,7 @@
     return Texte_instance;
   }
   function ZeNoteRegles() {
-    this.version = '5';
+    this.version = '6';
   }
   protoOf(ZeNoteRegles).maintenant = function (elementsJson, aujourdhui) {
     return Regles_getInstance().b1d(elementsJson, aujourdhui);
@@ -6700,25 +7019,28 @@
   protoOf(ZeNoteRegles).revue = function (elementsJson, aujourdhui) {
     return Regles_getInstance().j1d(elementsJson, aujourdhui);
   };
+  protoOf(ZeNoteRegles).transcriptionLisible = function (brut) {
+    return Regles_getInstance().k1f(brut);
+  };
   protoOf(ZeNoteRegles).filtrerAncrage = function (texteSource, elementsJson) {
-    return Regles_getInstance().k1f(texteSource, elementsJson);
+    return Regles_getInstance().q1f(texteSource, elementsJson);
   };
   protoOf(ZeNoteRegles).relances = function (elementsJson, aujourdhui, suivisJson, delaisJson) {
     return Regles_getInstance().x1d(elementsJson, aujourdhui, suivisJson, delaisJson);
   };
   protoOf(ZeNoteRegles).rechercherParMots = function (requete, elementsJson, capturesJson, reseau) {
-    return Regles_getInstance().l1f(requete, elementsJson, capturesJson, reseau);
+    return Regles_getInstance().r1f(requete, elementsJson, capturesJson, reseau);
   };
   protoOf(ZeNoteRegles).rechercherParQuestion = function (requete, elementsJson, capturesJson, aujourdhui, reseau) {
-    return Regles_getInstance().q1f(requete, elementsJson, capturesJson, aujourdhui, reseau);
+    return Regles_getInstance().w1f(requete, elementsJson, capturesJson, aujourdhui, reseau);
   };
   protoOf(ZeNoteRegles).rappels = function (elementsJson, maintenant, suivisJson) {
     return Regles_getInstance().e1e(elementsJson, maintenant, suivisJson);
   };
   protoOf(ZeNoteRegles).rechercherParPersonne = function (personne, elementsJson, reseau) {
-    return Regles_getInstance().s1f(personne, elementsJson, reseau);
+    return Regles_getInstance().y1f(personne, elementsJson, reseau);
   };
-  protoOf(ZeNoteRegles).h1i = function () {
+  protoOf(ZeNoteRegles).s1i = function () {
     return this.version;
   };
   var ZeNoteRegles_instance;

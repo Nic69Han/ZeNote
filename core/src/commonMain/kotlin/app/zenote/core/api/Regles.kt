@@ -28,6 +28,7 @@ import app.zenote.core.revue.Relance
 import app.zenote.core.revue.Suivi
 import app.zenote.core.recherche.Reponse
 import app.zenote.core.recherche.TexteSource
+import app.zenote.core.texte.Disfluences
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -285,6 +286,16 @@ object Regles {
      *
      * @return un [AncrageJson]
      */
+    /**
+     * La version lisible d'une transcription : hésitations et répétitions en moins.
+     *
+     * Rend le texte inchangé quand il n'y a rien à retirer — la surface sait alors
+     * qu'elle n'a pas deux versions à proposer. Le brut n'est jamais remplacé :
+     * c'est la couche source, et c'est elle que l'extraction lit, les ancrages
+     * étant des positions dans ce texte-là.
+     */
+    fun transcriptionLisible(brut: String): String = Disfluences.lisible(brut)
+
     fun filtrerAncrage(texteSource: String, elementsJson: String): String {
         val retenus = mutableListOf<ElementJson>()
         val ecartes = mutableListOf<EcarteJson>()

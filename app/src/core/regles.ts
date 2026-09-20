@@ -3,7 +3,7 @@
  *
  * Les règles du produit (classement de Maintenant, ordre de la Revue, ancrage dans le
  * texte source) vivent dans le module Kotlin `core/`, compilé en JS. Cette frontière
- * expose exactement les trois fonctions du pont `ZeNoteRegles` : entrée JSON, sortie
+ * expose exactement les fonctions du pont `ZeNoteRegles` : entrée JSON, sortie
  * JSON, aucun état. Aucun autre fichier de l'application ne doit réimplémenter ces
  * règles ni contourner ce module.
  */
@@ -190,6 +190,7 @@ import coeur from '../../vendor/zenote-core/zenote-core.js';
 const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
   maintenant(elementsJson: string, aujourdhui: string): string;
   revue(elementsJson: string, aujourdhui: string): string;
+  transcriptionLisible(brut: string): string;
   filtrerAncrage(texteSource: string, elementsJson: string): string;
   relances(
     elementsJson: string,
@@ -216,7 +217,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '5';
+export const VERSION_CONTRAT_ATTENDUE = '6';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -239,6 +240,18 @@ export function maintenant(elementsJson: string, aujourdhui: string): string {
 /** File de Revue : `ElementJson[]` + date ISO → `RevueJson`. */
 export function revue(elementsJson: string, aujourdhui: string): string {
   return Regles.revue(elementsJson, aujourdhui);
+}
+
+/**
+ * La version lisible d'une transcription : hésitations et répétitions immédiates en
+ * moins, le sens intact.
+ *
+ * Rend le texte inchangé quand il n'y a rien à retirer : l'appelant sait alors qu'il
+ * n'a pas deux versions à proposer. Le brut reste la couche source — c'est lui que
+ * l'extraction lit, les ancrages étant des positions dans ce texte-là.
+ */
+export function transcriptionLisible(brut: string): string {
+  return Regles.transcriptionLisible(brut);
 }
 
 /** Ancrage : texte source + `ElementJson[]` → `AncrageJson`. */

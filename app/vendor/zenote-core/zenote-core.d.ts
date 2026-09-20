@@ -3,6 +3,7 @@ export declare namespace app.zenote.core.js {
     const ZeNoteRegles: {
         maintenant(elementsJson: string, aujourdhui: string): string;
         revue(elementsJson: string, aujourdhui: string): string;
+        transcriptionLisible(brut: string): string;
         filtrerAncrage(texteSource: string, elementsJson: string): string;
         relances(elementsJson: string, aujourdhui: string, suivisJson: string, delaisJson: string): string;
         rechercherParMots(requete: string, elementsJson: string, capturesJson: string, reseau: boolean): string;

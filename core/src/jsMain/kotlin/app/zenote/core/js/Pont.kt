@@ -3,7 +3,7 @@ package app.zenote.core.js
 import app.zenote.core.api.Regles
 
 /**
- * Le pont vers le navigateur. Huit fonctions, un contrat JSON, aucun état.
+ * Le pont vers le navigateur. Neuf fonctions, un contrat JSON, aucun état.
  *
  * La PWA détient les données (IndexedDB) et appelle ces règles ; les applications
  * natives appelleront les mêmes, en JVM. C'est ce qui garantit qu'un même jeu de
@@ -20,6 +20,9 @@ object ZeNoteRegles {
     /** File de Revue : `[ElementJson]` + date ISO → `RevueJson`. */
     fun revue(elementsJson: String, aujourdhui: String): String =
         Regles.revue(elementsJson, aujourdhui)
+
+    /** Transcription lisible : texte brut → texte sans hésitations, brut inchangé. */
+    fun transcriptionLisible(brut: String): String = Regles.transcriptionLisible(brut)
 
     /** Ancrage : texte source + `[ElementJson]` → `AncrageJson`. */
     fun filtrerAncrage(texteSource: String, elementsJson: String): String =
@@ -68,10 +71,9 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 5 » avec les rappels : ce qu'un point de rupture présente, et ce qui
-     * remonte en Revue après trois fois ignoré. Une surface qui attend cette version
-     * et en trouve une plus ancienne parle à un cœur sans ces fonctions, et doit le
-     * dire au lieu de planter à l'appel.
+     * Passée à « 6 » avec la transcription lisible. Une surface qui attend cette
+     * version et en trouve une plus ancienne parle à un cœur sans ces fonctions, et
+     * doit le dire au lieu de planter à l'appel.
      */
-    val version: String = "5"
+    val version: String = "6"
 }

@@ -10,6 +10,7 @@
 import {
   relancesObjets,
   revueObjets,
+  transcriptionLisible,
   type ElementJson,
   type EntreeRevueJson,
   type RelanceJson,
@@ -606,7 +607,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
           texte: capture?.source === 'ECRITE' ? 'écrite' : 'dictée',
         }),
       ),
-      el('p', { class: 'source__texte', texte: capture?.texte ?? '(source introuvable)' }),
+      texteSource(capture),
       lecteur.noeud,
     ) as HTMLDetailsElement;
 
@@ -623,6 +624,44 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
         lecteur.allerA(ms);
       },
     };
+  }
+
+  /**
+   * La transcription, lisible, avec le brut à portée d'un geste.
+   *
+   * Spec `transcription` — « Reformulation réversible » : la version brute reste
+   * disponible et affichable, et peut être retenue comme référence. Le brut n'est
+   * donc pas caché derrière une explication, mais derrière un bouton, et le libellé
+   * dit laquelle des deux on regarde.
+   *
+   * Quand il n'y a rien à retirer, il n'y a rien à proposer non plus : pas de
+   * bouton, pas de mention. Annoncer un nettoyage qui n'a pas eu lieu ferait douter
+   * d'une transcription qui n'a pourtant rien perdu.
+   */
+  function texteSource(capture: Capture | undefined): HTMLElement {
+    const brut = capture?.texte ?? '';
+    if (!capture) {
+      return el('p', { class: 'source__texte', texte: '(source introuvable)' });
+    }
+
+    const lisible = transcriptionLisible(brut);
+    const ligne = el('p', { class: 'source__texte', texte: lisible });
+    if (lisible === brut) return ligne;
+
+    let auBrut = false;
+    const bascule = el('button', {
+      class: 'bouton bouton--discret source__bascule',
+      type: 'button',
+      texte: 'Voir ce qui a été dit',
+      onclick: () => {
+        auBrut = !auBrut;
+        ligne.textContent = auBrut ? brut : lisible;
+        ligne.dataset.version = auBrut ? 'brute' : 'lisible';
+        bascule.textContent = auBrut ? 'Voir la version lisible' : 'Voir ce qui a été dit';
+      },
+    });
+    ligne.dataset.version = 'lisible';
+    return el('div', { class: 'source__transcription' }, ligne, bascule);
   }
 
   function rendreEntree(
