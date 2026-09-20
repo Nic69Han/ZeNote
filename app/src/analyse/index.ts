@@ -16,6 +16,9 @@ import {
   AMORCES_ATTENTE,
   AMORCES_DECISION,
   AMORCES_ENGAGEMENT,
+  MOTIF_ENGAGEMENT_ADRESSE,
+  MOTIF_ENGAGEMENT_PRONOM,
+  MOTIF_RESPONSABLE_SUJET,
   AMORCES_IDEE,
   AMORCES_TACHE,
   INDICES_FAIBLE,
@@ -57,6 +60,9 @@ export function typerPassage(passage: string): ElementJson['type'] {
   if (contientUn(t, AMORCES_ATTENTE)) return 'ATTENTE';
   if (contientUn(t, AMORCES_DECISION)) return 'DECISION';
   if (contientUn(t, AMORCES_ENGAGEMENT)) return 'ENGAGEMENT';
+  // Une promesse faite à quelqu'un de nommé : le nom s'intercale, et aucune amorce
+  // fixe ne l'attrape. Sans cette règle la phrase finit en simple information.
+  if (MOTIF_ENGAGEMENT_ADRESSE.test(t) || MOTIF_ENGAGEMENT_PRONOM.test(t)) return 'ENGAGEMENT';
   if (contientUn(t, AMORCES_IDEE)) return 'IDEE';
   if (contientUn(t, AMORCES_TACHE)) return 'TACHE';
 
@@ -102,6 +108,14 @@ export function evaluerPoids(passage: string): {
 export function repererInterlocuteur(
   passage: string,
 ): { nom: string; confiance: number } | null {
+  // Celui dont on attend quelque chose est sujet de sa phrase, sans préposition
+  // devant : c'est la seule règle qui le trouve, et une attente sans responsable ne
+  // se relance pas — donc ne sert à rien.
+  const sujet = MOTIF_RESPONSABLE_SUJET.exec(passage);
+  if (sujet && !NON_PRENOMS.has(normaliser(sujet[1]))) {
+    return { nom: sujet[1], confiance: 0.8 };
+  }
+
   const fort = /\b(?:avec|pour|aupr[èe]s de|chez)\s+([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]{1,})/u.exec(passage);
   if (fort && !NON_PRENOMS.has(normaliser(fort[1]))) {
     return { nom: fort[1], confiance: 0.8 };

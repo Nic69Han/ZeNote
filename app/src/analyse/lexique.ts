@@ -94,6 +94,35 @@ export const AMORCES_ENGAGEMENT = [
 ];
 
 /** Une attente, c'est quelqu'un qui doit quelque chose à l'utilisateur. */
+/**
+ * Une promesse faite à quelqu'un, nommé dans la phrase.
+ *
+ * « J'ai dit à Karim que je lui envoie le planning » n'est pas une note sur Karim :
+ * c'est une dette. La liste d'amorces fixes ne l'attrapait pas, parce que le nom
+ * s'intercale entre le verbe et la suite — et la phrase finissait en simple
+ * information, c'est-à-dire en rien du tout.
+ *
+ * S'applique au texte normalisé, donc sans majuscules : c'est la préposition qui
+ * marque le destinataire, pas la capitale.
+ */
+export const MOTIF_ENGAGEMENT_ADRESSE =
+  /\bj'?e?\s*(?:ai|me suis)\s+(?:dit|promis|engage|annonce|assure|confirme)\s+(?:a|aupres de)\s+\S+/;
+
+/** « Je lui ai dit que je… », « je leur ai promis de… » : le même engagement, sans le nom. */
+export const MOTIF_ENGAGEMENT_PRONOM =
+  /\bje\s+(?:lui|leur)\s+ai\s+(?:dit|promis|assure|confirme)\b/;
+
+/**
+ * Quelqu'un dont on attend quelque chose, sujet de sa propre phrase.
+ *
+ * « Sophie doit me renvoyer le chiffrage » : la personne responsable est en tête,
+ * sans préposition, là où les autres règles ne la cherchent pas. Sans elle,
+ * l'attente était bien reconnue mais n'était attachée à personne — donc
+ * impossible à relancer, ce qui est tout son intérêt.
+ */
+export const MOTIF_RESPONSABLE_SUJET =
+  /^\s*([A-ZÉÈÊÀÂÇÎÔÛ][\p{L}'\u2019-]+)\s+(?:doit|doivent|va|vont|devait|devaient|m'a|me|nous)\b/u;
+
 export const AMORCES_ATTENTE = [
   "j'attends",
   'jattends',
