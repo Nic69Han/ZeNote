@@ -82,6 +82,50 @@ const contexte = await navigateur.newContext({
   viewport: { width: 420, height: 900 },
   permissions: ['microphone'],
 });
+// Ce qui permet de prouver l'ordre : « écrit d'abord, confirmé ensuite ».
+//
+// La promesse de capture ne vaut que dans ce sens-là. Confirmer sur l'intention —
+// dès le relâchement, avant que la base ait accepté — rendrait le produit agréable
+// et menteur : on range sa tête en croyant que ZeNote tient la note, et il ne la
+// tient pas. L'inversion ne se voit pas à l'œil nu, elle ne coûte qu'une ligne, et
+// aucune des vérifications précédentes ne l'attrape.
+//
+// Deux faits sont donc relevés dans la page, au plus près de ce qu'ils sont :
+//
+//  - la transaction d'écriture d'une capture au moment où elle devient durable,
+//    c'est-à-dire à son événement `complete` — pas à l'appel de `put`, qui ne
+//    garantit rien ;
+//  - la confirmation telle que le corps la reçoit : la vibration à trois temps de
+//    « c'est à moi ». Le motif la distingue du signal de début et de celui d'échec,
+//    qui sont eux aussi des vibrations.
+await contexte.addInitScript(() => {
+  window.__journal = [];
+  const noter = (quoi) => window.__journal.push({ quoi, t: performance.now() });
+
+  for (const methode of ['put', 'add']) {
+    const origine = IDBObjectStore.prototype[methode];
+    IDBObjectStore.prototype[methode] = function (...args) {
+      const requete = origine.apply(this, args);
+      if (this.name === 'captures') {
+        this.transaction.addEventListener('complete', () => noter('capture-durable'));
+      }
+      return requete;
+    };
+  }
+
+  // Défini plutôt qu'enveloppé : sur un ordinateur, `navigator.vibrate` peut ne pas
+  // exister, et le produit l'appelle alors en option — sans notre spectateur, la
+  // confirmation ne laisserait aucune trace observable.
+  Object.defineProperty(navigator, 'vibrate', {
+    configurable: true,
+    value: (motif) => {
+      const forme = Array.isArray(motif) ? motif.join('-') : String(motif);
+      if (forme === '24-40-24') noter('confirmation');
+      return true;
+    },
+  });
+});
+
 const page = await contexte.newPage();
 
 // Un authentificateur virtuel : l'équivalent d'une empreinte digitale, piloté par le
@@ -271,6 +315,11 @@ try {
   await page.locator('.nav__lien[data-onglet="capturer"]').click();
   await page.waitForTimeout(500);
   await page.locator('.bouton-capture').focus();
+  // Le journal repart vide ici : ce qui a été écrit plus tôt dans le parcours
+  // satisferait l'ordre sans rien dire de cette capture-ci.
+  await page.evaluate(() => {
+    window.__journal.length = 0;
+  });
   await page.keyboard.down(' ');
   await page.waitForTimeout(6500);
   await page.keyboard.up(' ');
@@ -289,6 +338,28 @@ try {
     'relâcher confirme aussitôt, avant toute transcription',
     /c'est à moi/i.test(confirmation) && etatPendantConfirmation === 'en-cours',
     `${confirmation} — journal : ${etatPendantConfirmation}`,
+  );
+
+  // Et dans cet ordre-là, qui est la promesse elle-même.
+  const journalOrdre = await page.evaluate(() => window.__journal);
+  // L'ordre se lit sur le journal, pas sur les horloges : les deux faits peuvent
+  // tomber dans la même milliseconde, et une comparaison de dates laisserait alors
+  // passer l'inversion exacte que cette vérification existe pour attraper.
+  const rangDurable = journalOrdre.findIndex((e) => e.quoi === 'capture-durable');
+  const rangSignal = journalOrdre.findIndex((e) => e.quoi === 'confirmation');
+  const durable = journalOrdre[rangDurable];
+  const signale = journalOrdre[rangSignal];
+  verifier(
+    'la confirmation n’est pas émise avant que la capture soit durablement écrite',
+    rangDurable !== -1 && rangSignal !== -1 && rangDurable < rangSignal,
+    durable && signale
+      ? `écrite à ${Math.round(durable.t)} ms, confirmée à ${Math.round(signale.t)} ms`
+      : `écriture ${durable ? 'vue' : 'jamais vue'}, confirmation ${signale ? 'vue' : 'jamais vue'}`,
+  );
+  verifier(
+    'et le corps ne reçoit ce signal qu’une fois, pour une capture',
+    journalOrdre.filter((e) => e.quoi === 'confirmation').length === 1,
+    `${journalOrdre.filter((e) => e.quoi === 'confirmation').length} signal(aux)`,
   );
 
   // La transcription tourne en arrière-plan : on attend que la dernière ligne du

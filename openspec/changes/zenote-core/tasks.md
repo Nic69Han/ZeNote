@@ -12,7 +12,7 @@ Une case n'est cochée que lorsqu'un test nommé la couvre. Les tâches cochées
 
 ## 2. Palier 1 — Capture fiable
 
-- [ ] 2.1 Implémenter la capture vocale par appui long avec écriture durable puis confirmation haptique et sonore ; vérifier par un test que la confirmation n'est jamais émise avant l'écriture effective
+- [x] 2.1 Implémenter la capture vocale par appui long avec écriture durable puis confirmation haptique et sonore ; vérifier par un test que la confirmation n'est jamais émise avant l'écriture effective — appui long au doigt ou à la barre d'espace, vibration à trois temps et double bip à la fin. L'ordre est prouvé dans un vrai navigateur : `bout-en-bout.mjs` relève la transaction de la capture à son événement `complete` — pas à l'appel de `put`, qui ne garantit rien — et la vibration de confirmation, reconnue à son motif, puis compare leur rang au journal. Vérifié falsifiable : confirmer avant l'écriture fait échouer la vérification. La comparaison porte sur le rang et non sur l'horloge, les deux faits tombant dans la même milliseconde
 - [ ] 2.2 Implémenter la capture Android depuis l'écran verrouillé et le widget d'écran d'accueil ; vérifier manuellement le scénario `capture` / « Capture depuis l'écran verrouillé » sur appareil réel, y compris avec les optimisations de batterie du constructeur actives
 - [ ] 2.3 Implémenter le raccourci clavier global sur Windows via un agent résident, avec restitution du focus à l'application précédente ; vérifier le scénario `capture` / « Capture au clavier sur ordinateur », y compris depuis une application en plein écran
 - [x] 2.4 Implémenter la capture écrite sans champ obligatoire et vérifier qu'aucune demande de classement n'est présentée
