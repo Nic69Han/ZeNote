@@ -41,6 +41,7 @@ import {
 import {
   MAGASIN_CAPTURES,
   MAGASIN_ELEMENTS,
+  MAGASIN_MORCEAUX,
   MAGASIN_REGLAGES,
   demander,
   transaction,
@@ -498,6 +499,113 @@ export async function elementsDeCapture(captureId: string): Promise<ElementStock
   return ouverts;
 }
 
+// ------------------------------------------------ morceaux d'enregistrement
+
+/**
+ * Un morceau d'enregistrement, écrit pendant qu'on parle.
+ *
+ * Il n'existe que le temps d'un enregistrement : l'arrêt normal les assemble puis les
+ * efface. Ceux qui survivent à un redémarrage sont, par définition, ce qu'un arrêt
+ * brutal a laissé — et c'est précisément ce qu'on veut récupérer.
+ */
+export interface Morceau {
+  id: string;
+  enregistrementId: string;
+  /** L'ordre, pour réassembler exactement ce qui a été dit. */
+  rang: number;
+  /** Millisecondes écoulées depuis le début de l'enregistrement. */
+  aMs: number;
+  blob: Blob;
+  typeMime: string;
+}
+
+interface MorceauBrut {
+  id: string;
+  enregistrementId: string;
+  rang: number;
+  aMs: number;
+  blob?: Blob;
+  typeMime?: string;
+  scelle?: Scelle;
+  audioScelle?: Scelle;
+}
+
+/**
+ * Écrit un morceau. Scellé comme le reste : c'est de l'audio, donc du contenu.
+ *
+ * Aucune authentification demandée, ici non plus — enregistrer ne doit jamais
+ * attendre quoi que ce soit.
+ */
+export async function ecrireMorceau(morceau: Morceau): Promise<void> {
+  const { id, enregistrementId, rang, aMs, blob, typeMime } = morceau;
+  const brut: MorceauBrut = { id, enregistrementId, rang, aMs };
+  if (await chiffre()) {
+    brut.scelle = await scellerValeur({ typeMime });
+    brut.audioScelle = await sceller(await blob.arrayBuffer());
+  } else {
+    brut.blob = blob;
+    brut.typeMime = typeMime;
+  }
+  await transaction([MAGASIN_MORCEAUX], 'readwrite', ([morceaux]) => {
+    morceaux.put(brut);
+  });
+}
+
+/** Les identifiants d'enregistrement dont des morceaux traînent encore. */
+export async function enregistrementsInacheves(): Promise<string[]> {
+  const bruts = await transaction([MAGASIN_MORCEAUX], 'readonly', ([morceaux]) =>
+    demander<MorceauBrut[]>(morceaux.getAll()),
+  );
+  return [...new Set(bruts.map((m) => m.enregistrementId))].sort();
+}
+
+/**
+ * Rassemble les morceaux d'un enregistrement, dans l'ordre.
+ *
+ * Rend `null` s'il n'y en a aucun, ou si le coffre est fermé — on ne peut pas
+ * recoller un audio qu'on ne sait pas ouvrir, et il vaut mieux le laisser en place
+ * jusqu'au déverrouillage que le perdre.
+ */
+export async function assemblerEnregistrement(
+  enregistrementId: string,
+): Promise<{ audio: Blob; dureeMs: number } | null> {
+  const bruts = await transaction([MAGASIN_MORCEAUX], 'readonly', ([morceaux]) =>
+    demander<MorceauBrut[]>(
+      morceaux.index('enregistrementId').getAll(IDBKeyRange.only(enregistrementId)),
+    ),
+  );
+  if (bruts.length === 0) return null;
+
+  const ordonnes = [...bruts].sort((a, b) => a.rang - b.rang);
+  const parts: BlobPart[] = [];
+  let typeMime = '';
+  for (const brut of ordonnes) {
+    if (brut.scelle) {
+      typeMime = (await ouvrirValeur<{ typeMime: string }>(brut.scelle)).typeMime;
+      parts.push(await ouvrirScelle(brut.audioScelle!));
+    } else if (brut.blob) {
+      typeMime = brut.typeMime ?? '';
+      parts.push(brut.blob);
+    }
+  }
+  if (parts.length === 0) return null;
+
+  return {
+    audio: new Blob(parts, { type: typeMime || 'audio/webm' }),
+    dureeMs: ordonnes[ordonnes.length - 1].aMs,
+  };
+}
+
+/** Efface les morceaux d'un enregistrement : il est assemblé, ou abandonné. */
+export async function supprimerMorceaux(enregistrementId: string): Promise<void> {
+  await transaction([MAGASIN_MORCEAUX], 'readwrite', async ([morceaux]) => {
+    const ids = await demander<IDBValidKey[]>(
+      morceaux.index('enregistrementId').getAllKeys(IDBKeyRange.only(enregistrementId)),
+    );
+    for (const id of ids) morceaux.delete(id);
+  });
+}
+
 // ------------------------------------------------- réécriture en clair
 
 /**
@@ -551,12 +659,13 @@ export async function ecrireReglage<C extends keyof Reglages>(
 /** Efface toutes les données locales. Utilisé par les tests et par l'export/purge. */
 export async function toutEffacer(): Promise<void> {
   await transaction(
-    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES],
+    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES, MAGASIN_MORCEAUX],
     'readwrite',
-    ([captures, elements, reglages]) => {
+    ([captures, elements, reglages, morceaux]) => {
       captures.clear();
       elements.clear();
       reglages.clear();
+      morceaux.clear();
     },
   );
 }

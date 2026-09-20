@@ -10,7 +10,8 @@
     "preview": "vite preview --port 4173",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:bout-en-bout": "npm run build && node tests/bout-en-bout.mjs"
+    "test:bout-en-bout": "npm run build && node tests/bout-en-bout.mjs",
+    "test:arret-brutal": "npm run build && node tests/arret-brutal.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",

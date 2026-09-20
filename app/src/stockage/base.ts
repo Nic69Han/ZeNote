@@ -8,11 +8,23 @@
  */
 
 export const NOM_BASE = 'zenote';
-export const VERSION_BASE = 1;
+
+/**
+ * Version 2 : le magasin des morceaux d'enregistrement.
+ *
+ * Un `MediaRecorder` garde ses morceaux en mémoire jusqu'à l'arrêt. Une application
+ * tuée pendant qu'on parle — onglet fermé, téléphone à court de batterie, système qui
+ * récupère la mémoire — les emportait tous. « Aucune capture perdue » ne tenait donc
+ * que tant que rien de brutal n'arrivait. Les morceaux sont désormais écrits au fur
+ * et à mesure ; ce qui reste orphelin au démarrage suivant est une capture
+ * interrompue, et se récupère.
+ */
+export const VERSION_BASE = 2;
 
 export const MAGASIN_CAPTURES = 'captures';
 export const MAGASIN_ELEMENTS = 'elements';
 export const MAGASIN_REGLAGES = 'reglages';
+export const MAGASIN_MORCEAUX = 'morceaux';
 
 let ouverture: Promise<IDBDatabase> | null = null;
 
@@ -35,6 +47,12 @@ export function ouvrir(): Promise<IDBDatabase> {
         }
         if (!base.objectStoreNames.contains(MAGASIN_REGLAGES)) {
           base.createObjectStore(MAGASIN_REGLAGES, { keyPath: 'cle' });
+        }
+        if (!base.objectStoreNames.contains(MAGASIN_MORCEAUX)) {
+          const morceaux = base.createObjectStore(MAGASIN_MORCEAUX, { keyPath: 'id' });
+          // Les morceaux d'un même enregistrement se retrouvent par là, et par rien
+          // d'autre : c'est ce qui permet de les rassembler après un arrêt brutal.
+          morceaux.createIndex('enregistrementId', 'enregistrementId');
         }
       };
       requete.onsuccess = () => resoudre(requete.result);

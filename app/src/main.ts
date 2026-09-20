@@ -10,7 +10,12 @@
 import './styles/base.css';
 import './styles/ecrans.css';
 import { registerSW } from 'virtual:pwa-register';
-import { capturer, traiterFileAnalyse, traiterFileTranscription } from './services/pipeline.ts';
+import {
+  capturer,
+  recupererEnregistrements,
+  traiterFileAnalyse,
+  traiterFileTranscription,
+} from './services/pipeline.ts';
 import { assurerCoffreCharge, etatCoffre, verrouiller } from './securite/coffre.ts';
 import { ecrireReglage, lireReglages, toutEffacer, type Reglages } from './stockage/depot.ts';
 import { el, vider } from './ui/dom.ts';
@@ -166,9 +171,14 @@ async function demarrer(): Promise<void> {
 
   await afficher();
 
-  // Transcription puis analyse, en arrière-plan : jamais sur le chemin de la capture.
-  // Une capture faite juste avant de fermer l'application repart d'ici.
-  void traiterFileTranscription().catch(() => {}).finally(() => void traiterFileAnalyse());
+  // Ce qu'un arrêt brutal a laissé en chemin devient une capture, avant tout le
+  // reste : elle doit entrer dans les files de transcription et d'analyse comme les
+  // autres, et pour cela exister avant qu'elles ne tournent.
+  void recupererEnregistrements()
+    .catch(() => 0)
+    .then(() => traiterFileTranscription())
+    .catch(() => {})
+    .finally(() => void traiterFileAnalyse());
 
   // Ouvrir l'application est une reprise : c'est le point de rupture que le produit
   // sait observer, et donc le moment où les rappels arrivent.

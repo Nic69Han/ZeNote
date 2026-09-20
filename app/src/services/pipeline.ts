@@ -16,12 +16,16 @@ import type {
   EtatTranscription,
   SourceCapture,
 } from '../stockage/depot.ts';
+import { enregistrementEnCours } from '../audio/enregistreur.ts';
 import {
+  assemblerEnregistrement,
   capturesAAnalyser,
   capturesATranscrire,
+  enregistrementsInacheves,
   enregistrerCapture,
   majCapture,
   remplacerElements,
+  supprimerMorceaux,
 } from '../stockage/depot.ts';
 
 /** Date du jour au format ISO `AAAA-MM-JJ`, en heure locale. */
@@ -82,6 +86,47 @@ export async function analyserCapture(capture: Capture, jour = aujourdhui()): Pr
   await remplacerElements(capture.id, elements);
   await majCapture(capture.id, { analysee: true });
   return elements.length;
+}
+
+/**
+ * Récupère ce qu'un arrêt brutal a laissé en chemin.
+ *
+ * Des morceaux d'enregistrement qui traînent au démarrage ne peuvent venir que d'un
+ * enregistrement que personne n'a arrêté : onglet fermé en parlant, batterie à plat,
+ * système qui a repris la mémoire. La portion enregistrée existe — elle a été écrite
+ * seconde par seconde — et devient une capture comme les autres, à ceci près qu'elle
+ * est marquée **incomplète** : on ne sait pas ce qui a été dit après.
+ *
+ * L'enregistrement en cours, s'il y en a un, est laissé tranquille : ses morceaux ne
+ * sont pas des restes, ils sont en train d'être écrits.
+ *
+ * @returns le nombre de captures récupérées.
+ */
+export async function recupererEnregistrements(): Promise<number> {
+  const actif = enregistrementEnCours();
+  let recuperees = 0;
+
+  for (const id of await enregistrementsInacheves()) {
+    if (id === actif) continue;
+    try {
+      const assemble = await assemblerEnregistrement(id);
+      if (!assemble) continue;
+      await capturer({
+        texte: '',
+        source: 'VOCALE',
+        etatTranscription: 'ABSENTE',
+        audio: assemble.audio,
+        dureeMs: assemble.dureeMs,
+        incomplete: true,
+      });
+      await supprimerMorceaux(id);
+      recuperees += 1;
+    } catch {
+      // Coffre fermé, morceau illisible : on laisse les morceaux en place plutôt
+      // que de les perdre. Le prochain démarrage réessaiera.
+    }
+  }
+  return recuperees;
 }
 
 /** Le moteur de transcription, tel que la file l'appelle. Remplaçable dans les tests. */

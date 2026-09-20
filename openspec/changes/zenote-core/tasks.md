@@ -17,7 +17,7 @@ Une case n'est cochée que lorsqu'un test nommé la couvre. Les tâches cochées
 - [ ] 2.3 Implémenter le raccourci clavier global sur Windows via un agent résident, avec restitution du focus à l'application précédente ; vérifier le scénario `capture` / « Capture au clavier sur ordinateur », y compris depuis une application en plein écran
 - [x] 2.4 Implémenter la capture écrite sans champ obligatoire et vérifier qu'aucune demande de classement n'est présentée
 - [ ] 2.5 Implémenter la capture mains libres depuis un accessoire connecté avec signaux sonores de début et de fin ; vérifier sur écouteurs réels
-- [ ] 2.6 Implémenter la file de captures locale et la reprise après arrêt brutal ; vérifier par un test qui tue le processus pendant un enregistrement que la portion enregistrée est présente et marquée incomplète
+- [x] 2.6 Implémenter la file de captures locale et la reprise après arrêt brutal ; vérifier par un test qui tue le processus pendant un enregistrement que la portion enregistrée est présente et marquée incomplète — les morceaux partent en base seconde par seconde pendant qu'on parle ; ce qui reste orphelin au démarrage devient une capture marquée incomplète. `tests/arret-brutal.mjs` tue réellement le navigateur au SIGKILL sur un profil disque : 3 s d'audio récupérées, morceaux nettoyés, aucune capture en double
 - [ ] 2.7 Implémenter la gestion des échecs d'écriture (stockage plein, permission refusée) avec signal distinct du succès et action de récupération ; vérifier par des tests sur ces deux cas
 - [ ] 2.8 Mettre en place la mesure automatique de la latence de capture et de l'autonomie à chaque version, avec seuil bloquant la publication ; vérifier que le seuil échoue quand on dégrade volontairement le chemin de capture
 
