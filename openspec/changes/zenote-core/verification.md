@@ -12,8 +12,8 @@ par quelqu'un qui doit décider si le produit est utilisable, pas pour rassurer.
 | **partiel** | Une moitié tient et l'autre non. L'écart est dit. |
 | **non tenu** | Rien ne le couvre. La raison est dite, et elle n'est jamais « pas eu le temps ». |
 
-Les tests cités existent et passent : 283 tests unitaires côté application, 12
-fichiers de tests côté cœur, 83 vérifications de bout en bout dans un vrai
+Les tests cités existent et passent : 293 tests unitaires côté application, 12
+fichiers de tests côté cœur, 87 vérifications de bout en bout dans un vrai
 navigateur sur le paquet construit, et 4 sur l'arrêt brutal du processus.
 
 Trois causes reviennent dans les « non tenu », et aucune ne se règle en écrivant du
@@ -81,7 +81,7 @@ code depuis ici :
 | Rejet d'une proposition | tenu | `bout-en-bout`. |
 | Correction apprise | tenu | `RevueTest` : une correction humaine n'est pas écrasée par une ré-analyse. |
 
-## memoire — 13 scénarios · 8 tenus, 2 partiels, 3 non tenus
+## memoire — 13 scénarios · 11 tenus, 2 partiels
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
@@ -92,9 +92,9 @@ code depuis ici :
 | Référence à un échange passé | tenu | `echos.test.ts`, `bout-en-bout`. |
 | Contexte borné | tenu | `MemoireTest` : l'historique complet n'est jamais transmis. |
 | Contexte inspectable | partiel | Chaque candidat de résolution affiche ce sur quoi il est proposé. Le contexte d'une déduction d'analyse, lui, n'est pas encore inspectable depuis l'écran. |
-| Synthèse par projet | non tenu | Les fiches existent dans le cœur (`Fiches`), aucun écran ne les rend (tâche 6.9). |
-| Décroissance sans suppression | non tenu | Tâche 6.9. |
-| Fiche personne | non tenu | Même cause : le cœur sait la produire, la surface ne l'affiche pas. |
+| Synthèse par projet | tenu | L'écran « Les gens » : ce qui est ouvert, ce qui a été décidé, les derniers échanges. `bout-en-bout`. |
+| Décroissance sans suppression | tenu | `passe.test.ts` : au-delà de cent vingt jours une note ne se propose plus d'elle-même, sauf si elle porte quelque chose d'ouvert. Rien n'est supprimé, la recherche la retrouve. |
+| Fiche personne | tenu | `bout-en-bout` : chaque ligne renvoie à sa capture, et rien ne se renseigne à la main. |
 | Déduction de la sphère | tenu | `spheres.test.ts`. |
 | Filtrage à la restitution | tenu | `spheres.test.ts` et `bout-en-bout` : rien n'est déplacé ni dupliqué. |
 | Fusion de doublons | partiel | `MemoireTest` couvre fusion, renommage, séparation et annulation dans le cœur. Aucun écran ne les propose. |
@@ -175,7 +175,7 @@ code depuis ici :
 | Enregistrement explicite | tenu | `bout-en-bout` : voyant visible, y compris après changement d'écran. |
 | Aucun enregistrement implicite | tenu | `bout-en-bout` : aucun voyant au repos ; aucun chemin n'ouvre le micro sans geste. |
 
-## donnees — 10 scénarios · 4 tenus, 2 partiels, 4 non tenus
+## donnees — 10 scénarios · 6 tenus, 1 partiel, 3 non tenus
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
@@ -184,8 +184,8 @@ code depuis ici :
 | Capture marquée privée | non tenu | Il n'y a pas d'analyse distante, donc rien à en exclure (tâche 7.1). L'interrupteur serait un bouton qui ne commande rien. |
 | Sphère personnelle exclue | non tenu | Même cause. |
 | Export complet | tenu | `export.test.ts` : tout sort, et ce qui ne sort pas est dit. |
-| Suppression d'une capture | partiel | La suppression existe et efface capture, éléments et audio. La fenêtre d'annulation n'existe pas (tâche 7.5). |
-| Fenêtre d'annulation | non tenu | Tâche 7.5. |
+| Suppression d'une capture | tenu | `suppression.test.ts` : la capture, son audio et ses éléments partent, et rien d'autre. |
+| Fenêtre d'annulation | tenu | `suppression.test.ts` et `bout-en-bout` : trente secondes pour se raviser, et la bande disparaît avec la fenêtre. Fermer l'application la ferme aussi — limite assumée. |
 | Modification concurrente | non tenu | Demande la synchronisation entre appareils (tâche 3.8). |
 | Capture prioritaire | non tenu | Même cause : il n'y a pas de synchronisation pendant laquelle capturer. |
 | Service d'analyse indisponible | partiel | Le moteur de transcription indisponible est traité et dit (`pipeline.test.ts`, écran de Revue). Un service **distant** d'analyse n'existe pas, donc son indisponibilité n'est pas un cas réel. |
@@ -196,7 +196,7 @@ code depuis ici :
 
 | | Tenus | Partiels | Non tenus |
 | --- | --- | --- | --- |
-| **112 scénarios** | **83** | **8** | **21** |
+| **112 scénarios** | **88** | **7** | **17** |
 
 ## Ce que ce tableau dit, et ce qu'il ne dit pas
 
