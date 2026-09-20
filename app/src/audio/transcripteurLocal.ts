@@ -17,6 +17,8 @@
 
 import type { Model } from 'vosk-browser';
 import type { PassageIncertain } from '../core/regles.ts';
+import type { Correction } from '../stockage/depot.ts';
+import { appliquer } from '../services/lexique.ts';
 
 /** Le modèle français, servi avec l'application et mis en cache au premier usage. */
 export const ADRESSE_MODELE = '/modeles/vosk-fr-0.22.tar.gz';
@@ -133,6 +135,10 @@ export interface Transcription {
  * entendu. Les résultats intermédiaires tombent aux pauses de la parole ; le texte
  * est leur concaténation.
  *
+ * `lexique` porte les corrections déjà faites à la main : elles sont appliquées aux
+ * mots reconnus, de sorte qu'un terme corrigé une fois ressorte juste la fois
+ * suivante.
+ *
  * Le texte est reconstruit mot à mot plutôt que repris du champ `text` du moteur :
  * c'est ce qui permet de savoir où chaque mot commence, donc de désigner exactement
  * les passages mal entendus. Les deux formes coïncident — le moteur joint ses mots
@@ -141,6 +147,7 @@ export interface Transcription {
 export async function transcrireAudio(
   blob: Blob,
   surPartiel?: (texte: string) => void,
+  lexique: Correction[] = [],
 ): Promise<Transcription> {
   if (!transcriptionLocaleDisponible()) throw new MoteurIndisponible();
   const [modele, signal] = await Promise.all([chargerModele(), decoderEnSignal(blob)]);
@@ -197,7 +204,7 @@ export async function transcrireAudio(
     if (mots.length === 0) {
       return { texte: phrases.join(' ').replace(/\s+/g, ' ').trim(), passagesIncertains: [] };
     }
-    return assembler(mots);
+    return assembler(mots, lexique);
   } finally {
     reconnaisseur.remove();
     programmerDechargement();
@@ -212,11 +219,22 @@ export async function transcrireAudio(
  * reconnaître un élément qui ne vient que de là, et à l'écran de souligner une
  * portion de phrase plutôt qu'un mot sur deux.
  */
-function assembler(mots: { mot: string; confiance: number }[]): Transcription {
+function assembler(
+  mots: { mot: string; confiance: number }[],
+  lexique: Correction[] = [],
+): Transcription {
   let texte = '';
   const passagesIncertains: PassageIncertain[] = [];
 
-  for (const { mot, confiance } of mots) {
+  // Le lexique s'applique ici, sur les mots, avant que les positions ne soient
+  // calculées : réécrire le texte ensuite déplacerait les passages incertains.
+  const corriges = appliquer(
+    mots.map((m) => m.mot),
+    lexique,
+  );
+
+  for (const [rang, { confiance }] of mots.entries()) {
+    const mot = corriges[rang];
     if (texte !== '') texte += ' ';
     const debutCar = texte.length;
     texte += mot;

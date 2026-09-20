@@ -22,6 +22,7 @@ import {
   lireCapture,
   listerElements,
   majCapture,
+  retenirCorrections,
   majElement,
   supprimerCapture,
   suivisDe,
@@ -36,6 +37,7 @@ import {
 } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import { apprendre } from '../services/lexique.ts';
 import {
   abandonner,
   deleguer,
@@ -665,11 +667,16 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
               : `${incertains.length} passages ont été mal entendus : ils sont soulignés. ` +
                 'L’enregistrement est là.',
         }),
+        // C'est ici que corriger sert le plus : le moteur a dit lui-même s'être
+        // trompé. L'oublier sur ce chemin-là serait l'oublier là où il compte.
+        blocCorrection(capture),
       );
     }
 
     const ligne = el('p', { class: 'source__texte', texte: lisible });
-    if (lisible === brut) return ligne;
+    if (lisible === brut) {
+      return el('div', { class: 'source__transcription' }, ligne, blocCorrection(capture));
+    }
 
     let auBrut = false;
     const bascule = el('button', {
@@ -684,7 +691,95 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       },
     });
     ligne.dataset.version = 'lisible';
-    return el('div', { class: 'source__transcription' }, ligne, bascule);
+    return el(
+      'div',
+      { class: 'source__transcription' },
+      ligne,
+      bascule,
+      blocCorrection(capture),
+    );
+  }
+
+  /**
+   * Corriger ce que le moteur a mal entendu — et ne plus avoir à le refaire.
+   *
+   * Spec `transcription` — « Vocabulaire personnel ». Corriger ici fait deux choses
+   * d'un coup : la capture est réécrite et réanalysée, et la substitution est retenue
+   * pour les transcriptions suivantes. C'est la seconde qui compte : corriger le même
+   * nom chaque semaine est ce qui fait abandonner un outil.
+   *
+   * Le geste est replié par défaut. Une capture bien transcrite ne doit pas proposer
+   * une zone de texte sous chaque note : ce serait suggérer qu'il y a quelque chose à
+   * réparer alors qu'il n'y a rien.
+   */
+  function blocCorrection(capture: Capture): HTMLElement {
+    const zone = el('textarea', {
+      class: 'champ correction__zone',
+      rows: 3,
+      'aria-label': 'Ce qui avait été dit',
+    }) as HTMLTextAreaElement;
+
+    const bloc = el('div', { class: 'correction', hidden: true });
+    const ouvrir = el('button', {
+      class: 'bouton bouton--discret correction__ouvrir',
+      type: 'button',
+      texte: 'Corriger',
+      onclick: () => {
+        bloc.hidden = !bloc.hidden;
+        if (!bloc.hidden) {
+          zone.value = capture.texte;
+          zone.focus();
+        }
+      },
+    });
+
+    bloc.append(
+      zone,
+      el('button', {
+        class: 'bouton bouton--plein correction__valider',
+        type: 'button',
+        texte: 'Corriger et retenir',
+        onclick: () => void corriger(capture, zone.value),
+      }),
+      el('p', {
+        class: 'correction__note',
+        texte:
+          'Les mots que vous remplacez sont retenus : ils seront transcrits ainsi la ' +
+          'prochaine fois. L’enregistrement, lui, ne change pas.',
+      }),
+    );
+
+    return el('div', { class: 'correction__bloc' }, ouvrir, bloc);
+  }
+
+  /**
+   * Réécrit la transcription et retient ce qui a changé.
+   *
+   * L'ordre importe : on apprend depuis l'ancien texte avant de l'écraser. Les
+   * passages incertains sont effacés — ils désignaient des positions dans un texte
+   * qui n'existe plus, et les garder ferait souligner au hasard.
+   */
+  async function corriger(capture: Capture, saisi: string): Promise<void> {
+    const texte = saisi.trim();
+    if (texte === '' || texte === capture.texte) {
+      annoncer('Rien n’a changé.');
+      return;
+    }
+
+    const apprises = await retenirCorrections(apprendre(capture.texte, texte));
+    await majCapture(capture.id, {
+      texte,
+      etatTranscription: 'OK',
+      analysee: false,
+      passagesIncertains: [],
+    });
+    await traiterFileAnalyse(jour);
+    annoncer(
+      apprises.length > 0
+        ? 'Corrigé. Ces mots seront transcrits ainsi la prochaine fois.'
+        : 'Corrigé.',
+    );
+    await rendre();
   }
 
   /**

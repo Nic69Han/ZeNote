@@ -22,6 +22,7 @@ import {
   elementsDeCapture,
   lireCapture,
   majCapture,
+  retenirCorrections,
   toutEffacer,
 } from '../src/stockage/depot.ts';
 
@@ -231,6 +232,22 @@ describe('la file', () => {
     const elements = await elementsDeCapture(capture.id);
     expect(elements.length).toBeGreaterThan(0);
     expect(elements.some((e) => e.transcriptionIncertaine)).toBe(false);
+  });
+
+  it('donne au moteur le vocabulaire déjà corrigé', async () => {
+    // Le lexique ne sert à rien s'il n'arrive pas jusqu'au moteur. Ce qu'il en fait
+    // se vérifie dans `lexique.test.ts` ; ce qui se vérifie ici est le branchement,
+    // qui est précisément ce qu'un test du moteur seul ne voit pas.
+    await dictee();
+    await retenirCorrections([{ malEntendu: 'carreleur', correction: 'couvreur', fois: 1 }]);
+    let recu: unknown;
+
+    await traiterFileTranscription(async (_audio, _surPartiel, lexique) => {
+      recu = lexique;
+      return dit('rappeler le couvreur');
+    });
+
+    expect(recu).toEqual([{ malEntendu: 'carreleur', correction: 'couvreur', fois: 1 }]);
   });
 
   it('laisse la file propre après une panne, pour le passage suivant', async () => {

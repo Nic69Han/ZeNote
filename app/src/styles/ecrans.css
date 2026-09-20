@@ -920,3 +920,35 @@
   color: var(--encre-douce);
   font-size: 0.8rem;
 }
+
+/* Corriger une transcription. Replié par défaut : proposer une zone de texte sous
+   chaque note suggérerait qu'il y a quelque chose à réparer alors qu'il n'y a rien. */
+.correction__bloc {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.correction__ouvrir {
+  padding-block: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.correction {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.correction__zone {
+  width: 100%;
+  resize: vertical;
+}
+
+.correction__note {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.78rem;
+}

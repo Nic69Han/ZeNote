@@ -19,12 +19,25 @@ export const NOM_BASE = 'zenote';
  * et à mesure ; ce qui reste orphelin au démarrage suivant est une capture
  * interrompue, et se récupère.
  */
-export const VERSION_BASE = 2;
+/**
+ * Version 3 : le lexique personnel.
+ *
+ * Ce que la reconnaissance vocale entend mal une fois, elle l'entendra mal toujours :
+ * un nom de client, un acronyme métier, un prénom peu courant. Corriger la même chose
+ * chaque semaine est ce qui fait abandonner un outil. Les corrections sont donc
+ * retenues, et appliquées aux transcriptions suivantes.
+ *
+ * Un seul enregistrement, scellé en entier. Ces mots sont des noms de personnes et de
+ * dossiers : les laisser en clair — même comme simples clés d'un magasin — ouvrirait
+ * dans la base le trou que le chiffrement ferme partout ailleurs.
+ */
+export const VERSION_BASE = 3;
 
 export const MAGASIN_CAPTURES = 'captures';
 export const MAGASIN_ELEMENTS = 'elements';
 export const MAGASIN_REGLAGES = 'reglages';
 export const MAGASIN_MORCEAUX = 'morceaux';
+export const MAGASIN_LEXIQUE = 'lexique';
 
 let ouverture: Promise<IDBDatabase> | null = null;
 
@@ -47,6 +60,10 @@ export function ouvrir(): Promise<IDBDatabase> {
         }
         if (!base.objectStoreNames.contains(MAGASIN_REGLAGES)) {
           base.createObjectStore(MAGASIN_REGLAGES, { keyPath: 'cle' });
+        }
+        if (!base.objectStoreNames.contains(MAGASIN_LEXIQUE)) {
+          // Une seule ligne, dont la valeur est scellée : voir [VERSION_BASE].
+          base.createObjectStore(MAGASIN_LEXIQUE, { keyPath: 'id' });
         }
         if (!base.objectStoreNames.contains(MAGASIN_MORCEAUX)) {
           const morceaux = base.createObjectStore(MAGASIN_MORCEAUX, { keyPath: 'id' });

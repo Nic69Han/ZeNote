@@ -32,6 +32,7 @@ import {
   lireCapture,
   listerElements,
   majCapture,
+  reecrireLexique,
 } from '../stockage/depot.ts';
 
 /** Ce qu'une reprise a réellement touché. */
@@ -62,6 +63,11 @@ async function reecrireTout(): Promise<Reprise> {
 
   const elements = await listerElements();
   for (const element of elements) await enregistrerElement(element);
+
+  // Le lexique aussi : il porte des noms de personnes et de dossiers, et le laisser
+  // en clair rouvrirait dans la base le trou que tout le reste ferme.
+  await reecrireLexique();
+
   return { captures, elements: elements.length };
 }
 

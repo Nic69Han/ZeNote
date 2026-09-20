@@ -23,9 +23,11 @@ import {
   capturesATranscrire,
   enregistrementsInacheves,
   enregistrerCapture,
+  lireLexique,
   majCapture,
   remplacerElements,
   supprimerMorceaux,
+  type Correction,
 } from '../stockage/depot.ts';
 
 /** Date du jour au format ISO `AAAA-MM-JJ`, en heure locale. */
@@ -139,6 +141,7 @@ export async function recupererEnregistrements(): Promise<number> {
 export type Transcrire = (
   audio: Blob,
   surPartiel?: (texte: string) => void,
+  lexique?: Correction[],
 ) => Promise<Transcription>;
 
 /**
@@ -212,9 +215,12 @@ export function traiterFileTranscription(
       // touche à rien — surtout pas au compteur d'essais, qui ferait passer ces
       // captures pour des échecs de reconnaissance et les enverrait à réécrire.
       if ((await assurerCoffreCharge()) === 'VERROUILLE') return 0;
+      // Lu une fois pour toute la file : il ne change pas pendant qu'elle tourne, et
+      // le relire par capture ferait un aller-retour chiffré par enregistrement.
+      const lexique = await lireLexique();
       for (const capture of await capturesATranscrire()) {
         const reussi = await transcrireCapture(capture, (audio) =>
-          transcrire(audio, (partiel) => surAvancement?.(capture.id, partiel)),
+          transcrire(audio, (partiel) => surAvancement?.(capture.id, partiel), lexique),
         );
         if (reussi) transcrites += 1;
       }

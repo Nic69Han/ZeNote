@@ -41,6 +41,7 @@ import {
 import {
   MAGASIN_CAPTURES,
   MAGASIN_ELEMENTS,
+  MAGASIN_LEXIQUE,
   MAGASIN_MORCEAUX,
   MAGASIN_REGLAGES,
   demander,
@@ -694,13 +695,108 @@ export async function ecrireReglage<C extends keyof Reglages>(
 /** Efface toutes les données locales. Utilisé par les tests et par l'export/purge. */
 export async function toutEffacer(): Promise<void> {
   await transaction(
-    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES, MAGASIN_MORCEAUX],
+    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES, MAGASIN_MORCEAUX, MAGASIN_LEXIQUE],
     'readwrite',
-    ([captures, elements, reglages, morceaux]) => {
+    ([captures, elements, reglages, morceaux, lexique]) => {
       captures.clear();
       elements.clear();
       reglages.clear();
       morceaux.clear();
+      lexique.clear();
     },
   );
+}
+
+// ----------------------------------------------------------------- le lexique
+
+/**
+ * Une correction retenue : ce que le moteur entend, et ce qu'il fallait entendre.
+ *
+ * [malEntendu] est la forme pliée — minuscules, accents retirés — parce que c'est
+ * sous cette forme qu'on reconnaît le même mot d'une fois sur l'autre. [correction]
+ * garde sa graphie exacte : c'est elle qu'on réécrit dans la transcription, majuscule
+ * et accents compris.
+ */
+export interface Correction {
+  malEntendu: string;
+  correction: string;
+  /** Combien de fois cette correction a été refaite. Sert à départager, pas à filtrer. */
+  fois: number;
+}
+
+/** L'unique ligne du magasin : tout le lexique tient dedans, scellé en une fois. */
+const CLE_LEXIQUE = 'lexique';
+
+interface LexiqueBrut {
+  id: string;
+  corrections?: Correction[];
+  scelle?: Scelle;
+}
+
+/**
+ * Le lexique personnel, ou vide s'il n'y en a pas encore.
+ *
+ * Coffre fermé : rend vide plutôt que de lever. Une transcription doit pouvoir avoir
+ * lieu sans le lexique — elle sera seulement moins bonne — alors qu'échouer ici
+ * arrêterait la file entière pour une amélioration facultative.
+ */
+export async function lireLexique(): Promise<Correction[]> {
+  const brut = await transaction([MAGASIN_LEXIQUE], 'readonly', ([lexique]) =>
+    demander<LexiqueBrut | undefined>(lexique.get(CLE_LEXIQUE)),
+  );
+  if (!brut) return [];
+  if (!brut.scelle) return brut.corrections ?? [];
+  try {
+    return await ouvrirValeur<Correction[]>(brut.scelle);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Retient ces corrections, en fusionnant avec ce qui est déjà su.
+ *
+ * Une correction refaite l'emporte sur une correction vue une fois : c'est le seul
+ * arbitrage, et il est volontairement grossier. Décider finement lequel de deux
+ * usages est le bon demanderait de comprendre les phrases, et se tromper ferait
+ * réécrire un mot juste en un mot faux — le pire service possible.
+ */
+export async function retenirCorrections(nouvelles: Correction[]): Promise<Correction[]> {
+  const parMot = new Map((await lireLexique()).map((c) => [c.malEntendu, c]));
+
+  for (const neuve of nouvelles) {
+    const connue = parMot.get(neuve.malEntendu);
+    if (!connue) {
+      parMot.set(neuve.malEntendu, { ...neuve });
+    } else if (connue.correction === neuve.correction) {
+      connue.fois += neuve.fois;
+    } else if (neuve.fois > connue.fois) {
+      parMot.set(neuve.malEntendu, { ...neuve });
+    }
+  }
+
+  const corrections = [...parMot.values()];
+  if (corrections.length === 0) return corrections;
+
+  const brut: LexiqueBrut = { id: CLE_LEXIQUE };
+  if (await chiffre()) {
+    brut.scelle = await scellerValeur(corrections);
+  } else {
+    brut.corrections = corrections;
+  }
+  await transaction([MAGASIN_LEXIQUE], 'readwrite', ([lexique]) => {
+    lexique.put(brut);
+  });
+  return corrections;
+}
+
+/**
+ * Réécrit le lexique tel que le dépôt l'écrit maintenant : scellé, ou en clair.
+ *
+ * Sert à la reprise qui suit l'activation ou la levée du chiffrement. Passer par
+ * [retenirCorrections] fait relire, refusionner et réécrire dans le mode courant —
+ * le même chemin que les écritures ordinaires, donc le seul qui soit testé.
+ */
+export async function reecrireLexique(): Promise<void> {
+  await retenirCorrections([]);
 }

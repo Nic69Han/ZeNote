@@ -791,6 +791,58 @@ try {
     `${combien} élément(s), ${toutAccepter} bouton(s) « tout accepter »`,
   );
 
+  // --- Corriger, et ne plus avoir à le refaire ---------------------------------
+  // Spec `transcription` — « Vocabulaire personnel ». Ce que le moteur fait du
+  // lexique se vérifie en unitaire ; ce qui se vérifie ici est le geste complet :
+  // corriger depuis la Revue réécrit la capture, la réanalyse, et retient le mot.
+  await douteuse.locator('.correction__ouvrir').click();
+  await page.waitForTimeout(200);
+  await douteuse.locator('.correction__zone').fill(
+    phraseDouteuse.replace('carreleur', 'couvreur'),
+  );
+  await douteuse.locator('.correction__valider').click();
+  await page.waitForTimeout(1200);
+
+  // La Revue se re-rend après la correction, et le bloc source repart replié.
+  const corrigee = page
+    .locator('details.source', { hasText: /Envoyer le planning/i })
+    .first();
+  const vueCorrigee = await corrigee
+    .waitFor({ state: 'attached', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (vueCorrigee) {
+    await corrigee.locator('.source__resume').click();
+    await page.waitForTimeout(300);
+  }
+  const apresCorrection = vueCorrigee
+    ? await corrigee.locator('.source__texte').innerText().catch(() => '')
+    : '';
+  verifier(
+    'corriger une transcription la réécrit, sans toucher à l’enregistrement',
+    /couvreur/i.test(apresCorrection) && !/carreleur/i.test(apresCorrection),
+    apresCorrection || 'capture corrigée introuvable',
+  );
+
+  const retenu = await page.evaluate(
+    () =>
+      new Promise((ok) => {
+        const requete = indexedDB.open('zenote');
+        requete.onsuccess = () => {
+          const base = requete.result;
+          const lecture = base.transaction('lexique', 'readonly').objectStore('lexique').getAll();
+          lecture.onsuccess = () => ok(JSON.stringify(lecture.result));
+          lecture.onerror = () => ok('');
+        };
+        requete.onerror = () => ok('');
+      }),
+  );
+  verifier(
+    'et le mot corrigé est retenu pour les prochaines transcriptions',
+    /carreleur/.test(retenu) && /couvreur/.test(retenu),
+    retenu || 'lexique vide',
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un
