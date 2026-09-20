@@ -24,9 +24,18 @@ object ZeNoteRegles {
     /** Transcription lisible : texte brut → texte sans hésitations, brut inchangé. */
     fun transcriptionLisible(brut: String): String = Regles.transcriptionLisible(brut)
 
-    /** Ancrage : texte source + `[ElementJson]` → `AncrageJson`. */
-    fun filtrerAncrage(texteSource: String, elementsJson: String): String =
-        Regles.filtrerAncrage(texteSource, elementsJson)
+    /**
+     * Ancrage : texte source + `[ElementJson]` → `AncrageJson`.
+     *
+     * `passagesIncertainsJson` est un `[PassageIncertainJson]` — les morceaux que la
+     * reconnaissance vocale a mal entendus. Un élément qui n'en vient que de là est
+     * retenu mais marqué, pour passer par la confirmation de l'utilisateur.
+     */
+    fun filtrerAncrage(
+        texteSource: String,
+        elementsJson: String,
+        passagesIncertainsJson: String,
+    ): String = Regles.filtrerAncrage(texteSource, elementsJson, passagesIncertainsJson)
 
     /** Relances du jour : `[ElementJson]` + `[SuiviJson]` + délais → `[RelanceJson]`. */
     fun relances(
@@ -71,9 +80,10 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 6 » avec la transcription lisible. Une surface qui attend cette
-     * version et en trouve une plus ancienne parle à un cœur sans ces fonctions, et
-     * doit le dire au lieu de planter à l'appel.
+     * Passée à « 7 » avec les passages incertains : `filtrerAncrage` prend un
+     * argument de plus. Une surface qui attend cette version et en trouve une plus
+     * ancienne parle à un cœur sans ces fonctions, et doit le dire au lieu de
+     * planter à l'appel.
      */
-    val version: String = "6"
+    val version: String = "7"
 }

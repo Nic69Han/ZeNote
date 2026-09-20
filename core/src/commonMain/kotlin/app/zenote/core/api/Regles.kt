@@ -296,13 +296,32 @@ object Regles {
      */
     fun transcriptionLisible(brut: String): String = Disfluences.lisible(brut)
 
-    fun filtrerAncrage(texteSource: String, elementsJson: String): String {
+    /**
+     * @param passagesIncertainsJson tableau de [PassageIncertainJson] : les morceaux
+     *   que la reconnaissance vocale a mal entendus, en positions de caractères dans
+     *   `texteSource`. Un élément dont tout l'ancrage tombe dedans est retenu mais
+     *   marqué : il passera par la confirmation de l'utilisateur.
+     */
+    fun filtrerAncrage(
+        texteSource: String,
+        elementsJson: String,
+        passagesIncertainsJson: String = "[]",
+    ): String {
         val retenus = mutableListOf<ElementJson>()
         val ecartes = mutableListOf<EcarteJson>()
+        val incertains = json.decodeFromString(
+            ListSerializer(PassageIncertainJson.serializer()),
+            passagesIncertainsJson.ifBlank { "[]" },
+        )
 
         decoder(elementsJson).forEach { dto ->
             val raison = raisonDeRejet(dto, texteSource)
-            if (raison == null) retenus += dto else ecartes += EcarteJson(dto.texte, raison)
+            when {
+                raison != null -> ecartes += EcarteJson(dto.texte, raison)
+                neVientQueDIncertain(dto, incertains) ->
+                    retenus += dto.copy(transcriptionIncertaine = true)
+                else -> retenus += dto
+            }
         }
 
         return json.encodeToString(
@@ -415,6 +434,28 @@ object Regles {
     private fun decoder(elementsJson: String): List<ElementJson> =
         json.decodeFromString(ListSerializer(ElementJson.serializer()), elementsJson)
 
+    /**
+     * Vrai quand cet élément ne vient que de passages mal entendus.
+     *
+     * « Ce seul passage », dit la spec. La lecture est donc stricte : il faut que
+     * **tout** l'ancrage tombe dans de l'incertain. Un élément qui s'appuie aussi sur
+     * du texte bien entendu ne vient pas que de là, et le marquer ferait passer par
+     * une confirmation des éléments dont on est sûr — ce qui use la confirmation
+     * jusqu'à ce qu'elle ne veuille plus rien dire.
+     *
+     * Le contraire — laisser passer un élément entièrement bâti sur du mal entendu —
+     * crée une tâche que personne n'a dite, ce que rien ne rattrape ensuite.
+     */
+    private fun neVientQueDIncertain(
+        dto: ElementJson,
+        incertains: List<PassageIncertainJson>,
+    ): Boolean {
+        if (incertains.isEmpty() || dto.finCar <= dto.debutCar) return false
+        return (dto.debutCar until dto.finCar).all { position ->
+            incertains.any { position >= it.debutCar && position < it.finCar }
+        }
+    }
+
     private fun raisonDeRejet(dto: ElementJson, texteSource: String): String? = when {
         dto.texte.isBlank() -> "élément sans texte"
         dto.debutCar < 0 || dto.finCar <= dto.debutCar -> "passage source vide ou incohérent"
@@ -427,7 +468,15 @@ object Regles {
         runCatching { app.zenote.core.priorisation.Urgence.valueOf(nom).ordinal }
             .getOrDefault(Int.MAX_VALUE)
 
-    private fun ElementJson.aConfirmer(): Boolean = listOfNotNull(
+    /**
+     * Ce qui doit être confirmé avant d'être tenu pour acquis.
+     *
+     * Deux sources d'incertitude, de nature différente et de même conséquence : une
+     * déduction peu sûre (l'échéance, le poids, l'interlocuteur), et un élément qui
+     * ne vient que d'un passage mal entendu. Dans le second cas ce n'est pas la
+     * déduction qui est fragile, c'est la phrase dont elle part.
+     */
+    private fun ElementJson.aConfirmer(): Boolean = transcriptionIncertaine || listOfNotNull(
         echeanceConfiance,
         poidsConfiance,
         interlocuteurConfiance,

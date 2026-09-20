@@ -129,7 +129,7 @@ export async function diagnostiquer(): Promise<Constat> {
 
   const t1 = performance.now();
   try {
-    constat.texte = await transcrireAudio(audio.blob);
+    constat.texte = (await transcrireAudio(audio.blob)).texte;
     constat.transcription = `faite en ${Math.round(performance.now() - t1)} ms`;
   } catch (erreur) {
     constat.transcription = `échouée : ${message(erreur)}`;

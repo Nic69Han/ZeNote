@@ -8,7 +8,7 @@
 
 import { analyser } from '../analyse/index.ts';
 import { identifiant } from '../analyse/index.ts';
-import { transcrireAudio } from '../audio/transcripteurLocal.ts';
+import { transcrireAudio, type Transcription } from '../audio/transcripteurLocal.ts';
 import { assurerCoffreCharge } from '../securite/coffre.ts';
 import type {
   Capture,
@@ -82,7 +82,13 @@ export async function capturer(entree: NouvelleCapture): Promise<Capture> {
  * ni aux décisions déjà prises par l'utilisateur.
  */
 export async function analyserCapture(capture: Capture, jour = aujourdhui()): Promise<number> {
-  const { elements } = analyser(capture.texte, capture.id, jour, capture.dureeMs);
+  const { elements } = analyser(
+    capture.texte,
+    capture.id,
+    jour,
+    capture.dureeMs,
+    capture.passagesIncertains ?? [],
+  );
   await remplacerElements(capture.id, elements);
   await majCapture(capture.id, { analysee: true });
   return elements.length;
@@ -130,7 +136,10 @@ export async function recupererEnregistrements(): Promise<number> {
 }
 
 /** Le moteur de transcription, tel que la file l'appelle. Remplaçable dans les tests. */
-export type Transcrire = (audio: Blob, surPartiel?: (texte: string) => void) => Promise<string>;
+export type Transcrire = (
+  audio: Blob,
+  surPartiel?: (texte: string) => void,
+) => Promise<Transcription>;
 
 /**
  * Transcrit une capture vocale à partir de son audio, et l'écrit.
@@ -151,9 +160,9 @@ export async function transcrireCapture(
 ): Promise<boolean> {
   if (!capture.audio) return false;
 
-  let texte: string;
+  let rendu: Transcription;
   try {
-    texte = await transcrire(capture.audio);
+    rendu = await transcrire(capture.audio);
   } catch (erreur) {
     const nom = erreur instanceof Error ? erreur.name : '';
     // `MoteurIndisponible` : ce navigateur ne peut pas, et ne pourra pas demain.
@@ -169,11 +178,12 @@ export async function transcrireCapture(
   }
 
   await majCapture(capture.id, {
-    texte,
-    etatTranscription: texte ? 'OK' : 'ECHEC',
+    texte: rendu.texte,
+    etatTranscription: rendu.texte ? 'OK' : 'ECHEC',
     essaisTranscription: (capture.essaisTranscription ?? 0) + 1,
+    passagesIncertains: rendu.passagesIncertains,
   });
-  return texte !== '';
+  return rendu.texte !== '';
 }
 
 /** Une seule file à la fois : deux passages simultanés transcriraient le même audio deux fois. */

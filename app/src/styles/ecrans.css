@@ -905,3 +905,18 @@
   color: var(--encre-douce);
   font-style: italic;
 }
+
+/* Un passage que le moteur a mal entendu. Souligné, pas barré : il est peut-être
+   juste, et le barrer suggérerait qu'il est faux. */
+.source__incertain {
+  background: none;
+  color: inherit;
+  text-decoration: underline wavy var(--accent-doute, #b8860b);
+  text-underline-offset: 0.2em;
+}
+
+.source__doute {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.8rem;
+}

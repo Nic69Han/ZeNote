@@ -12,6 +12,7 @@ import {
   revueObjets,
   transcriptionLisible,
   type ElementJson,
+  type PassageIncertain,
   type EntreeRevueJson,
   type RelanceJson,
 } from '../core/regles.ts';
@@ -644,7 +645,29 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       return el('p', { class: 'source__texte', texte: '(source introuvable)' });
     }
 
+    const incertains = capture.passagesIncertains ?? [];
     const lisible = transcriptionLisible(brut);
+
+    // Spec `transcription` — « Incertitude de transcription signalée ». Quand le
+    // moteur dit avoir mal entendu, c'est ce qu'il a entendu qu'on montre, souligné
+    // aux endroits douteux. Présenter une version nettoyée d'une phrase incertaine
+    // la rendrait lisse et sûre d'elle, ce qui est exactement l'inverse du service.
+    if (incertains.length > 0) {
+      return el(
+        'div',
+        { class: 'source__transcription' },
+        souligner(brut, incertains),
+        el('p', {
+          class: 'source__doute',
+          texte:
+            incertains.length === 1
+              ? 'Un passage a été mal entendu : il est souligné. L’enregistrement est là.'
+              : `${incertains.length} passages ont été mal entendus : ils sont soulignés. ` +
+                'L’enregistrement est là.',
+        }),
+      );
+    }
+
     const ligne = el('p', { class: 'source__texte', texte: lisible });
     if (lisible === brut) return ligne;
 
@@ -662,6 +685,42 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     });
     ligne.dataset.version = 'lisible';
     return el('div', { class: 'source__transcription' }, ligne, bascule);
+  }
+
+  /**
+   * Le texte, avec les passages mal entendus soulignés à leur place exacte.
+   *
+   * Les bornes viennent du moteur et portent sur ce texte-là ; elles sont quand même
+   * bornées et remises dans l'ordre avant usage. Une borne fausse ne doit pas
+   * tronquer une note : au pire, elle souligne à côté.
+   */
+  function souligner(texte: string, passages: PassageIncertain[]): HTMLElement {
+    const ligne = el('p', { class: 'source__texte' });
+    ligne.dataset.version = 'brute';
+
+    const bornes = passages
+      .map((p) => ({
+        debut: Math.max(0, Math.min(p.debutCar, texte.length)),
+        fin: Math.max(0, Math.min(p.finCar, texte.length)),
+      }))
+      .filter((p) => p.fin > p.debut)
+      .sort((a, b) => a.debut - b.debut);
+
+    let curseur = 0;
+    for (const { debut, fin } of bornes) {
+      if (debut < curseur) continue;
+      if (debut > curseur) ligne.append(texte.slice(curseur, debut));
+      ligne.append(
+        el('mark', {
+          class: 'source__incertain',
+          texte: texte.slice(debut, fin),
+          title: 'Mal entendu : à vérifier sur l’enregistrement.',
+        }),
+      );
+      curseur = fin;
+    }
+    if (curseur < texte.length) ligne.append(texte.slice(curseur));
+    return ligne;
   }
 
   function rendreEntree(

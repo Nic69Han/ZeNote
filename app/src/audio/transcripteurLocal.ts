@@ -16,6 +16,7 @@
  */
 
 import type { Model } from 'vosk-browser';
+import type { PassageIncertain } from '../core/regles.ts';
 
 /** Le modèle français, servi avec l'application et mis en cache au premier usage. */
 export const ADRESSE_MODELE = '/modeles/vosk-fr-0.22.tar.gz';
@@ -106,26 +107,54 @@ export async function decoderEnSignal(blob: Blob): Promise<Float32Array> {
 }
 
 /**
- * Transcrit un enregistrement. Rend une chaîne vide quand rien n'a été reconnu.
+ * En dessous de quoi un mot est tenu pour mal entendu.
+ *
+ * Le moteur rend une confiance par mot, entre 0 et 1, et met 1 sur la plupart des
+ * mots qu'il reconnaît franchement. Le seuil est donc haut : ce qu'on cherche à
+ * attraper n'est pas le mot moyennement sûr, c'est celui que le moteur a proposé
+ * faute de mieux. Trop bas, plus rien ne serait signalé ; trop haut, tout le
+ * serait, et le marquage ne voudrait plus rien dire.
+ */
+const SEUIL_MOT_SUR = 0.8;
+
+/** Ce qu'une transcription rend : le texte, et ce que le moteur a mal entendu. */
+export interface Transcription {
+  texte: string;
+  /** Positions de caractères dans [texte], fusionnées quand elles se touchent. */
+  passagesIncertains: PassageIncertain[];
+}
+
+/**
+ * Transcrit un enregistrement. Rend un texte vide quand rien n'a été reconnu.
  *
  * Le Worker traite les messages dans l'ordre et répond à chacun — un résultat ou un
  * partiel par morceau, puis un résultat final. Attendre exactement autant de
  * réponses que de messages envoyés est ce qui dit, sans ambiguïté, que tout a été
  * entendu. Les résultats intermédiaires tombent aux pauses de la parole ; le texte
  * est leur concaténation.
+ *
+ * Le texte est reconstruit mot à mot plutôt que repris du champ `text` du moteur :
+ * c'est ce qui permet de savoir où chaque mot commence, donc de désigner exactement
+ * les passages mal entendus. Les deux formes coïncident — le moteur joint ses mots
+ * par une espace — mais reconstruire est la seule façon de ne pas le supposer.
  */
 export async function transcrireAudio(
   blob: Blob,
   surPartiel?: (texte: string) => void,
-): Promise<string> {
+): Promise<Transcription> {
   if (!transcriptionLocaleDisponible()) throw new MoteurIndisponible();
   const [modele, signal] = await Promise.all([chargerModele(), decoderEnSignal(blob)]);
   const reconnaisseur = new modele.KaldiRecognizer(FREQUENCE);
   try {
+    // Sans ça, le moteur ne rend que le texte : ni découpe en mots, ni confiance.
+    reconnaisseur.setWords(true);
+
     const morceaux = Math.ceil(signal.length / TAILLE_MORCEAU);
     const attendus = morceaux + 1;
     let recus = 0;
     const phrases: string[] = [];
+    /** Les mots reconnus, dans l'ordre, avec ce que le moteur pensait d'eux. */
+    const mots: { mot: string; confiance: number }[] = [];
 
     const termine = new Promise<void>((resoudre, rejeter) => {
       const compter = () => {
@@ -133,9 +162,15 @@ export async function transcrireAudio(
         if (recus >= attendus) resoudre();
       };
       reconnaisseur.on('result', (message) => {
-        const texte = (message as { result?: { text?: string } }).result?.text?.trim();
+        const rendu = (message as {
+          result?: { text?: string; result?: { word: string; conf: number }[] };
+        }).result;
+        const texte = rendu?.text?.trim();
         if (texte) {
           phrases.push(texte);
+          for (const { word, conf } of rendu?.result ?? []) {
+            mots.push({ mot: word, confiance: conf });
+          }
           surPartiel?.(phrases.join(' '));
         }
         compter();
@@ -157,9 +192,45 @@ export async function transcrireAudio(
     reconnaisseur.retrieveFinalResult();
     await termine;
 
-    return phrases.join(' ').replace(/\s+/g, ' ').trim();
+    // Le moteur peut rendre du texte sans découpe en mots (selon le modèle) : on
+    // rend alors le texte tel quel, sans prétendre savoir où était le doute.
+    if (mots.length === 0) {
+      return { texte: phrases.join(' ').replace(/\s+/g, ' ').trim(), passagesIncertains: [] };
+    }
+    return assembler(mots);
   } finally {
     reconnaisseur.remove();
     programmerDechargement();
   }
+}
+
+/**
+ * Reconstruit le texte à partir des mots, en notant au passage ce qui était douteux.
+ *
+ * Les passages qui se touchent sont fusionnés : trois mots mal entendus d'affilée
+ * forment un passage, pas trois. C'est ce qui permet à la règle d'ancrage du cœur de
+ * reconnaître un élément qui ne vient que de là, et à l'écran de souligner une
+ * portion de phrase plutôt qu'un mot sur deux.
+ */
+function assembler(mots: { mot: string; confiance: number }[]): Transcription {
+  let texte = '';
+  const passagesIncertains: PassageIncertain[] = [];
+
+  for (const { mot, confiance } of mots) {
+    if (texte !== '') texte += ' ';
+    const debutCar = texte.length;
+    texte += mot;
+    if (confiance >= SEUIL_MOT_SUR) continue;
+
+    const dernier = passagesIncertains[passagesIncertains.length - 1];
+    // `debutCar - 1` est l'espace qui sépare deux mots : deux mots douteux
+    // consécutifs ne doivent pas rendre deux passages.
+    if (dernier && dernier.finCar >= debutCar - 1) {
+      dernier.finCar = texte.length;
+    } else {
+      passagesIncertains.push({ debutCar, finCar: texte.length });
+    }
+  }
+
+  return { texte, passagesIncertains };
 }

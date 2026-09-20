@@ -9,7 +9,7 @@
  */
 
 import type { ElementJson } from '../core/regles.ts';
-import { filtrerAncrageObjets } from '../core/regles.ts';
+import { filtrerAncrageObjets, type PassageIncertain } from '../core/regles.ts';
 import { normaliser, repererEcheance } from './dates.ts';
 import { decouper, type Passage } from './segments.ts';
 import {
@@ -178,12 +178,15 @@ function elementDe(
  * @param captureId la source à laquelle tous les éléments restent rattachés
  * @param aujourdhui date ISO `AAAA-MM-JJ`, pour résoudre les dates relatives
  * @param dureeMs durée de l'audio, si connue, pour estimer la position temporelle
+ * @param passagesIncertains ce que la reconnaissance vocale a mal entendu. Un élément
+ *   qui n'en vient que de là est retenu mais marqué : la Revue le fera confirmer.
  */
 export function analyser(
   texte: string,
   captureId: string,
   aujourdhui: string,
   dureeMs: number | null = null,
+  passagesIncertains: PassageIncertain[] = [],
 ): ResultatAnalyse {
   const passages = decouper(texte);
   const candidats = passages.map((p) =>
@@ -192,6 +195,6 @@ export function analyser(
 
   // Le filet entre l'analyse et l'écran : rien n'atteint l'utilisateur sans passage
   // source vérifié. Cette règle appartient au cœur, elle n'est pas refaite ici.
-  const ancrage = filtrerAncrageObjets(texte, candidats);
+  const ancrage = filtrerAncrageObjets(texte, candidats, passagesIncertains);
   return { elements: ancrage.retenus, ecartes: ancrage.ecartes };
 }

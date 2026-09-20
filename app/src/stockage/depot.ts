@@ -29,7 +29,7 @@
  * écrire.
  */
 
-import type { ElementJson } from '../core/regles.ts';
+import type { ElementJson, PassageIncertain } from '../core/regles.ts';
 import {
   assurerCoffreCharge,
   ouvrirScelle,
@@ -144,6 +144,15 @@ export interface Capture {
    * retranscrit à chaque ouverture, pour rien.
    */
   essaisTranscription?: number;
+  /**
+   * Ce que la reconnaissance vocale a mal entendu, en positions dans [texte].
+   *
+   * Absent pour une capture écrite — on n'a pas mal entendu ce qu'on a tapé — et
+   * pour une transcription faite avant que le moteur ne rende ses confiances. Vide
+   * veut dire « tout a été bien entendu » ; absent veut dire « on ne sait pas », et
+   * l'écran ne prétend rien dans ce cas.
+   */
+  passagesIncertains?: PassageIncertain[];
 }
 
 /**

@@ -30,6 +30,24 @@ export interface ElementJson {
   planAction?: string | null;
   verdict: 'EN_ATTENTE' | 'ACCEPTE' | 'UN_JOUR' | 'REJETE';
   corrigeParHumain: boolean;
+  /**
+   * `true` quand cet élément ne vient que d'un passage mal entendu.
+   *
+   * Posé par le cœur, jamais par l'analyse : c'est un fait sur la transcription, pas
+   * une opinion sur le contenu. La Revue le fait alors confirmer.
+   */
+  transcriptionIncertaine?: boolean;
+}
+
+/**
+ * Un morceau de transcription que la reconnaissance vocale a mal entendu.
+ *
+ * Les bornes sont des positions de caractères dans la transcription brute — la même
+ * référence que l'ancrage des éléments, ce qui permet de savoir lesquels en viennent.
+ */
+export interface PassageIncertain {
+  debutCar: number;
+  finCar: number;
 }
 
 export interface PropositionJson {
@@ -191,7 +209,11 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
   maintenant(elementsJson: string, aujourdhui: string): string;
   revue(elementsJson: string, aujourdhui: string): string;
   transcriptionLisible(brut: string): string;
-  filtrerAncrage(texteSource: string, elementsJson: string): string;
+  filtrerAncrage(
+    texteSource: string,
+    elementsJson: string,
+    passagesIncertainsJson: string,
+  ): string;
   relances(
     elementsJson: string,
     aujourdhui: string,
@@ -217,7 +239,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '6';
+export const VERSION_CONTRAT_ATTENDUE = '7';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -254,9 +276,19 @@ export function transcriptionLisible(brut: string): string {
   return Regles.transcriptionLisible(brut);
 }
 
-/** Ancrage : texte source + `ElementJson[]` → `AncrageJson`. */
-export function filtrerAncrage(texteSource: string, elementsJson: string): string {
-  return Regles.filtrerAncrage(texteSource, elementsJson);
+/**
+ * Ancrage : texte source + `ElementJson[]` → `AncrageJson`.
+ *
+ * `passagesIncertainsJson` porte les morceaux que la reconnaissance vocale a mal
+ * entendus. Un élément qui n'en vient que de là est retenu — la note existe — mais
+ * marqué, pour que la Revue le fasse confirmer au lieu de le présenter comme acquis.
+ */
+export function filtrerAncrage(
+  texteSource: string,
+  elementsJson: string,
+  passagesIncertainsJson = '[]',
+): string {
+  return Regles.filtrerAncrage(texteSource, elementsJson, passagesIncertainsJson);
 }
 
 /** Relances du jour : `ElementJson[]` + `SuiviJson[]` + délais → `RelanceJson[]`. */
@@ -326,8 +358,14 @@ export function revueObjets(elements: ElementJson[], aujourdhui: string): RevueJ
   return JSON.parse(revue(JSON.stringify(elements), aujourdhui)) as RevueJson;
 }
 
-export function filtrerAncrageObjets(texteSource: string, elements: ElementJson[]): AncrageJson {
-  return JSON.parse(filtrerAncrage(texteSource, JSON.stringify(elements))) as AncrageJson;
+export function filtrerAncrageObjets(
+  texteSource: string,
+  elements: ElementJson[],
+  passagesIncertains: PassageIncertain[] = [],
+): AncrageJson {
+  return JSON.parse(
+    filtrerAncrage(texteSource, JSON.stringify(elements), JSON.stringify(passagesIncertains)),
+  ) as AncrageJson;
 }
 
 export function rechercherParMotsObjets(

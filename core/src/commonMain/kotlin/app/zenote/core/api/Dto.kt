@@ -39,6 +39,26 @@ data class ElementJson(
     val verdict: String = "EN_ATTENTE",
     /** `true` quand l'utilisateur a corrigé un champ à la main. */
     val corrigeParHumain: Boolean = false,
+    /**
+     * `true` quand cet élément ne vient que d'un passage mal entendu.
+     *
+     * Posé par [Regles.filtrerAncrage], jamais par le modèle : c'est un fait sur la
+     * transcription, pas une opinion sur le contenu. Un élément ainsi marqué passe
+     * par la confirmation de l'utilisateur au lieu d'être créé tel quel.
+     */
+    val transcriptionIncertaine: Boolean = false,
+)
+
+/**
+ * Un morceau de transcription que la reconnaissance vocale a mal entendu.
+ *
+ * Les bornes sont des positions de caractères dans la transcription brute — la même
+ * référence que l'ancrage des éléments, ce qui permet de savoir lesquels en viennent.
+ */
+@Serializable
+data class PassageIncertainJson(
+    val debutCar: Int,
+    val finCar: Int,
 )
 
 @Serializable

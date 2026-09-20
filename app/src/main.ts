@@ -17,7 +17,7 @@ import {
   traiterFileTranscription,
 } from './services/pipeline.ts';
 import { assurerCoffreCharge, etatCoffre, verrouiller } from './securite/coffre.ts';
-import { ecrireReglage, lireReglages, toutEffacer, type Reglages } from './stockage/depot.ts';
+import { ecrireReglage, lireReglages, majCapture, toutEffacer, type Reglages } from './stockage/depot.ts';
 import { el, vider } from './ui/dom.ts';
 import { montrerCapturer } from './ui/capturer.ts';
 import { montrerMaintenant } from './ui/maintenant.ts';
@@ -237,10 +237,16 @@ declare global {
       capturer: typeof capturer;
       traiterFileAnalyse: typeof traiterFileAnalyse;
       toutEffacer: typeof toutEffacer;
+      /**
+       * Modifier une capture après coup — ce que fait la transcription quand elle
+       * rend son texte et ce qu'elle a mal entendu. Sans cette porte, l'incertitude
+       * de transcription ne serait vérifiable qu'en faisant mal parler un micro.
+       */
+      majCapture: typeof majCapture;
     };
   }
 }
-window.__zenote = { capturer, traiterFileAnalyse, toutEffacer };
+window.__zenote = { capturer, traiterFileAnalyse, toutEffacer, majCapture };
 
 registerSW({ immediate: true });
 void demarrer();

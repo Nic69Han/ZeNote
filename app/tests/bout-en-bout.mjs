@@ -732,6 +732,65 @@ try {
     brut,
   );
 
+  // --- Un passage mal entendu -------------------------------------------------
+  // Spec `transcription` — « Passage inaudible ». Faire mal entendre un vrai micro
+  // n'est pas reproductible ; ce qui l'est, c'est la suite : une capture dont la
+  // transcription porte un passage douteux, et ce que les écrans en font. La règle
+  // qui décide (tout l'ancrage dans du douteux, ou non) est vérifiée dans le cœur.
+  // Deux choses dans la même capture : sans cela, l'absence du bouton « tout
+  // accepter » ne prouverait rien — il n'est jamais proposé sur un élément seul.
+  const phraseDouteuse =
+    'rappeler le carreleur pour le devis. Envoyer le planning à Sophie avant vendredi.';
+  await page.evaluate(async (phrase) => {
+    const capture = await window.__zenote.capturer({
+      texte: phrase,
+      source: 'VOCALE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.majCapture(capture.id, {
+      passagesIncertains: [{ debutCar: 0, finCar: phrase.length }],
+    });
+    await window.__zenote.traiterFileAnalyse();
+  }, phraseDouteuse);
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(200);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(900);
+
+  const douteuse = page.locator('details.source', { hasText: /carreleur/i }).first();
+  const vueDouteuse = await douteuse
+    .waitFor({ state: 'attached', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (vueDouteuse) {
+    await douteuse.locator('.source__resume').click();
+    await page.waitForTimeout(300);
+  }
+  const souligne = vueDouteuse
+    ? await douteuse.locator('.source__incertain').first().innerText().catch(() => '')
+    : '';
+  verifier(
+    'un passage mal entendu est souligné dans la transcription',
+    souligne.includes('carreleur'),
+    souligne || 'aucun passage souligné',
+  );
+
+  const groupeDouteux = page.locator('.groupe', { hasText: /carreleur/i }).first();
+  const aConfirmer = await groupeDouteux.locator('.badge--doute').count();
+  verifier(
+    'et ce qui en découle est présenté à confirmer, pas comme acquis',
+    aConfirmer > 0,
+    `${aConfirmer} élément(s) à confirmer`,
+  );
+  const combien = await groupeDouteux.locator('.entree').count();
+  const toutAccepter = await groupeDouteux.locator('.bouton--groupe').count();
+  verifier(
+    'l’acceptation groupée n’est pas proposée sur un groupe douteux',
+    combien > 1 && toutAccepter === 0,
+    `${combien} élément(s), ${toutAccepter} bouton(s) « tout accepter »`,
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

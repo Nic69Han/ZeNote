@@ -30,6 +30,17 @@ beforeEach(async () => {
 });
 
 /**
+ * Ce que le moteur rend : du texte, et ce qu'il a mal entendu.
+ *
+ * Presque tous les cas d'ici ne s'intéressent pas au second, mais il fait partie de
+ * la réponse depuis que les passages de faible confiance sont signalés — et un faux
+ * moteur qui rendrait autre chose que le vrai ne vérifierait plus grand-chose.
+ */
+function dit(texte: string, passagesIncertains: { debutCar: number; finCar: number }[] = []) {
+  return { texte, passagesIncertains };
+}
+
+/**
  * Une capture vocale telle que l'appui la laisse : de l'audio, pas de texte. Le
  * contenu de l'audio porte l'étiquette : c'est le seul moyen, pour un faux moteur
  * qui ne reçoit que l'audio, de savoir quelle capture il transcrit.
@@ -64,7 +75,7 @@ describe('transcrire une capture', () => {
   it('écrit le texte reconnu et compte l’essai', async () => {
     const capture = await dictee();
 
-    const reussi = await transcrireCapture(capture, async () => 'rappeler le couvreur');
+    const reussi = await transcrireCapture(capture, async () => dit('rappeler le couvreur'));
 
     expect(reussi).toBe(true);
     const relue = await lireCapture(capture.id);
@@ -77,7 +88,7 @@ describe('transcrire une capture', () => {
   it('quand rien n’est reconnu, marque l’échec et met la capture en souffrance', async () => {
     const capture = await dictee();
 
-    const reussi = await transcrireCapture(capture, async () => '');
+    const reussi = await transcrireCapture(capture, async () => dit(''));
 
     expect(reussi).toBe(false);
     const relue = await lireCapture(capture.id);
@@ -143,7 +154,7 @@ describe('la file', () => {
     const transcrites = await traiterFileTranscription(async (audio) => {
       const etiquette = await audio.text();
       ordre.push(etiquette);
-      return etiquette === 'premiere' ? 'rappeler le couvreur pour le devis' : '';
+      return dit(etiquette === 'premiere' ? 'rappeler le couvreur pour le devis' : '');
     });
 
     expect(transcrites).toBe(1);
@@ -163,7 +174,7 @@ describe('la file', () => {
       async (_audio, surPartiel) => {
         surPartiel?.('rappeler');
         surPartiel?.('rappeler le couvreur');
-        return 'rappeler le couvreur';
+        return dit('rappeler le couvreur');
       },
       (captureId, partiel) => vus.push(`${captureId}:${partiel}`),
     );
@@ -177,7 +188,7 @@ describe('la file', () => {
     const moteur = async () => {
       appels += 1;
       await new Promise((resoudre) => setTimeout(resoudre, 20));
-      return 'texte';
+      return dit('texte');
     };
 
     const [a, b] = await Promise.all([
@@ -190,13 +201,45 @@ describe('la file', () => {
     expect(b).toBe(1);
   });
 
+  it('un élément né d’un passage mal entendu arrive marqué, prêt à être confirmé', async () => {
+    // Spec `transcription` — « Passage inaudible ». Le moteur dit avoir mal entendu
+    // toute la phrase ; l'élément qui en sort existe, mais ne doit pas se présenter
+    // comme acquis. C'est le chemin complet qui est vérifié ici : le moteur, la
+    // capture, l'analyse, puis la règle du cœur.
+    const capture = await dictee();
+    const phrase = 'rappeler le couvreur';
+
+    await traiterFileTranscription(async () =>
+      dit(phrase, [{ debutCar: 0, finCar: phrase.length }]),
+    );
+
+    expect((await lireCapture(capture.id))?.passagesIncertains).toEqual([
+      { debutCar: 0, finCar: phrase.length },
+    ]);
+    const elements = await elementsDeCapture(capture.id);
+    expect(elements.length).toBeGreaterThan(0);
+    expect(elements.every((e) => e.transcriptionIncertaine)).toBe(true);
+  });
+
+  it('ce qui a été bien entendu n’est pas marqué', async () => {
+    // L'autre moitié, et elle compte autant : une confirmation demandée sur des
+    // éléments dont on est sûr s'use jusqu'à ne plus rien vouloir dire.
+    const capture = await dictee();
+
+    await traiterFileTranscription(async () => dit('rappeler le couvreur'));
+
+    const elements = await elementsDeCapture(capture.id);
+    expect(elements.length).toBeGreaterThan(0);
+    expect(elements.some((e) => e.transcriptionIncertaine)).toBe(false);
+  });
+
   it('laisse la file propre après une panne, pour le passage suivant', async () => {
     const capture = await dictee();
 
     await traiterFileTranscription(async () => {
       throw new Error('panne');
     });
-    const transcrites = await traiterFileTranscription(async () => 'rappeler le couvreur');
+    const transcrites = await traiterFileTranscription(async () => dit('rappeler le couvreur'));
 
     expect(transcrites).toBe(1);
     expect((await lireCapture(capture.id))?.texte).toBe('rappeler le couvreur');
