@@ -1210,3 +1210,13 @@
   color: #b3261e;
   font-weight: 650;
 }
+
+/* Le rappel du passé. Discret, sans action, et il s'efface seul : une suggestion
+   qu'il faut fermer est une interruption, quel que soit son contenu. */
+.passe {
+  margin: 0.4rem 0 0;
+  padding: 0.4rem 0.6rem;
+  border-inline-start: 2px solid var(--trait);
+  color: var(--encre-douce);
+  font-size: 0.8rem;
+}

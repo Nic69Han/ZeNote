@@ -16,11 +16,13 @@ import {
   traiterFileTranscription,
 } from '../services/pipeline.ts';
 import { deposerCompteRendu } from '../services/reunion.ts';
+import { passePertinent } from '../services/echos.ts';
 import { CoffreVerrouille } from '../securite/coffre.ts';
 import { espaceLiberable, estManqueDePlace, libererEspace } from '../services/espace.ts';
 import {
   aTranscrire,
   ecrireReglage,
+  listerElements,
   lireReglages,
   listerCaptures,
   type Capture,
@@ -184,6 +186,12 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     texte: 'Importer un compte rendu',
     'aria-expanded': 'false',
   });
+
+  /** Le temps que la suggestion reste à l'écran avant de s'effacer seule. */
+  const DUREE_RAPPEL_PASSE_MS = 12_000;
+
+  const rappelPasse = el('p', { class: 'passe', role: 'status', hidden: true });
+  let effacementPasse: number | undefined;
 
   const basculeEcrite = el('button', {
     class: 'bouton bouton--discret',
@@ -467,11 +475,58 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       afficherEtat('CONFIRME', "C'est à moi. Tu peux oublier.");
       await rafraichirJournal();
       void traiterFileAnalyse();
+      // Après l'écriture, jamais pendant : la capture ne doit rien attendre, et
+      // surtout rien afficher qui détourne le regard tant qu'on écrit.
+      void montrerPassePertinent(texte);
     } catch (erreur) {
       retourEchec(reglages.sonConfirmation);
       // Le texte reste dans le champ : c'est ce qui permet de réessayer sans le
       // retaper, une fois la place faite.
       await signalerEchecEcriture(erreur, () => deposerTexte());
+    }
+  }
+
+  /**
+   * Ce qu'on a déjà dit sur ce sujet, signalé discrètement puis oublié.
+   *
+   * Spec `recherche` — « Rappel proactif » et « Suggestion ignorable ». Aucune
+   * action n'est proposée, aucune réponse demandée, et la ligne s'efface seule : une
+   * suggestion qu'il faut fermer est une interruption, quel que soit son contenu.
+   *
+   * Elle se tait plus souvent qu'elle ne parle. Un rappel qui se déclenche à chaque
+   * capture devient un décor, et l'on cesse de le lire le jour où il aurait servi.
+   */
+  async function montrerPassePertinent(texte: string): Promise<void> {
+    try {
+      const captures = await listerCaptures();
+      const derniere = captures[0];
+      const echo = passePertinent(
+        texte,
+        derniere?.id ?? '',
+        captures.map((c) => ({ id: c.id, texte: c.texte, creeLe: c.creeLe })),
+        await listerElements(),
+        aujourdhui(),
+      );
+      if (!echo) return;
+
+      vider(rappelPasse);
+      rappelPasse.hidden = false;
+      rappelPasse.append(
+        el('span', {
+          class: 'passe__texte',
+          texte: `Déjà dit : « ${echo.extrait.slice(0, 90)} »`,
+        }),
+      );
+      annoncer('Un élément passé sur ce sujet existe déjà.');
+
+      if (effacementPasse !== undefined) window.clearTimeout(effacementPasse);
+      effacementPasse = window.setTimeout(() => {
+        rappelPasse.hidden = true;
+        vider(rappelPasse);
+      }, DUREE_RAPPEL_PASSE_MS);
+    } catch {
+      // Le passé est un confort. Une recherche qui échoue — coffre fermé, base
+      // occupée — ne doit rien changer à la capture, qui est déjà écrite.
     }
   }
 
@@ -593,6 +648,7 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       message,
       secours,
       ...avertissements,
+      rappelPasse,
       el('div', { class: 'actions' }, basculeEcrite, boutonReunion, basculeImport),
       blocEcrit,
       blocImport,

@@ -1341,6 +1341,43 @@ try {
     `${voyantApres} voyant(s) après l’arrêt`,
   );
 
+  // --- Le passé qui remonte tout seul --------------------------------------------
+  // Spec `recherche` — « Élément passé pertinent proposé » et « Suggestion
+  // ignorable ». Ce qui compte ici n'est pas qu'il parle, mais qu'il ne dérange pas :
+  // aucune action, aucune réponse attendue, et la capture n'a rien attendu.
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(400);
+  if ((await page.locator('.bloc-ecrit:visible').count()) === 0) {
+    await page.getByRole('button', { name: /écrire plutôt/i }).click();
+    await page.waitForTimeout(200);
+  }
+  await page.locator('.zone-ecrite').fill(
+    'relancer le fournisseur sur le chiffrage du chantier de Bron',
+  );
+  await page.getByRole('button', { name: /^déposer$/i }).click();
+  await page.waitForTimeout(1500);
+
+  const rappelPasse = await page.locator('.passe:visible').innerText().catch(() => '');
+  verifier(
+    'un sujet déjà traité fait remonter le passé, discrètement',
+    /déjà dit/i.test(rappelPasse) && /chiffrage|chantier/i.test(rappelPasse),
+    rappelPasse || 'rien n’est remonté',
+  );
+
+  const boutonsDansLeRappel = await page.locator('.passe button, .passe a').count();
+  verifier(
+    'sans rien à fermer ni à décider : une suggestion qu’on doit fermer interrompt',
+    boutonsDansLeRappel === 0,
+    `${boutonsDansLeRappel} action(s) dans la suggestion`,
+  );
+
+  const confirmationTenue = await page.locator('.message').innerText().catch(() => '');
+  verifier(
+    'et la capture, elle, a été confirmée sans attendre ce rappel',
+    /c'est à moi/i.test(confirmationTenue),
+    confirmationTenue,
+  );
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

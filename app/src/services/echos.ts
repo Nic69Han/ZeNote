@@ -95,3 +95,83 @@ export function echosDe(
   }
   return echos;
 }
+
+/**
+ * Ce qu'on a déjà dit sur ce sujet, s'il y a lieu.
+ *
+ * Spec `recherche` — « Rappel proactif du passé pertinent ». Une note dictée sur un
+ * sujet déjà traité arrive sans son passé : on redemande ce qu'on sait déjà, on
+ * repromet ce qu'on a promis, on refait une décision qu'on avait prise. Le produit a
+ * ce passé sous la main et ne le montrait jamais.
+ *
+ * ## Ce qui rend ce rappel supportable
+ *
+ * Il arrive **après** l'écriture, jamais pendant : la capture ne doit rien attendre,
+ * et surtout rien afficher qui détourne le regard pendant qu'on parle. Il ne propose
+ * aucune action, ne demande aucune réponse, et s'efface tout seul. Une suggestion
+ * qu'il faut fermer est une interruption, quel que soit son contenu.
+ *
+ * Et il se tait plus souvent qu'il ne parle : un rappel qui se déclenche à chaque
+ * capture devient un décor, et l'on cesse de le lire le jour où il aurait servi.
+ */
+
+/** Le seuil de recouvrement en dessous duquel deux notes ne parlent pas du même sujet. */
+const PROXIMITE_MINIMALE = 0.34;
+
+/** Ce qu'on a déjà dit sur ce sujet, ou `null` s'il n'y a rien de net. */
+export function passePertinent(
+  texte: string,
+  captureId: string,
+  captures: CaptureJson[],
+  elements: ElementJson[],
+  aujourdhui: string,
+): Echo | null {
+  const mots = texte.trim().split(/\s+/).filter((m) => m.length > 2);
+  // Trop court pour être un sujet : « rappeler Marc » ressemble à tout.
+  if (mots.length < 3) return null;
+
+  const ailleurs = captures.filter((c) => c.id !== captureId);
+  if (ailleurs.length === 0) return null;
+
+  const reponse = rechercherParQuestionObjets(
+    texte,
+    elements.filter((e) => e.captureId !== captureId),
+    ailleurs,
+    aujourdhui,
+    false,
+  );
+  if (!reponse.fondee || reponse.citations.length === 0) return null;
+
+  const citation = reponse.citations[0];
+  const source = ailleurs.find((c) => c.id === citation.captureId);
+  if (!source) return null;
+
+  // Le recouvrement se mesure entre les deux textes, et non sur le rang rendu par la
+  // recherche : celle-ci trouve toujours quelque chose, c'est son travail.
+  if (recouvrement(texte, source.texte) < PROXIMITE_MINIMALE) return null;
+
+  return {
+    captureId: citation.captureId,
+    extrait: citation.extrait,
+    pourquoi: citation.pourquoi,
+  };
+}
+
+/** Part des mots du premier texte que le second porte aussi, entre 0 et 1. */
+function recouvrement(a: string, b: string): number {
+  const mots = (texte: string) =>
+    new Set(
+      texte
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter((m) => m.length > 3),
+    );
+  const gauche = mots(a);
+  if (gauche.size === 0) return 0;
+  const droite = mots(b);
+  let communs = 0;
+  for (const mot of gauche) if (droite.has(mot)) communs += 1;
+  return communs / gauche.size;
+}
