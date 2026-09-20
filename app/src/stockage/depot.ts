@@ -499,6 +499,32 @@ export async function elementsDeCapture(captureId: string): Promise<ElementStock
   return ouverts;
 }
 
+/**
+ * Retire l'enregistrement d'une capture, en gardant tout le reste.
+ *
+ * Le seul moyen qu'a le produit de rendre de la place sans rien perdre du sens : sur
+ * une capture déjà transcrite, le texte porte la note, et l'audio n'est plus qu'un
+ * recours. C'est irréversible, et jamais automatique — l'écran le demande.
+ */
+export async function retirerAudio(captureId: string): Promise<void> {
+  const brute = await transaction([MAGASIN_CAPTURES], 'readonly', ([captures]) =>
+    demander<CaptureBrute | undefined>(captures.get(captureId)),
+  );
+  if (!brute) return;
+
+  const capture = await depuisStockageCapture(brute, false);
+  const sansAudio = await versStockageCapture({
+    ...capture,
+    audio: null,
+    aAudio: false,
+    audioOctets: null,
+    audioType: null,
+  });
+  await transaction([MAGASIN_CAPTURES], 'readwrite', ([captures]) => {
+    captures.put(sansAudio);
+  });
+}
+
 // ------------------------------------------------ morceaux d'enregistrement
 
 /**

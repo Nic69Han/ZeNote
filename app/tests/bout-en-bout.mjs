@@ -12,6 +12,7 @@ import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
+import { cheminNavigateur } from './navigateur.mjs';
 
 const RACINE = new URL('../dist/', import.meta.url).pathname;
 const PORT = 4178;
@@ -60,7 +61,7 @@ const adresse = CIBLE ?? `http://localhost:${PORT}`;
 console.log(`Vérification sur ${adresse}`);
 const mandataire = process.env.HTTPS_PROXY ?? process.env.https_proxy;
 const navigateur = await chromium.launch({
-  executablePath: process.env.CHROME_BIN,
+  executablePath: cheminNavigateur(),
   args: [
     '--no-sandbox',
     '--disable-dev-shm-usage',
@@ -612,7 +613,12 @@ try {
     `${await page.locator('.escalades__ligne').count()} escalade(s)`,
   );
 
-  const issues = await escalade.locator('.escalades__actions .bouton').allInnerTexts();
+  // La Revue se re-rend quand ses lectures aboutissent : lire sans réessayer peut
+  // tomber entre deux rendus, sur une ligne déjà détachée. On attend le premier
+  // bouton — le locator se résout à nouveau — avant de lire les trois.
+  const boutonsEscalade = escalade.locator('.escalades__actions .bouton');
+  await boutonsEscalade.first().waitFor({ state: 'visible' });
+  const issues = await boutonsEscalade.allInnerTexts();
   verifier(
     'avec les trois sorties : replanifier, déléguer, abandonner',
     /replanifier/i.test(issues.join(' ')) &&

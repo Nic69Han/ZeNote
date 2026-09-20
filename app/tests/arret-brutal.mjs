@@ -18,6 +18,7 @@ import { createServer } from 'node:http';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join, normalize } from 'node:path';
+import { cheminNavigateur } from './navigateur.mjs';
 
 const RACINE = new URL('../dist/', import.meta.url).pathname;
 const PORT = 4179;
@@ -63,7 +64,7 @@ const ARGS = [
 
 function lancer() {
   return chromium.launchPersistentContext(profil, {
-    executablePath: process.env.CHROME_BIN,
+    executablePath: cheminNavigateur(),
     args: ARGS,
     permissions: ['microphone'],
   });

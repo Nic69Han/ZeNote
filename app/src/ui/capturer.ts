@@ -10,6 +10,7 @@ import { retourDebut, retourEchec, retourEcrite } from '../audio/retour.ts';
 import { transcriptionLocaleDisponible } from '../audio/transcripteurLocal.ts';
 import { capturer, traiterFileAnalyse, traiterFileTranscription } from '../services/pipeline.ts';
 import { CoffreVerrouille } from '../securite/coffre.ts';
+import { espaceLiberable, estManqueDePlace, libererEspace } from '../services/espace.ts';
 import { aTranscrire, listerCaptures, type Capture, type Reglages } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 
@@ -46,6 +47,8 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
   );
 
   const apercu = el('p', { class: 'apercu', 'aria-live': 'polite' });
+  /** Proposé seulement quand l'écriture a échoué faute de place. */
+  const secours = el('div', { class: 'secours', hidden: true });
   const message = el('p', { class: 'message', role: 'status' });
   const journal = el('ul', { class: 'journal' });
 
@@ -237,13 +240,94 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       apercu.textContent = '';
       await rafraichirJournal();
       transcrireEnArrierePlan();
-    } catch {
+    } catch (erreur) {
       retourEchec(reglages.sonConfirmation);
+      await signalerEchecEcriture(erreur, () => relacher());
+    }
+  }
+
+  /**
+   * Ce qu'on dit quand l'écriture est refusée, et ce qu'on propose d'y faire.
+   *
+   * Manquer de place n'est pas la même panne qu'un coffre fermé ou qu'une base
+   * cassée, et les confondre enverrait l'utilisateur chercher au mauvais endroit.
+   * Surtout, le manque de place se résout ici : ce sont les enregistrements qui
+   * remplissent ZeNote, et ceux des captures déjà transcrites ne portent plus la
+   * note.
+   *
+   * @param reessayer ce qu'on relance une fois la place faite.
+   */
+  async function signalerEchecEcriture(erreur: unknown, reessayer: () => Promise<void>): Promise<void> {
+    vider(secours);
+    secours.hidden = true;
+
+    if (!estManqueDePlace(erreur)) {
       afficherEtat(
         'ECHEC',
-        "Écriture impossible — rien n'a été enregistré. Libérez de l'espace puis réessayez.",
+        erreur instanceof CoffreVerrouille
+          ? 'Écriture impossible : le coffre est fermé. Déverrouillez-le puis réessayez.'
+          : "Écriture impossible — rien n'a été enregistré. Réessayez.",
       );
+      return;
     }
+
+    afficherEtat('ECHEC', "Plus de place : rien n'a été enregistré.");
+    const liberable = await espaceLiberable().catch(() => ({ captureIds: [], octets: 0 }));
+    if (liberable.captureIds.length === 0) {
+      secours.hidden = false;
+      secours.append(
+        el('p', {
+          class: 'secours__detail',
+          texte:
+            'Rien à libérer ici : toutes vos captures ont encore besoin de leur ' +
+            'enregistrement. Exportez vos données depuis « Vos données », puis faites ' +
+            'de la place sur l’appareil.',
+        }),
+      );
+      return;
+    }
+
+    const bouton = el('button', {
+      class: 'bouton bouton--plein',
+      type: 'button',
+      texte: `Libérer ${poidsLisible(liberable.octets)} et réessayer`,
+    }) as HTMLButtonElement;
+    bouton.addEventListener('click', () => {
+      bouton.disabled = true;
+      bouton.textContent = 'Libération…';
+      void libererEspace(liberable.captureIds)
+        .then(async () => {
+          secours.hidden = true;
+          vider(secours);
+          await reessayer();
+        })
+        .catch(() => {
+          bouton.disabled = false;
+          afficherEtat('ECHEC', 'La libération a échoué. Exportez vos données puis réessayez.');
+        });
+    });
+
+    secours.hidden = false;
+    secours.append(
+      el('p', {
+        class: 'secours__detail',
+        texte:
+          `${accordCaptures(liberable.captureIds.length)} déjà transcrites gardent leur ` +
+          'enregistrement. Leur texte reste, le son est perdu — définitivement.',
+      }),
+      bouton,
+    );
+  }
+
+  function accordCaptures(nombre: number): string {
+    return nombre > 1 ? `${nombre} captures` : '1 capture';
+  }
+
+  /** Une taille d'octets lisible d'un coup d'œil, sans fausse précision. */
+  function poidsLisible(octets: number): string {
+    if (octets < 1024) return `${octets} o`;
+    if (octets < 1024 * 1024) return `${Math.round(octets / 1024)} ko`;
+    return `${(octets / (1024 * 1024)).toFixed(1)} Mo`;
   }
 
   // ------------------------------------------------------------ capture écrite
@@ -259,9 +343,11 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       afficherEtat('CONFIRME', "C'est à moi. Tu peux oublier.");
       await rafraichirJournal();
       void traiterFileAnalyse();
-    } catch {
+    } catch (erreur) {
       retourEchec(reglages.sonConfirmation);
-      afficherEtat('ECHEC', "Écriture impossible — le texte est resté dans le champ.");
+      // Le texte reste dans le champ : c'est ce qui permet de réessayer sans le
+      // retaper, une fois la place faite.
+      await signalerEchecEcriture(erreur, () => deposerTexte());
     }
   }
 
@@ -341,6 +427,7 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       el('div', { class: 'zone-bouton' }, bouton, minuterie),
       apercu,
       message,
+      secours,
       ...avertissements,
       el('div', { class: 'actions' }, basculeEcrite),
       blocEcrit,
