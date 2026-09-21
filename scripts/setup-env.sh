@@ -83,9 +83,32 @@ check_caveman() {
   fi
 }
 
+# ----------------------------------------------------------- TypeSafe -------
+# TypeSafe skill (System One models / Jev) — typed AI judgments as primitives.
+# Declared in .claude/settings.json; this only pre-warms the marketplace cache.
+# https://github.com/typesafe-ai/skills
+install_typesafe() {
+  if ! command -v claude >/dev/null 2>&1; then
+    warn "claude CLI not found — skipping typesafe plugin (or: npx skills add typesafe-ai/skills --skill typesafe-ai)"
+    return
+  fi
+
+  if claude plugin list 2>/dev/null | grep -q 'typesafe@typesafe-ai'; then
+    info "typesafe plugin already installed"
+    return
+  fi
+
+  info "installing typesafe@typesafe-ai"
+  claude plugin marketplace add typesafe-ai/skills >/dev/null 2>&1 || \
+    warn "could not add typesafe-ai marketplace"
+  claude plugin install typesafe@typesafe-ai >/dev/null 2>&1 || \
+    warn "could not install typesafe@typesafe-ai"
+}
+
 install_rtk
 install_openspec
 check_caveman
+install_typesafe
 
 cat <<'EOF'
 
@@ -94,6 +117,7 @@ Environment ready.
   rtk       compresses bash output (hook in .claude/settings.json)
   openspec  /opsx:explore, /opsx:propose, /opsx:apply, /opsx:archive
   caveman   /caveman lite|full|ultra
+  typesafe  TypeSafe skill — https://docs.typesafe.ai/llms.txt
 
 If rtk is not on PATH, add this to your shell profile:
   export PATH="$HOME/.local/bin:$PATH"

@@ -130,7 +130,8 @@ lit ce que le produit ne sera pas.
 # Environnement de développement
 
 Assisté par agent, prêt à l'emploi : **OpenSpec** (workflow spec-driven), **RTK**
-(compression des sorties shell) et **Caveman** (compression des réponses).
+(compression des sorties shell), **Caveman** (compression des réponses) et **TypeSafe**
+(jugements IA typés).
 
 ## Installation
 
@@ -140,15 +141,17 @@ export PATH="$HOME/.local/bin:$PATH"   # si rtk n'est pas trouvé
 ```
 
 Le script est idempotent : il installe `rtk` dans `~/.local/bin`, `openspec` via npm global,
-et vérifie que la skill `caveman` est bien présente dans le dépôt.
+vérifie que la skill `caveman` est bien présente dans le dépôt, et installe le plugin
+`typesafe@typesafe-ai` via la CLI `claude`.
 
-## Les trois outils
+## Les quatre outils
 
 | Outil | Rôle | Source |
 |-------|------|--------|
 | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | Développement piloté par les specs : proposition → specs → tâches → implémentation → archive | npm `@fission-ai/openspec` |
 | [RTK](https://github.com/rtk-ai/rtk) | Proxy CLI qui filtre/compresse la sortie des commandes avant qu'elle n'entre dans le contexte (jusqu'à −90 % de sortie bash) | binaire Rust |
 | [Caveman](https://github.com/amanattar/caveman-claude-skill) | Style de réponse ultra-compressé (~−75 % de tokens en sortie) sans perte de contenu technique | skill vendorée |
+| [TypeSafe](https://github.com/typesafe-ai/skills) | Jugements IA typés (modèles System One / Jev) composables comme des primitives de code : routage, classement, extraction, vérification | plugin `typesafe@typesafe-ai` |
 
 ### OpenSpec
 
@@ -197,6 +200,28 @@ stop caveman       revenir au style normal
 
 Le code, les commits et les PR restent rédigés normalement quel que soit le niveau.
 
+### TypeSafe
+
+Plugin déclaré dans `.claude/settings.json` (marketplace `typesafe-ai/skills`), donc activé
+pour quiconque ouvre le dépôt avec Claude Code. Installation manuelle si besoin :
+
+```
+claude plugin marketplace add typesafe-ai/skills
+claude plugin install typesafe@typesafe-ai
+```
+
+Pour un autre agent, une seule des deux méthodes suffit :
+
+```
+npx skills add typesafe-ai/skills --skill typesafe-ai
+```
+
+La skill s'active quand une fonctionnalité réclame un jugement sémantique typé — router une
+requête, classer des candidats, extraire une valeur, vérifier une affirmation — plutôt qu'un
+prompt LLM suivi d'un parsing maison. Les docs vivantes
+(<https://docs.typesafe.ai/llms.txt>) font foi. Aucune clé API TypeSafe n'est configurée dans
+le projet à ce jour ; une intégration réelle devra garder ses identifiants côté serveur.
+
 ## Le cœur métier
 
 Le socle partagé entre les surfaces vit dans `core/`, en Kotlin Multiplatform, compilé vers
@@ -233,7 +258,7 @@ marquée privée**.
 
 ```
 .claude/
-  settings.json            # hook RTK
+  settings.json            # hook RTK + plugin TypeSafe
   commands/opsx/           # slash commands OpenSpec
   skills/openspec-*/       # skills OpenSpec
   skills/caveman/          # skill Caveman

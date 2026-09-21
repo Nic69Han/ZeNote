@@ -1,7 +1,8 @@
 # ZeNote — instructions agent
 
 Environnement outillé : OpenSpec (spec-driven), RTK (compression sortie shell), Caveman
-(compression sortie modèle). Installation : `bash scripts/setup-env.sh`. Détails : `README.md`.
+(compression sortie modèle), TypeSafe (jugements IA typés). Installation :
+`bash scripts/setup-env.sh`. Détails : `README.md`.
 
 ## Workflow
 
@@ -10,6 +11,11 @@ Environnement outillé : OpenSpec (spec-driven), RTK (compression sortie shell),
 - Les specs vivent dans `openspec/specs/`, les changes en cours dans `openspec/changes/`.
 - Contexte projet et règles par artefact : `openspec/config.yaml`.
 - Compression des réponses : `/caveman lite|full|ultra` (le code et les commits restent normaux).
+- Skill TypeSafe (plugin `typesafe@typesafe-ai`, déclaré dans `.claude/settings.json`) : à
+  utiliser dès qu'une fonctionnalité a besoin d'un jugement sémantique typé — routage,
+  classement, extraction, vérification — plutôt qu'un prompt LLM suivi d'un parsing maison.
+  Les docs vivantes (`https://docs.typesafe.ai/llms.txt`) font foi ; les lire avant d'écrire
+  une intégration. Aucune clé API TypeSafe n'est configurée à ce jour.
 
 <!-- rtk-instructions v2 -->
 # RTK (Rust Token Killer) - Token-Optimized Commands
