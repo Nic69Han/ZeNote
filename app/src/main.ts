@@ -17,7 +17,14 @@ import {
   traiterFileTranscription,
 } from './services/pipeline.ts';
 import { assurerCoffreCharge, etatCoffre, verrouiller } from './securite/coffre.ts';
-import { ecrireReglage, lireReglages, majCapture, toutEffacer, type Reglages } from './stockage/depot.ts';
+import {
+  ecrireReglage,
+  lireReglages,
+  majCapture,
+  supprimerCapture,
+  toutEffacer,
+  type Reglages,
+} from './stockage/depot.ts';
 import { el, vider } from './ui/dom.ts';
 import { surEnregistrement } from './audio/enregistreur.ts';
 import { montrerCapturer } from './ui/capturer.ts';
@@ -268,10 +275,12 @@ declare global {
        * vérifier son repli sans confirmation à chaque parcours.
        */
       ecrireReglage: typeof ecrireReglage;
+      /** Retirer une capture et ses éléments, pour qu'un parcours ne pèse pas sur le suivant. */
+      supprimerCapture: typeof supprimerCapture;
     };
   }
 }
-window.__zenote = { capturer, traiterFileAnalyse, toutEffacer, majCapture, ecrireReglage };
+window.__zenote = { capturer, traiterFileAnalyse, toutEffacer, majCapture, ecrireReglage, supprimerCapture };
 
 registerSW({ immediate: true });
 void demarrer();

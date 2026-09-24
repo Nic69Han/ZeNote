@@ -26,10 +26,38 @@ const TYPES = {
   '.wav': 'audio/wav',
 };
 
-/** Ouvre le paquet construit sur ce port, et rend le serveur pour le refermer. */
-export function servir(port) {
+/** Lit le corps d'une requête en JSON, ou `null`. */
+async function lireJson(requete) {
+  const morceaux = [];
+  for await (const morceau of requete) morceaux.push(morceau);
+  try {
+    return JSON.parse(Buffer.concat(morceaux).toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ouvre le paquet construit sur ce port, et rend le serveur pour le refermer.
+ *
+ * @param simulation facultative : `analyser(corps)` rend `{ statut, corps }` et tient
+ *   lieu de `POST /api/analyser`, la fonction Netlify (change `analyse-typesafe`).
+ *   Sans elle, ce point répond comme la vraie fonction sans clé : 503.
+ */
+export function servir(port, simulation = {}) {
   const serveur = createServer(async (requete, reponse) => {
     const chemin = decodeURIComponent(new URL(requete.url, 'http://x').pathname);
+    if (chemin === '/api/analyser') {
+      const { statut, corps } =
+        requete.method !== 'POST'
+          ? { statut: 405, corps: { motif: 'methode-refusee' } }
+          : simulation.analyser
+            ? simulation.analyser(await lireJson(requete))
+            : { statut: 503, corps: { motif: 'non-configure' } };
+      reponse.writeHead(statut, { 'content-type': 'application/json; charset=utf-8' });
+      reponse.end(JSON.stringify(corps));
+      return;
+    }
     // Un `..` dans l'adresse ne doit pas sortir de `dist/`.
     const relatif = normalize(chemin === '/' ? '/index.html' : chemin).replace(/^(\.\.[/\\])+/, '');
     try {
