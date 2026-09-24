@@ -1309,3 +1309,19 @@
   background: var(--fond-carte);
   font-size: 0.85rem;
 }
+
+/* Une capture gardée sur l'appareil, analyse comprise. */
+.source__local {
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--rayon);
+  background: var(--calme-doux);
+  color: var(--calme);
+}
+
+.source__transmission {
+  align-self: flex-start;
+}
+
+.source__transmission[aria-pressed='true']::before {
+  content: '✓ ';
+}

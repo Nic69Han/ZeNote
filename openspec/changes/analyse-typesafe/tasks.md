@@ -6,7 +6,7 @@ Les groupes suivent le plan de mise en service de `design.md` — Migration Plan
 
 - [x] 1.1 Ajouter à `Capture` (`app/src/stockage/depot.ts`) un champ optionnel `transmissible` (absent = transmissible), et aux réglages la liste des sphères exclues de l'analyse distante ; vérifier par un test de stockage qu'une capture ancienne sans le champ se relit, et que le marquage survit à un rechargement
 - [x] 1.2 Écrire la fonction pure `peutTransmettre(capture, reglages)` selon la décision 4 : non transmissible → non ; sphère locale exclue → non ; sphère locale indécidable et au moins une sphère exclue → non ; réglage d'analyse distante éteint → non ; sinon oui. Vérifier par un test qui couvre chacune des cinq branches, dont le doute tranché vers le local
-- [ ] 1.3 Ajouter l'interrupteur « Ne pas envoyer à l'analyse » sur une capture (Revue et fiche) et les exclusions de sphère dans Réglages ; vérifier dans `tests/bout-en-bout.mjs` que marquer une capture la fait apparaître comme « analysée sur l'appareil »
+- [x] 1.3 Ajouter l'interrupteur « Ne pas envoyer à l'analyse » sur une capture (Revue et fiche) et les exclusions de sphère dans Réglages ; vérifier dans `tests/bout-en-bout.mjs` que marquer une capture la fait apparaître comme « analysée sur l'appareil » — *la PWA n'a pas d'écran de fiche par capture : l'interrupteur vit sur le bloc source de la capture en Revue, seul endroit où une capture se consulte seule*
 
 ## 2. Modèle de l'élément
 

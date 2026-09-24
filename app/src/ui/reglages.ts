@@ -171,6 +171,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
         texte: 'Ce qui reste ici, ce qui sort, et comment tout reprendre.',
       }),
       blocPerimetre(coffre),
+      blocAnalyseDistante(reglages),
       blocChiffrement(coffre, appareilPossible, donnees),
       blocCreneau(reglages),
       blocExport(donnees, texte),
@@ -612,6 +613,61 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       { class: 'bloc', 'aria-labelledby': 'titre-perimetre' },
       el('h2', { id: 'titre-perimetre', class: 'bloc__titre', texte: 'Ce qui quitte l’appareil' }),
       liste,
+    );
+  }
+
+  // ------------------------------------------------------ l'analyse distante
+
+  /**
+   * Ce qui ne partira jamais à l'analyse distante, quoi qu'on allume ensuite.
+   *
+   * Spec `analyse-distante` — « Transmission conditionnée au consentement ». Les
+   * exclusions se posent avant l'allumage, pas après : c'est au moment où rien ne
+   * sort encore qu'on choisit le plus sereinement ce qui ne doit jamais sortir. Une
+   * note dont la sphère ne se reconnaît pas reste sur l'appareil dès qu'une
+   * exclusion est posée (voir `peutTransmettre`), et le texte le dit.
+   */
+  function blocAnalyseDistante(reglages: Reglages): HTMLElement {
+    const exclues = new Set(reglages.spheresExclues);
+    const choix = (sphere: 'PROFESSIONNEL' | 'PERSONNEL', libelle: string): HTMLElement => {
+      const case_ = el('input', {
+        type: 'checkbox',
+        class: 'case',
+        name: 'sphere-exclue',
+        value: sphere,
+        checked: exclues.has(sphere),
+      }) as HTMLInputElement;
+      case_.addEventListener('change', () => {
+        void (async () => {
+          if (case_.checked) exclues.add(sphere);
+          else exclues.delete(sphere);
+          await ecrireReglage('spheresExclues', [...exclues]);
+          annoncer(case_.checked ? `${libelle} : jamais envoyées.` : `${libelle} : plus exclues.`);
+        })();
+      });
+      return el('label', { class: 'champ__etiquette champ__etiquette--case' }, case_, libelle);
+    };
+
+    return el(
+      'section',
+      { class: 'bloc bloc--analyse-distante', 'aria-labelledby': 'titre-analyse-distante' },
+      el('h2', { id: 'titre-analyse-distante', class: 'bloc__titre', texte: 'Analyse distante' }),
+      el('p', {
+        class: 'bloc__texte',
+        texte: reglages.analyseDistante
+          ? 'L’analyse distante est allumée. Les notes cochées ci-dessous ne partent jamais ; ' +
+            'une note dont la sphère ne se reconnaît pas non plus, dès qu’une case est cochée.'
+          : 'L’analyse distante est éteinte : aucune note ne sort de l’appareil. Ces choix ' +
+            'vaudront si elle est un jour allumée — une note dont la sphère ne se reconnaît pas ' +
+            'restera alors ici, elle aussi, dès qu’une case est cochée.',
+      }),
+      el(
+        'fieldset',
+        { class: 'bloc__choix' },
+        el('legend', { texte: 'Ne jamais envoyer' }),
+        choix('PERSONNEL', 'Les notes personnelles'),
+        choix('PROFESSIONNEL', 'Les notes professionnelles'),
+      ),
     );
   }
 

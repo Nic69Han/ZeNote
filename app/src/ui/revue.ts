@@ -992,9 +992,13 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
           class: 'source__mode',
           texte: capture?.source === 'ECRITE' ? 'écrite' : 'dictée',
         }),
+        capture?.transmissible === false
+          ? el('span', { class: 'source__local', texte: 'analysée sur l’appareil' })
+          : null,
       ),
       texteSource(capture),
       ...(capture ? [renvoiAUnEchange(capture)].filter((n) => n !== null) : []),
+      capture ? interrupteurTransmission(capture) : null,
       lecteur.noeud,
     ) as HTMLDetailsElement;
 
@@ -1011,6 +1015,35 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
         lecteur.allerA(ms);
       },
     };
+  }
+
+  /**
+   * « Ne pas envoyer à l'analyse » : garder une capture sur l'appareil.
+   *
+   * Spec `analyse-distante` — « Capture non transmissible ». Le choix est offert
+   * même réglage éteint : il vaut pour toujours, et c'est quand rien ne sort encore
+   * qu'on le pose le plus sereinement. Il est réversible ; sa trace, en tête de la
+   * source, dit comment la capture est et sera analysée.
+   */
+  function interrupteurTransmission(capture: Capture): HTMLElement {
+    const gardee = capture.transmissible === false;
+    return el('button', {
+      class: 'bouton bouton--discret source__transmission',
+      type: 'button',
+      'aria-pressed': String(gardee),
+      texte: 'Ne pas envoyer à l’analyse',
+      onclick: () => {
+        void (async () => {
+          await majCapture(capture.id, { transmissible: gardee });
+          annoncer(
+            gardee
+              ? 'Cette note pourra être envoyée à l’analyse, si elle est allumée.'
+              : 'Cette note restera sur l’appareil, analyse comprise.',
+          );
+          await rendre();
+        })();
+      },
+    });
   }
 
   /**

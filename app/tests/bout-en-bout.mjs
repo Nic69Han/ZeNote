@@ -737,6 +737,45 @@ try {
     brut,
   );
 
+  // --- Garder une capture sur l'appareil -------------------------------------
+  // Spec `analyse-distante` — « Capture non transmissible ». Le choix se pose sur la
+  // source, en Revue, et sa trace reste en tête de la source une fois refermée.
+  await source.locator('.source__transmission').click();
+  await page.waitForTimeout(600);
+  const gardee = page.locator('details.source', { hasText: /rappelle Sophie/i }).first();
+  const mention = await gardee
+    .locator('.source__local')
+    .innerText()
+    .catch(() => '');
+  verifier(
+    'une capture marquée « ne pas envoyer » apparaît comme analysée sur l’appareil',
+    /analysée sur l’appareil/i.test(mention),
+    mention || 'mention absente',
+  );
+  if (!(await gardee.evaluate((d) => d.open))) await gardee.locator('.source__resume').click();
+  verifier(
+    'et l’interrupteur dit qu’il est enclenché',
+    (await gardee.locator('.source__transmission').getAttribute('aria-pressed')) === 'true',
+  );
+
+  // Les exclusions de sphère se posent dans « Vos données », réglage éteint compris.
+  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await page.waitForTimeout(600);
+  await page.getByRole('checkbox', { name: /notes personnelles/i }).check();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await page.waitForTimeout(600);
+  verifier(
+    'l’exclusion d’une sphère survit à un changement d’écran',
+    await page.getByRole('checkbox', { name: /notes personnelles/i }).isChecked(),
+  );
+  await page.getByRole('checkbox', { name: /notes personnelles/i }).uncheck();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(600);
+
   // --- Un passage mal entendu -------------------------------------------------
   // Spec `transcription` — « Passage inaudible ». Faire mal entendre un vrai micro
   // n'est pas reproductible ; ce qui l'est, c'est la suite : une capture dont la
