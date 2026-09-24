@@ -12,13 +12,18 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { MoteurIndisponible } from '../src/audio/transcripteurLocal.ts';
 import {
+  analyserCapture,
   capturer,
   traiterFileTranscription,
   transcrireCapture,
+  type AnalyseDistante,
 } from '../src/services/pipeline.ts';
+import { analyser } from '../src/analyse/index.ts';
+import type { IssueAnalyseDistante, JugementPassage } from '../src/analyse/distante.ts';
 import {
   capturesATranscrire,
   capturesEnSouffrance,
+  ecrireReglage,
   elementsDeCapture,
   lireCapture,
   majCapture,
@@ -260,5 +265,121 @@ describe('la file', () => {
 
     expect(transcrites).toBe(1);
     expect((await lireCapture(capture.id))?.texte).toBe('rappeler le couvreur');
+  });
+});
+
+describe('analyse hybride : locale d’abord, distante pour le type et la sphère', () => {
+  const JOUR_ANALYSE = '2026-09-12';
+  const TEXTE = 'Promis à Claire le planning pour jeudi. Prendre rendez-vous chez le dentiste pour Léa.';
+
+  /** Un service simulé qui note ce qu'il reçoit et rend l'issue voulue. */
+  function service(issue: (passages: string[]) => IssueAnalyseDistante) {
+    const recus: string[][] = [];
+    const appel: AnalyseDistante = async (passages) => {
+      recus.push(passages);
+      return issue(passages);
+    };
+    return { appel, recus };
+  }
+
+  const jugeTout = (passages: string[]): IssueAnalyseDistante => ({
+    issue: 'OK',
+    modele: 'jev-1.13',
+    jugements: passages.map(
+      (_, i): JugementPassage => ({
+        type: i === 0 ? 'ENGAGEMENT' : 'TACHE',
+        typeConfiance: 0.9,
+        sphere: i === 0 ? 'INDECIDABLE' : 'PERSONNEL',
+        sphereConfiance: 0.85,
+      }),
+    ),
+  });
+
+  /** Ce qui ne dépend pas de l'identifiant tiré au hasard. */
+  const sansId = (els: { id: string }[]) =>
+    els.map(({ id: _id, ...reste }) => reste).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+
+  async function capture(texte = TEXTE) {
+    return capturer({ texte, source: 'ECRITE', etatTranscription: 'OK' });
+  }
+
+  it('n’appelle rien quand le réglage est éteint', async () => {
+    const { appel, recus } = service(jugeTout);
+    const c = await capture();
+    await analyserCapture(c, JOUR_ANALYSE, appel);
+    expect(recus).toHaveLength(0);
+    expect((await lireCapture(c.id))?.repliAnalyse).toBeUndefined();
+  });
+
+  it('n’appelle rien pour une capture non transmissible, et l’analyse localement', async () => {
+    await ecrireReglage('analyseDistante', true);
+    const { appel, recus } = service(jugeTout);
+    const c = await capture();
+    await majCapture(c.id, { transmissible: false });
+
+    await analyserCapture({ ...c, transmissible: false }, JOUR_ANALYSE, appel);
+
+    expect(recus).toHaveLength(0);
+    const elements = await elementsDeCapture(c.id);
+    expect(elements.length).toBeGreaterThan(0);
+    expect(elements.every((e) => e.origineAnalyse?.moteur === 'LOCAL')).toBe(true);
+  });
+
+  it('n’envoie que le texte exact des passages, et réécrit type, sphère et origine', async () => {
+    await ecrireReglage('analyseDistante', true);
+    const { appel, recus } = service(jugeTout);
+    const c = await capture();
+
+    await analyserCapture(c, JOUR_ANALYSE, appel);
+
+    expect(recus).toHaveLength(1);
+    for (const p of recus[0]) expect(TEXTE).toContain(p);
+    const elements = (await elementsDeCapture(c.id)).sort((a, b) => a.debutCar - b.debutCar);
+    expect(elements.map((e) => [e.type, e.sphere])).toEqual([
+      ['ENGAGEMENT', null],
+      ['TACHE', 'PERSONNEL'],
+    ]);
+    expect(elements.every((e) => e.origineAnalyse?.moteur === 'TYPESAFE' && e.origineAnalyse.modele === 'jev-1.13')).toBe(
+      true,
+    );
+    expect((await lireCapture(c.id))?.repliAnalyse).toBe(false);
+  });
+
+  it('laisse texte et bornes de chaque élément tels que l’analyse locale les a posés', async () => {
+    await ecrireReglage('analyseDistante', true);
+    const c = await capture();
+    await analyserCapture(c, JOUR_ANALYSE, service(jugeTout).appel);
+
+    const locaux = analyser(TEXTE, c.id, JOUR_ANALYSE).elements;
+    const distants = await elementsDeCapture(c.id);
+    const bornes = (els: { texte: string; debutCar: number; finCar: number }[]) =>
+      els.map((e) => [e.texte, e.debutCar, e.finCar]).sort();
+    expect(bornes(distants)).toEqual(bornes(locaux));
+    // Aucun texte inventé : chaque élément cite un passage présent dans la source.
+    for (const e of distants) expect(TEXTE.slice(e.debutCar, e.finCar).length).toBeGreaterThan(0);
+  });
+
+  it.each<IssueAnalyseDistante>([
+    { issue: 'HORS_LIGNE' },
+    { issue: 'DELAI_DEPASSE' },
+    { issue: 'NON_CONFIGURE' },
+    { issue: 'REPONSE_INVALIDE' },
+  ])('repli ($issue) : résultat identique à l’analyse locale seule, et repli noté', async (issue) => {
+    await ecrireReglage('analyseDistante', true);
+    const c = await capture();
+    await analyserCapture(c, JOUR_ANALYSE, service(() => issue).appel);
+
+    const locaux = analyser(TEXTE, c.id, JOUR_ANALYSE).elements;
+    const stockes = await elementsDeCapture(c.id);
+    expect(sansId(stockes)).toEqual(sansId(locaux));
+    expect((await lireCapture(c.id))?.repliAnalyse).toBe(true);
+  });
+
+  it('garde sur l’appareil une capture de sphère exclue', async () => {
+    await ecrireReglage('analyseDistante', true);
+    await ecrireReglage('spheresExclues', ['PERSONNEL']);
+    const { appel, recus } = service(jugeTout);
+    await analyserCapture(await capture('Prendre rendez-vous chez le dentiste pour les enfants.'), JOUR_ANALYSE, appel);
+    expect(recus).toHaveLength(0);
   });
 });

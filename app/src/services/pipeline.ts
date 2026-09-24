@@ -6,8 +6,9 @@
  * capture restant lisible et réanalysable.
  */
 
-import { analyser } from '../analyse/index.ts';
-import { identifiant } from '../analyse/index.ts';
+import { ancrer, candidats, identifiant } from '../analyse/index.ts';
+import { analyserADistance, reecrire, type IssueAnalyseDistante } from '../analyse/distante.ts';
+import { peutTransmettre } from '../analyse/transmission.ts';
 import { transcrireAudio, type Transcription } from '../audio/transcripteurLocal.ts';
 import { assurerCoffreCharge } from '../securite/coffre.ts';
 import type {
@@ -24,6 +25,7 @@ import {
   enregistrementsInacheves,
   enregistrerCapture,
   lireLexique,
+  lireReglages,
   majCapture,
   remplacerElements,
   supprimerMorceaux,
@@ -77,22 +79,39 @@ export async function capturer(entree: NouvelleCapture): Promise<Capture> {
   return enregistrerCapture(capture);
 }
 
+/** L'appel au service d'analyse distante ; remplaçable pour les tests. */
+export type AnalyseDistante = (passages: string[]) => Promise<IssueAnalyseDistante>;
+
 /**
  * Analyse une capture et remplace sa couche dérivée.
  *
  * Idempotent : rejouer l'analyse ne crée pas de doublon et ne touche ni à la source
  * ni aux décisions déjà prises par l'utilisateur.
+ *
+ * Chemin hybride (change `analyse-typesafe`, décision 1) : l'analyse locale produit
+ * toujours l'élément entier. Si la capture peut sortir, le service distant rejuge le
+ * type et la sphère de chaque passage — et rien d'autre — **avant** l'ancrage. Sur
+ * toute autre issue qu'un succès, le résultat est celui de l'analyse locale seule.
  */
-export async function analyserCapture(capture: Capture, jour = aujourdhui()): Promise<number> {
-  const { elements } = analyser(
-    capture.texte,
-    capture.id,
-    jour,
-    capture.dureeMs,
-    capture.passagesIncertains ?? [],
-  );
+export async function analyserCapture(
+  capture: Capture,
+  jour = aujourdhui(),
+  distant: AnalyseDistante = analyserADistance,
+): Promise<number> {
+  let proposes = candidats(capture.texte, capture.id, jour, capture.dureeMs);
+  let repliAnalyse: boolean | undefined;
+
+  if (proposes.length > 0 && peutTransmettre(capture, await lireReglages()).transmettre) {
+    // Le passage exact de la source, pas le texte présenté : c'est lui que l'ancrage
+    // vérifie, et rien d'autre de la capture ne part.
+    const issue = await distant(proposes.map((e) => capture.texte.slice(e.debutCar, e.finCar)));
+    proposes = reecrire(proposes, issue);
+    repliAnalyse = issue.issue !== 'OK';
+  }
+
+  const { elements } = ancrer(capture.texte, proposes, capture.passagesIncertains ?? []);
   await remplacerElements(capture.id, elements);
-  await majCapture(capture.id, { analysee: true });
+  await majCapture(capture.id, { analysee: true, repliAnalyse });
   return elements.length;
 }
 

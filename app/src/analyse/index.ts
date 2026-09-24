@@ -235,6 +235,50 @@ function elementDe(
 }
 
 /**
+ * Les éléments candidats d'une capture, avant l'ancrage.
+ *
+ * C'est l'analyse locale complète. L'analyse distante (`reecrire`, change
+ * `analyse-typesafe`) n'y change que le type et la sphère, puis tout passe par
+ * `ancrer` : aucun chemin n'évite la règle d'ancrage.
+ */
+export function candidats(
+  texte: string,
+  captureId: string,
+  aujourdhui: string,
+  dureeMs: number | null = null,
+): ElementJson[] {
+  return decouper(texte).map((p) => elementDe(p, captureId, aujourdhui, dureeMs, texte.length));
+}
+
+/**
+ * Le filet entre l'analyse et l'écran : rien n'atteint l'utilisateur sans passage
+ * source vérifié. Cette règle appartient au cœur, elle n'est pas refaite ici.
+ */
+export function ancrer(
+  texte: string,
+  elements: ElementJson[],
+  passagesIncertains: PassageIncertain[] = [],
+): ResultatAnalyse {
+  const ancrage = filtrerAncrageObjets(texte, elements, passagesIncertains);
+
+  // Le cœur ne connaît pas les champs propres à l'analyse (confiance du type et de
+  // la sphère, origine) : il les perd en réencodant. On les rattache par identifiant,
+  // sans toucher à ce que l'ancrage a décidé.
+  const parId = new Map(elements.map((c) => [c.id, c]));
+  const retenus = ancrage.retenus.map((retenu) => {
+    const candidat = parId.get(retenu.id);
+    if (!candidat) return retenu;
+    return {
+      ...retenu,
+      typeConfiance: candidat.typeConfiance,
+      sphereConfiance: candidat.sphereConfiance,
+      origineAnalyse: candidat.origineAnalyse,
+    };
+  });
+  return { elements: retenus, ecartes: ancrage.ecartes };
+}
+
+/**
  * Analyse une capture transcrite et rend les éléments structurés qu'elle contient.
  *
  * @param texte transcription de la capture, telle qu'elle est stockée
@@ -251,28 +295,5 @@ export function analyser(
   dureeMs: number | null = null,
   passagesIncertains: PassageIncertain[] = [],
 ): ResultatAnalyse {
-  const passages = decouper(texte);
-  const candidats = passages.map((p) =>
-    elementDe(p, captureId, aujourdhui, dureeMs, texte.length),
-  );
-
-  // Le filet entre l'analyse et l'écran : rien n'atteint l'utilisateur sans passage
-  // source vérifié. Cette règle appartient au cœur, elle n'est pas refaite ici.
-  const ancrage = filtrerAncrageObjets(texte, candidats, passagesIncertains);
-
-  // Le cœur ne connaît pas les champs propres à l'analyse (confiance du type et de
-  // la sphère, origine) : il les perd en réencodant. On les rattache par identifiant,
-  // sans toucher à ce que l'ancrage a décidé.
-  const parId = new Map(candidats.map((c) => [c.id, c]));
-  const elements = ancrage.retenus.map((retenu) => {
-    const candidat = parId.get(retenu.id);
-    if (!candidat) return retenu;
-    return {
-      ...retenu,
-      typeConfiance: candidat.typeConfiance,
-      sphereConfiance: candidat.sphereConfiance,
-      origineAnalyse: candidat.origineAnalyse,
-    };
-  });
-  return { elements, ecartes: ancrage.ecartes };
+  return ancrer(texte, candidats(texte, captureId, aujourdhui, dureeMs), passagesIncertains);
 }

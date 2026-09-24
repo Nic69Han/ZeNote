@@ -199,6 +199,12 @@ export interface Capture {
    * capture précise. Posé par l'utilisateur, jamais par l'analyse.
    */
   transmissible?: boolean;
+  /**
+   * `true` quand l'analyse distante était permise pour cette capture mais n'a pas
+   * abouti, et que l'analyse locale a pris le relais ; `false` quand elle a abouti.
+   * Absent quand rien n'a été tenté. La Revue le signale, une seule fois.
+   */
+  repliAnalyse?: boolean;
 }
 
 /**
