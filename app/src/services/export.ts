@@ -72,6 +72,8 @@ export interface CaptureExportee {
   incomplete: boolean;
   analysee: boolean;
   essaisTranscription: number;
+  /** `false` si l'utilisateur a demandé de garder cette capture sur l'appareil. */
+  transmissible: boolean;
   audio: AudioNonInclus;
 }
 
@@ -126,6 +128,10 @@ const CHAMPS_CAPTURES: Record<string, string> = {
   essaisTranscription:
     'Combien de fois le moteur embarqué a été mené à son terme sur cet audio. Zéro : pas ' +
     'encore tenté, la file s’en charge.',
+  transmissible:
+    'Faux si l’utilisateur a demandé que cette capture ne soit jamais envoyée à une ' +
+    'analyse distante. Vrai sinon — ce qui n’implique pas qu’elle l’ait été : cela dépend ' +
+    'aussi du réglage « analyseDistante ».',
   audio:
     'Ce que devient le son : « inclus » vaut toujours faux dans ce format. ' +
     '« presentSurLAppareil » dit si un enregistrement existe bien, « octets » sa taille et ' +
@@ -152,6 +158,15 @@ const CHAMPS_ELEMENTS: Record<string, string> = {
   interlocuteur: 'La personne concernée, si elle a été reconnue.',
   interlocuteurConfiance: 'Confiance de la reconnaissance de l’interlocuteur, de 0 à 1.',
   sphere: 'PROFESSIONNEL ou PERSONNEL, si la distinction a été faite.',
+  typeConfiance:
+    'Confiance du type retenu, de 0 à 1. Mesurée si l’analyse est distante ; posée selon la ' +
+    'règle qui a tranché si elle est locale. 1 = fixé à la main. Absent sur les éléments ' +
+    'antérieurs à ce champ.',
+  sphereConfiance: 'Confiance de la sphère, de 0 à 1, ou null si elle n’a pas été chiffrée.',
+  origineAnalyse:
+    'Qui a produit la déduction : « moteur » vaut LOCAL (analyse sur l’appareil) ou TYPESAFE ' +
+    '(service distant, qui ne juge que le type et la sphère), « modele » le modèle distant ' +
+    'utilisé, ou null. Absent sur les éléments antérieurs à ce champ.',
   planDeclencheur: 'Le déclencheur choisi : « quand X », plutôt qu’une heure.',
   planAction: 'L’action à faire à ce déclencheur.',
   verdict:
@@ -187,6 +202,7 @@ function exporterCapture(capture: Capture): CaptureExportee {
     incomplete: capture.incomplete,
     analysee: capture.analysee,
     essaisTranscription: capture.essaisTranscription ?? 0,
+    transmissible: capture.transmissible !== false,
     audio: {
       inclus: false,
       presentSurLAppareil: capture.aAudio,

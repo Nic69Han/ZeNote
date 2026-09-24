@@ -11,8 +11,8 @@ Les groupes suivent le plan de mise en service de `design.md` — Migration Plan
 ## 2. Modèle de l'élément
 
 - [x] 2.1 Ajouter à `ElementJson` (`app/src/core/regles.ts`) les champs optionnels `typeConfiance`, `sphereConfiance` et `origineAnalyse { moteur: 'LOCAL' | 'TYPESAFE', modele }`, et les renseigner dans l'analyse locale (`origineAnalyse.moteur = 'LOCAL'`, `typeConfiance` d'après la règle qui a tranché dans `typerPassage`) ; vérifier par `analyse.test.ts` que chaque élément local porte son origine et que les éléments anciens se relisent
-- [ ] 2.2 Faire passer un type sous le seuil de confiance en question à confirmer en Revue, comme l'échéance et le poids, sans planifier de rappel ; vérifier par un test que les scénarios « Confiance sous le seuil » et « Correction non écrasée » de `analyse-distante` sont tenus
-- [ ] 2.3 Inclure `origineAnalyse`, `typeConfiance` et `sphereConfiance` dans l'export ; vérifier par `export.test.ts`
+- [x] 2.2 Faire passer un type sous le seuil de confiance en question à confirmer en Revue, comme l'échéance et le poids, sans planifier de rappel ; vérifier par un test que les scénarios « Confiance sous le seuil » et « Correction non écrasée » de `analyse-distante` sont tenus
+- [x] 2.3 Inclure `origineAnalyse`, `typeConfiance` et `sphereConfiance` dans l'export ; vérifier par `export.test.ts`
 
 ## 3. Service distant et chemin hybride
 

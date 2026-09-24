@@ -75,6 +75,8 @@ Il y a un problème de poule et d'œuf : exclure une sphère demande de connaît
 
 *Confiance du type, locale ou distante.* L'analyseur local chiffre sa confiance d'après la règle qui a tranché (amorce 0,8, verbe 0,6, repli 0,5). Ces valeurs sont posées à la main, non calibrées : elles servent l'évaluation, pas la Revue. La question « ce type est-il juste ? » n'est donc posée que pour un élément d'origine `TYPESAFE` dont la confiance est sous le seuil. L'appliquer aux éléments locaux changerait la Revue de tous les utilisateurs actuels, qui n'ont que l'analyse locale, sans qu'aucune mesure ne le justifie.
 
+*Où vit cette règle.* Dans `app/src/analyse/origine.ts` (`completerRevue`), qui complète la file rendue par le cœur : le cœur ne connaît ni `typeConfiance` ni `origineAnalyse`, et son `aConfirmer()` ne peut donc pas les lire. Conséquence assumée : la réduction de la file (`Arriere.revueReduite`) ne voit pas ce doute-là. Quand le cœur gagnera ces champs, la règle rejoindra `ElementJson.aConfirmer()` et `completerRevue` ne fera plus que rattacher les champs.
+
 ### 6. Délai borné, repli sans alerte
 
 L'appel distant a un délai de **4 s**, avec un `AbortController` côté PWA. Toute erreur (hors ligne, 503 « non configuré », délai dépassé, 4xx/5xx, réponse invalide) mène au local. L'état dégradé est **signalé une seule fois**, en Revue (« analysé sur l'appareil »), et jamais par erreur modale.

@@ -20,7 +20,7 @@ import {
   VERSION_FORMAT_EXPORT,
   type ExportZeNote,
 } from '../src/services/export.ts';
-import { enregistrerCapture, ecrireReglage, toutEffacer } from '../src/stockage/depot.ts';
+import { enregistrerCapture, ecrireReglage, majCapture, toutEffacer } from '../src/stockage/depot.ts';
 import { analyserCapture, capturer } from '../src/services/pipeline.ts';
 
 const JOUR = '2026-09-12';
@@ -216,5 +216,39 @@ describe('le repli quand le téléchargement est impossible', () => {
       writeText: () => Promise.reject(new Error('permission refusée')),
     };
     expect(await copierDansPressePapier('texte', refus)).toBe(false);
+  });
+});
+
+describe('l’origine de l’analyse voyage avec l’export', () => {
+  it('emporte l’origine et les confiances de chaque élément, et les documente', async () => {
+    const capture = await capturer({
+      texte: 'Voir avec Marc pour le budget avant vendredi.',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await analyserCapture(capture, JOUR);
+
+    const exporte = JSON.parse(await exporterJson());
+    expect(exporte.elements.length).toBeGreaterThan(0);
+    for (const e of exporte.elements) {
+      expect(e.origineAnalyse).toEqual({ moteur: 'LOCAL', modele: null });
+      expect(typeof e.typeConfiance).toBe('number');
+      expect(e).toHaveProperty('sphereConfiance', null);
+    }
+    expect(Object.keys(exporte.champs.elements)).toEqual(
+      expect.arrayContaining(['typeConfiance', 'sphereConfiance', 'origineAnalyse']),
+    );
+  });
+
+  it('emporte le refus de transmettre une capture', async () => {
+    const gardee = await capturer({ texte: 'rendez-vous chez le médecin', source: 'ECRITE', etatTranscription: 'OK' });
+    const libre = await capturer({ texte: 'préparer le budget', source: 'ECRITE', etatTranscription: 'OK' });
+    await majCapture(gardee.id, { transmissible: false });
+
+    const exporte = await construireExport();
+    const parId = new Map(exporte.captures.map((c) => [c.id, c]));
+    expect(parId.get(gardee.id)?.transmissible).toBe(false);
+    expect(parId.get(libre.id)?.transmissible).toBe(true);
+    expect(Object.keys(exporte.champs.captures)).toContain('transmissible');
   });
 });

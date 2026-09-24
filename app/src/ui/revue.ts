@@ -50,6 +50,7 @@ import {
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 import { identifiant } from '../analyse/index.ts';
+import { completerRevue } from '../analyse/origine.ts';
 import { apprendre } from '../services/lexique.ts';
 import { echosDe } from '../services/echos.ts';
 import {
@@ -267,7 +268,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const sphere = (await lireReglages()).filtreSphere;
     const tous = await listerElements();
     const elements = filtrerParSphere(tous, sphere);
-    const file = revueObjets(elements, jour);
+    const file = completerRevue(revueObjets(elements, jour), elements);
 
     // Ce que la mémoire sait des références de ces éléments. Reconstruite à chaque
     // rendu depuis les captures et les éléments : c'est une couche dérivée, elle n'a
@@ -1563,6 +1564,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
           e,
           {
             type: type.value as ElementJson['type'],
+            typeConfiance: 1,
             echeance: echeance.value || null,
             echeanceConfiance: echeance.value ? 1 : null,
             echeanceIndice: echeance.value ? 'corrigé à la main' : null,
