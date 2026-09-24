@@ -54,6 +54,33 @@ export interface ElementJson {
    * le fait donc confirmer avant qu'il ne devienne ferme.
    */
   issuDeReunion?: boolean;
+  /**
+   * La confiance du type retenu, entre 0 et 1.
+   *
+   * Calibrée quand elle vient du service distant ; posée à la main, selon la règle
+   * qui a tranché, quand elle vient de l'analyse locale. Absente sur les éléments
+   * produits avant ce champ.
+   */
+  typeConfiance?: number | null;
+  /** La confiance de la sphère, rendue par le service distant. Absente sinon. */
+  sphereConfiance?: number | null;
+  /**
+   * Qui a analysé cet élément, et avec quel modèle.
+   *
+   * Spec `analyse-distante` — « Repli sur l'analyse locale » : l'origine se lit sur
+   * l'élément, et une ré-analyse peut cibler ceux qui l'ont été localement. Absente
+   * sur les éléments produits avant ce champ, qui l'ont tous été localement.
+   *
+   * Ces trois champs n'existent pas dans le cœur : ils ne le traversent pas, et
+   * [analyser] les rattache après l'ancrage.
+   */
+  origineAnalyse?: OrigineAnalyse | null;
+}
+
+export interface OrigineAnalyse {
+  moteur: 'LOCAL' | 'TYPESAFE';
+  /** La version du modèle distant ; `null` pour l'analyse locale. */
+  modele: string | null;
 }
 
 /**

@@ -55,16 +55,41 @@ function contientUn(texteNormalise: string, amorces: string[]): boolean {
  * reconnaissent à une amorce explicite, une tâche seulement à défaut.
  */
 export function typerPassage(passage: string): ElementJson['type'] {
-  const t = normaliser(passage);
+  return typerPassageAvecConfiance(passage).type;
+}
 
-  if (contientUn(t, AMORCES_ATTENTE)) return 'ATTENTE';
-  if (contientUn(t, AMORCES_DECISION)) return 'DECISION';
-  if (contientUn(t, AMORCES_ENGAGEMENT)) return 'ENGAGEMENT';
+/**
+ * Confiance d'une amorce explicite ou d'un motif de promesse adressée : la règle a
+ * reconnu une forme, pas deviné.
+ */
+const CONFIANCE_AMORCE = 0.8;
+/** Confiance d'un verbe d'action repéré sans amorce : une tâche par défaut. */
+const CONFIANCE_VERBE = 0.6;
+/** Confiance du repli sur `INFORMATION`, quand aucune règle n'a tranché. */
+const CONFIANCE_DEFAUT = 0.5;
+
+/**
+ * Le type d'un passage, avec la confiance de la règle qui l'a décidé.
+ *
+ * Ces confiances sont posées à la main, pas mesurées : elles disent quelle règle a
+ * tranché, pour que l'évaluation de la change `analyse-typesafe` puisse comparer
+ * cet analyseur au service distant, règle par règle.
+ */
+export function typerPassageAvecConfiance(passage: string): {
+  type: ElementJson['type'];
+  confiance: number;
+} {
+  const t = normaliser(passage);
+  const amorce = (type: ElementJson['type']) => ({ type, confiance: CONFIANCE_AMORCE });
+
+  if (contientUn(t, AMORCES_ATTENTE)) return amorce('ATTENTE');
+  if (contientUn(t, AMORCES_DECISION)) return amorce('DECISION');
+  if (contientUn(t, AMORCES_ENGAGEMENT)) return amorce('ENGAGEMENT');
   // Une promesse faite à quelqu'un de nommé : le nom s'intercale, et aucune amorce
   // fixe ne l'attrape. Sans cette règle la phrase finit en simple information.
-  if (MOTIF_ENGAGEMENT_ADRESSE.test(t) || MOTIF_ENGAGEMENT_PRONOM.test(t)) return 'ENGAGEMENT';
-  if (contientUn(t, AMORCES_IDEE)) return 'IDEE';
-  if (contientUn(t, AMORCES_TACHE)) return 'TACHE';
+  if (MOTIF_ENGAGEMENT_ADRESSE.test(t) || MOTIF_ENGAGEMENT_PRONOM.test(t)) return amorce('ENGAGEMENT');
+  if (contientUn(t, AMORCES_IDEE)) return amorce('IDEE');
+  if (contientUn(t, AMORCES_TACHE)) return amorce('TACHE');
 
   // Verbe d'action à l'infinitif ou conjugué en première personne du futur proche.
   const mots = t.split(/[^a-z']+/);
@@ -73,12 +98,12 @@ export function typerPassage(passage: string): ElementJson['type'] {
   if (verbe || premierePersonne) {
     // Une promesse adressée à quelqu'un est un engagement, pas une simple tâche.
     if (premierePersonne && /\b(a|pour|aupres de)\s+[a-z]/.test(t) && /\b(rendre|renvoyer|livrer|repondre|envoyer)\b/.test(t)) {
-      return 'ENGAGEMENT';
+      return { type: 'ENGAGEMENT', confiance: CONFIANCE_VERBE };
     }
-    return 'TACHE';
+    return { type: 'TACHE', confiance: CONFIANCE_VERBE };
   }
 
-  return 'INFORMATION';
+  return { type: 'INFORMATION', confiance: CONFIANCE_DEFAUT };
 }
 
 /** Le poids, avec l'indice qui le justifie — jamais un poids sans raison affichable. */
@@ -168,7 +193,7 @@ function elementDe(
   dureeMs: number | null,
   longueurTotale: number,
 ): ElementJson {
-  const type = typerPassage(passage.texte);
+  const { type, confiance: typeConfiance } = typerPassageAvecConfiance(passage.texte);
   const echeance = repererEcheance(passage.texte, aujourdhui);
   const poids = evaluerPoids(passage.texte);
   const interlocuteur = repererInterlocuteur(passage.texte);
@@ -201,6 +226,11 @@ function elementDe(
     planAction: null,
     verdict: 'EN_ATTENTE',
     corrigeParHumain: false,
+    typeConfiance,
+    // Le lexique ne mesure pas sa certitude sur la sphère : il la tait plutôt que de
+    // la chiffrer au hasard.
+    sphereConfiance: null,
+    origineAnalyse: { moteur: 'LOCAL', modele: null },
   };
 }
 
@@ -229,5 +259,20 @@ export function analyser(
   // Le filet entre l'analyse et l'écran : rien n'atteint l'utilisateur sans passage
   // source vérifié. Cette règle appartient au cœur, elle n'est pas refaite ici.
   const ancrage = filtrerAncrageObjets(texte, candidats, passagesIncertains);
-  return { elements: ancrage.retenus, ecartes: ancrage.ecartes };
+
+  // Le cœur ne connaît pas les champs propres à l'analyse (confiance du type et de
+  // la sphère, origine) : il les perd en réencodant. On les rattache par identifiant,
+  // sans toucher à ce que l'ancrage a décidé.
+  const parId = new Map(candidats.map((c) => [c.id, c]));
+  const elements = ancrage.retenus.map((retenu) => {
+    const candidat = parId.get(retenu.id);
+    if (!candidat) return retenu;
+    return {
+      ...retenu,
+      typeConfiance: candidat.typeConfiance,
+      sphereConfiance: candidat.sphereConfiance,
+      origineAnalyse: candidat.origineAnalyse,
+    };
+  });
+  return { elements, ecartes: ancrage.ecartes };
 }

@@ -1,7 +1,14 @@
 /** L'analyseur local : ce qu'il comprend, et surtout ce qu'il refuse d'inventer. */
 
 import { describe, expect, it } from 'vitest';
-import { analyser, evaluerPoids, repererInterlocuteur, typerPassage } from '../src/analyse/index.ts';
+import {
+  analyser,
+  evaluerPoids,
+  repererInterlocuteur,
+  typerPassage,
+  typerPassageAvecConfiance,
+} from '../src/analyse/index.ts';
+import { filtrerAncrageObjets, type ElementJson } from '../src/core/regles.ts';
 import { decaler, prochainJour, repererEcheance } from '../src/analyse/dates.ts';
 import { decouper } from '../src/analyse/segments.ts';
 
@@ -157,5 +164,40 @@ describe('analyse complète', () => {
 
   it('ne produit rien à partir d’un texte vide', () => {
     expect(analyser('', 'cap-1', JOUR).elements).toEqual([]);
+  });
+});
+
+describe('origine et confiance du type', () => {
+  it('rend la confiance de la règle qui a tranché', () => {
+    expect(typerPassageAvecConfiance("j'attends le retour de Sophie")).toEqual({ type: 'ATTENTE', confiance: 0.8 });
+    expect(typerPassageAvecConfiance('appeler le client')).toEqual({ type: 'TACHE', confiance: 0.6 });
+    expect(typerPassageAvecConfiance('le taux de marge est à douze pour cent')).toEqual({
+      type: 'INFORMATION',
+      confiance: 0.5,
+    });
+  });
+
+  it('marque chaque élément local de son origine, à travers l’ancrage du cœur', () => {
+    const { elements } = analyser(
+      'Appeler Marc avant vendredi. On a décidé de reporter le lancement. Le taux est bas.',
+      'cap-1',
+      JOUR,
+    );
+    expect(elements.length).toBeGreaterThan(0);
+    for (const e of elements) {
+      expect(e.origineAnalyse).toEqual({ moteur: 'LOCAL', modele: null });
+      expect(e.typeConfiance).toBe(typerPassageAvecConfiance(e.texte).confiance);
+      expect(e.sphereConfiance).toBeNull();
+    }
+  });
+
+  it('laisse un élément ancien, sans ces champs, se relire tel quel', () => {
+    const { elements } = analyser('Appeler Marc avant vendredi.', 'cap-1', JOUR);
+    const { typeConfiance: _t, sphereConfiance: _s, origineAnalyse: _o, ...ancien } = elements[0];
+    const relu: ElementJson = JSON.parse(JSON.stringify(ancien));
+    expect(relu.origineAnalyse).toBeUndefined();
+    expect(relu.typeConfiance).toBeUndefined();
+    // Le cœur l'accepte toujours : les champs sont facultatifs de bout en bout.
+    expect(filtrerAncrageObjets('Appeler Marc avant vendredi.', [relu], []).retenus).toHaveLength(1);
   });
 });

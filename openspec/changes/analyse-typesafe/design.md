@@ -71,6 +71,10 @@ Il y a un problème de poule et d'œuf : exclure une sphère demande de connaît
 
 *Pourquoi.* C'est l'amorce de la décision 2 de `zenote-core`. Ce champ rend aussi l'évaluation possible (décision 7) et permet plus tard une ré-analyse ciblée.
 
+*Constaté à l'implémentation.* Le cœur Kotlin ne connaît pas ces champs : `filtrerAncrage` décode vers son propre `ElementJson` puis réencode, et les perd. `analyser` les rattache donc par identifiant après l'ancrage, sans toucher à ce que l'ancrage a décidé. Tout autre passage d'un élément par le cœur qui doit les conserver fera de même.
+
+*Confiance du type, locale ou distante.* L'analyseur local chiffre sa confiance d'après la règle qui a tranché (amorce 0,8, verbe 0,6, repli 0,5). Ces valeurs sont posées à la main, non calibrées : elles servent l'évaluation, pas la Revue. La question « ce type est-il juste ? » n'est donc posée que pour un élément d'origine `TYPESAFE` dont la confiance est sous le seuil. L'appliquer aux éléments locaux changerait la Revue de tous les utilisateurs actuels, qui n'ont que l'analyse locale, sans qu'aucune mesure ne le justifie.
+
 ### 6. Délai borné, repli sans alerte
 
 L'appel distant a un délai de **4 s**, avec un `AbortController` côté PWA. Toute erreur (hors ligne, 503 « non configuré », délai dépassé, 4xx/5xx, réponse invalide) mène au local. L'état dégradé est **signalé une seule fois**, en Revue (« analysé sur l'appareil »), et jamais par erreur modale.

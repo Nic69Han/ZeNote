@@ -190,6 +190,15 @@ export interface Capture {
    * un souvenir faux, et rien ne le signale ensuite.
    */
   captureLiee?: string | null;
+  /**
+   * `false` quand l'utilisateur a refusé que cette capture parte à l'analyse distante.
+   *
+   * Spec `analyse-distante` — « Transmission conditionnée au consentement ». Absent
+   * veut dire transmissible : c'est le réglage d'analyse distante, éteint par défaut,
+   * qui décide si quoi que ce soit sort, et ce champ ne sert qu'à dire non à une
+   * capture précise. Posé par l'utilisateur, jamais par l'analyse.
+   */
+  transmissible?: boolean;
 }
 
 /**
@@ -232,6 +241,22 @@ export interface Reglages {
    * panne que l'import répare.
    */
   monNom: string;
+  /**
+   * L'analyse du type et de la sphère par un service distant.
+   *
+   * Spec `analyse-distante` — « Activation conditionnée à l'évaluation ». Éteinte
+   * par défaut tant que l'évaluation sur des captures réelles n'est pas consignée :
+   * c'est la première fois que du texte des notes quitterait l'appareil.
+   */
+  analyseDistante: boolean;
+  /**
+   * Les sphères dont aucune capture ne part à l'analyse distante.
+   *
+   * La sphère d'une capture est jugée sur l'appareil avant tout envoi. Une capture
+   * dont la sphère est indécidable ne part pas tant qu'une exclusion est active :
+   * le doute se tranche du côté de la vie privée.
+   */
+  spheresExclues: ('PROFESSIONNEL' | 'PERSONNEL')[];
 }
 
 export const REGLAGES_PAR_DEFAUT: Reglages = {
@@ -242,6 +267,8 @@ export const REGLAGES_PAR_DEFAUT: Reglages = {
   creneauRenoncements: 0,
   creneauVuLe: null,
   monNom: '',
+  analyseDistante: false,
+  spheresExclues: [],
 };
 
 // ------------------------------------------------- scellement et ouverture

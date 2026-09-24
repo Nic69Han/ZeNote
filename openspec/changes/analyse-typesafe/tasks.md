@@ -4,13 +4,13 @@ Les groupes suivent le plan de mise en service de `design.md` — Migration Plan
 
 ## 1. Consentement (prérequis bloquant, tâche 7.1 de `zenote-core`)
 
-- [ ] 1.1 Ajouter à `Capture` (`app/src/stockage/depot.ts`) un champ optionnel `transmissible` (absent = transmissible), et aux réglages la liste des sphères exclues de l'analyse distante ; vérifier par un test de stockage qu'une capture ancienne sans le champ se relit, et que le marquage survit à un rechargement
-- [ ] 1.2 Écrire la fonction pure `peutTransmettre(capture, reglages)` selon la décision 4 : non transmissible → non ; sphère locale exclue → non ; sphère locale indécidable et au moins une sphère exclue → non ; réglage d'analyse distante éteint → non ; sinon oui. Vérifier par un test qui couvre chacune des cinq branches, dont le doute tranché vers le local
+- [x] 1.1 Ajouter à `Capture` (`app/src/stockage/depot.ts`) un champ optionnel `transmissible` (absent = transmissible), et aux réglages la liste des sphères exclues de l'analyse distante ; vérifier par un test de stockage qu'une capture ancienne sans le champ se relit, et que le marquage survit à un rechargement
+- [x] 1.2 Écrire la fonction pure `peutTransmettre(capture, reglages)` selon la décision 4 : non transmissible → non ; sphère locale exclue → non ; sphère locale indécidable et au moins une sphère exclue → non ; réglage d'analyse distante éteint → non ; sinon oui. Vérifier par un test qui couvre chacune des cinq branches, dont le doute tranché vers le local
 - [ ] 1.3 Ajouter l'interrupteur « Ne pas envoyer à l'analyse » sur une capture (Revue et fiche) et les exclusions de sphère dans Réglages ; vérifier dans `tests/bout-en-bout.mjs` que marquer une capture la fait apparaître comme « analysée sur l'appareil »
 
 ## 2. Modèle de l'élément
 
-- [ ] 2.1 Ajouter à `ElementJson` (`app/src/core/regles.ts`) les champs optionnels `typeConfiance`, `sphereConfiance` et `origineAnalyse { moteur: 'LOCAL' | 'TYPESAFE', modele }`, et les renseigner dans l'analyse locale (`origineAnalyse.moteur = 'LOCAL'`, `typeConfiance` d'après la règle qui a tranché dans `typerPassage`) ; vérifier par `analyse.test.ts` que chaque élément local porte son origine et que les éléments anciens se relisent
+- [x] 2.1 Ajouter à `ElementJson` (`app/src/core/regles.ts`) les champs optionnels `typeConfiance`, `sphereConfiance` et `origineAnalyse { moteur: 'LOCAL' | 'TYPESAFE', modele }`, et les renseigner dans l'analyse locale (`origineAnalyse.moteur = 'LOCAL'`, `typeConfiance` d'après la règle qui a tranché dans `typerPassage`) ; vérifier par `analyse.test.ts` que chaque élément local porte son origine et que les éléments anciens se relisent
 - [ ] 2.2 Faire passer un type sous le seuil de confiance en question à confirmer en Revue, comme l'échéance et le poids, sans planifier de rappel ; vérifier par un test que les scénarios « Confiance sous le seuil » et « Correction non écrasée » de `analyse-distante` sont tenus
 - [ ] 2.3 Inclure `origineAnalyse`, `typeConfiance` et `sphereConfiance` dans l'export ; vérifier par `export.test.ts`
 
