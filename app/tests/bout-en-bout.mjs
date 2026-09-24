@@ -674,12 +674,17 @@ try {
     motifEscalade,
   );
 
+  // Après 18 h, « ce soir » est déjà échu pour tous les plans posés dans ce parcours :
+  // la bande en groupe plusieurs, et les écarter les escalade tous. Ce qui est vérifié
+  // est donc le sort de l'escalade replanifiée, pas le compte total.
+  const escaladeReplanifiee = await escalade.getAttribute('data-element');
   await escalade.locator('.escalades__actions .bouton').first().click();
   await page.waitForTimeout(900);
+  const restante = page.locator(`.escalades__ligne[data-element="${escaladeReplanifiee}"]`);
   verifier(
     'replanifier le sort de l’escalade',
-    (await page.locator('.escalades__ligne').count()) === 0,
-    `${await page.locator('.escalades__ligne').count()} escalade(s) restante(s)`,
+    (await restante.count()) === 0,
+    `${await page.locator('.escalades__ligne').count()} escalade(s) restante(s), dont ${await restante.count()} replanifiée`,
   );
 
   // --- La transcription lisible, et ce qui a été dit --------------------------
