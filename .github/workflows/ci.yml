@@ -89,6 +89,13 @@ jobs:
         working-directory: app
         run: npm test -- --run
 
+      # Le point d'analyse distante vit hors de l'application, avec ses propres
+      # dépendances (le SDK TypeSafe) : ses types se vérifient à part.
+      - name: Vérifier les types des fonctions serveur
+        if: steps.presence.outputs.presente == 'oui'
+        working-directory: netlify
+        run: npm ci && npm run typecheck
+
       # La vérification qui compte : la chaîne complète dans un vrai navigateur,
       # capture → analyse → Revue → plan → Maintenant, sur l'application construite.
       - name: Installer Chromium pour la vérification bout en bout
