@@ -23,3 +23,6 @@ build/
 
 # Empreinte du commit, déposée par `scripts/deployer.sh` dans la copie exportée.
 app/.version
+
+# Étiquettes d’évaluation de l’analyse distante : passages de vraies notes.
+*.local.tsv

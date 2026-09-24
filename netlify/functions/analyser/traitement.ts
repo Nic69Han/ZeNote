@@ -70,9 +70,44 @@ export const CRITERES_SPHERE: Record<SphereJugee, string> = {
     'que de deviner.',
 };
 
-const CONTEXTE =
-  'Notes dictées ou tapées en français par une seule personne, l’auteur, pour elle-même. ' +
-  'Chaque élément de `passages` est un passage d’une même note, jugé séparément.';
+/**
+ * Les mêmes critères, rédigés en anglais : Jev est entraîné d'abord en anglais. Le
+ * contenu jugé reste en français. Change `analyse-typesafe`, tâche 5.2 : l'évaluation
+ * compare les deux rédactions avant d'en retenir une.
+ */
+export const CRITERES_TYPE_EN: Record<Type, string> = {
+  TACHE:
+    'The author of the note must do something themselves. Not a promise made to a person ' +
+    '(commitment), nor something expected from someone else (waiting).',
+  ENGAGEMENT:
+    'The author promised something to someone: there is a recipient, named or designated. ' +
+    'Without a recipient, it is a task.',
+  ATTENTE:
+    'Someone else owes the author something: a reply, an answer, a delivery. The author has ' +
+    'nothing to do except follow up.',
+  INFORMATION: 'A fact to remember. No action to take, no promise, nothing expected, no settled choice.',
+  DECISION:
+    'A settled choice, with or without its reason. Not an action to take, even if the choice ' +
+    'leads to one.',
+  IDEE: 'An idea to explore someday, with no commitment and no deadline. Not a decided task.',
+};
+
+export const CRITERES_SPHERE_EN: Record<SphereJugee, string> = {
+  PROFESSIONNEL: 'Work: clients, colleagues, projects, meetings, budget, employer.',
+  PERSONNEL: 'Private life: family, children, health, home, friends, leisure.',
+  INDECIDABLE: 'The passage does not allow deciding between work and private life. Prefer this to guessing.',
+};
+
+export type Langue = 'fr' | 'en';
+
+const CONTEXTE: Record<Langue, string> = {
+  fr:
+    'Notes dictées ou tapées en français par une seule personne, l’auteur, pour elle-même. ' +
+    'Chaque élément de `passages` est un passage d’une même note, jugé séparément.',
+  en:
+    'Notes dictated or typed in French by a single person, the author, for themselves. ' +
+    'Each item of `passages` is a passage of the same note, judged separately.',
+};
 
 export interface QuestionChoix {
   type: 'choice';
@@ -84,15 +119,23 @@ export interface QuestionChoix {
 export type FabriqueChoix = (instructions: string, criteres: Record<string, string>) => QuestionChoix;
 
 /** Deux questions par passage, dans une seule requête : `type_i` et `sphere_i`. */
-export function construireQuestions(nombre: number, choix: FabriqueChoix): Record<string, QuestionChoix> {
+export function construireQuestions(
+  nombre: number,
+  choix: FabriqueChoix,
+  langue: Langue = 'fr',
+): Record<string, QuestionChoix> {
   const questions: Record<string, QuestionChoix> = {};
   for (let i = 0; i < nombre; i++) {
     // Le passage est désigné par son chemin dans l'état, jamais recopié ici.
-    questions[`type_${i}`] = choix(`Quel est le type du passage \`passages[${i}]\` ?`, CRITERES_TYPE);
-    questions[`sphere_${i}`] = choix(
-      `À quelle sphère de la vie de l’auteur le passage \`passages[${i}]\` appartient-il ?`,
-      CRITERES_SPHERE,
-    );
+    const chemin = `\`passages[${i}]\``;
+    questions[`type_${i}`] =
+      langue === 'en'
+        ? choix(`What kind of item is the passage ${chemin}?`, CRITERES_TYPE_EN)
+        : choix(`Quel est le type du passage ${chemin} ?`, CRITERES_TYPE);
+    questions[`sphere_${i}`] =
+      langue === 'en'
+        ? choix(`Which sphere of the author’s life does the passage ${chemin} belong to?`, CRITERES_SPHERE_EN)
+        : choix(`À quelle sphère de la vie de l’auteur le passage ${chemin} appartient-il ?`, CRITERES_SPHERE);
   }
   return questions;
 }
@@ -122,6 +165,8 @@ export interface Dependances {
   choix: FabriqueChoix;
   journal: Journal;
   maintenant?: () => number;
+  /** La langue des consignes ; le contenu jugé reste celui des passages. */
+  langue?: Langue;
 }
 
 // ---------------------------------------------------------------- la requête
@@ -185,6 +230,7 @@ export function traduire(reponse: ReponseFournisseur, nombre: number): ReponsePa
 export async function traiter(requete: Request, dependances: Dependances): Promise<Response> {
   const { journal } = dependances;
   const maintenant = dependances.maintenant ?? Date.now;
+  const langue = dependances.langue ?? 'fr';
 
   if (requete.method !== 'POST') {
     return repondre(405, { motif: 'methode-refusee' });
@@ -213,8 +259,8 @@ export async function traiter(requete: Request, dependances: Dependances): Promi
   try {
     reponse = await client.systemOne(
       {
-        state: { contexte: CONTEXTE, passages },
-        questions: construireQuestions(passages.length, dependances.choix),
+        state: { contexte: CONTEXTE[langue], passages },
+        questions: construireQuestions(passages.length, dependances.choix, langue),
       },
       { timeout: DELAI_FOURNISSEUR_MS },
     );
