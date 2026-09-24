@@ -263,10 +263,15 @@ declare global {
        * de transcription ne serait vérifiable qu'en faisant mal parler un micro.
        */
       majCapture: typeof majCapture;
+      /**
+       * Poser un réglage sans passer par l'écran — dont l'analyse distante, pour
+       * vérifier son repli sans confirmation à chaque parcours.
+       */
+      ecrireReglage: typeof ecrireReglage;
     };
   }
 }
-window.__zenote = { capturer, traiterFileAnalyse, toutEffacer, majCapture };
+window.__zenote = { capturer, traiterFileAnalyse, toutEffacer, majCapture, ecrireReglage };
 
 registerSW({ immediate: true });
 void demarrer();

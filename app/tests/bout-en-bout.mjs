@@ -776,6 +776,50 @@ try {
   await page.locator('.nav__lien[data-onglet="revue"]').click();
   await page.waitForTimeout(600);
 
+  // --- Le repli de l'analyse distante -----------------------------------------
+  // Change `analyse-typesafe`, décision 6. Réglage allumé, et le serveur de
+  // vérification n'a pas de point d'analyse : la capture est analysée sur
+  // l'appareil, la Revue le dit une fois, et chaque élément garde son origine.
+  await page.evaluate(async () => {
+    await window.__zenote.ecrireReglage('analyseDistante', true);
+    await window.__zenote.capturer({
+      texte: 'Préparer le budget du client pour le comité.',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.traiterFileAnalyse();
+  });
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(900);
+  const avis = await page.locator('.avis-repli').allInnerTexts();
+  verifier(
+    'un repli de l’analyse distante est dit une seule fois en Revue',
+    avis.length === 1 && /1 note a été analysée sur l’appareil/.test(avis[0]),
+    avis.join(' | ') || 'aucun avis',
+  );
+  const origine = await page
+    .locator('.entree', { hasText: /budget du client pour le comité/i })
+    .locator('.entree__indice')
+    .first()
+    .innerText()
+    .catch(() => '');
+  verifier(
+    'et l’élément dit d’où vient son analyse',
+    /Origine : analyse sur l’appareil/.test(origine),
+    origine || 'origine absente',
+  );
+  await page.evaluate(() => window.__zenote.ecrireReglage('analyseDistante', false));
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(600);
+  verifier(
+    'réglage éteint, analyser sur l’appareil n’est plus un repli à signaler',
+    (await page.locator('.avis-repli').count()) === 0,
+  );
+
   // --- Un passage mal entendu -------------------------------------------------
   // Spec `transcription` — « Passage inaudible ». Faire mal entendre un vrai micro
   // n'est pas reproductible ; ce qui l'est, c'est la suite : une capture dont la

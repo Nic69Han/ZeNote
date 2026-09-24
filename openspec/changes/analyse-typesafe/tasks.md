@@ -20,7 +20,7 @@ Les groupes suivent le plan de mise en service de `design.md` — Migration Plan
 - [x] 3.2 Déclarer la fonction sous `/api/analyser` dans `netlify.toml` et réécrire le commentaire des en-têtes qui affirme que rien n'est transmis ; vérifier avec `netlify dev` qu'un `POST` local répond 503 `non-configure`
 - [x] 3.3 Écrire côté PWA le client d'analyse distante : délai de 4 s par `AbortController`, validation stricte de la réponse (même nombre d'entrées, valeurs dans les énumérations, sinon rejet entier) ; vérifier par un test chaque issue — succès, hors ligne, délai dépassé, 503, réponse incomplète, valeur inconnue — et que seules la première réécrit quelque chose
 - [x] 3.4 Brancher le chemin hybride dans `analyserCapture` : analyse locale complète, puis, si `peutTransmettre`, réécriture de `type`, `sphere`, de leurs confiances et de `origineAnalyse` depuis la réponse distante, **avant** `filtrerAncrageObjets` ; `INDECIDABLE` → `sphere: null`. Vérifier par `pipeline.test.ts` : le texte et les bornes de chaque élément sont inchangés par la réponse distante, un repli laisse un résultat identique à l'analyse locale seule, et une capture non transmissible ne déclenche aucun appel
-- [ ] 3.5 Signaler une seule fois en Revue l'état « analysé sur l'appareil » quand un repli a eu lieu alors que le réglage est allumé, et rendre l'origine consultable sur un élément ; vérifier par un test d'écran
+- [x] 3.5 Signaler une seule fois en Revue l'état « analysé sur l'appareil » quand un repli a eu lieu alors que le réglage est allumé, et rendre l'origine consultable sur un élément ; vérifier par un test d'écran
 
 ## 4. Promesse réseau, révisée délibérément
 

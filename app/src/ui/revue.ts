@@ -50,7 +50,7 @@ import {
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 import { identifiant } from '../analyse/index.ts';
-import { completerRevue } from '../analyse/origine.ts';
+import { avisRepli, completerRevue, origineLisible } from '../analyse/origine.ts';
 import { apprendre } from '../services/lexique.ts';
 import { echosDe } from '../services/echos.ts';
 import {
@@ -273,7 +273,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // Ce que la mémoire sait des références de ces éléments. Reconstruite à chaque
     // rendu depuis les captures et les éléments : c'est une couche dérivée, elle n'a
     // ni stockage ni migration, et elle ne peut pas contredire les notes.
-    capturesConnues = (await listerCaptures()).map((c) => ({
+    const captures = await listerCaptures();
+    capturesConnues = captures.map((c) => ({
       id: c.id,
       texte: c.texte,
       creeLe: c.creeLe,
@@ -390,6 +391,15 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
         ),
       );
     }
+
+    // Change `analyse-typesafe`, décision 6 : le repli se dit une fois, ici, et
+    // jamais par une erreur. Chaque élément garde en plus sa propre origine.
+    const repli = avisRepli(
+      captures,
+      file.groupes.map((g) => g.captureId),
+      (await lireReglages()).analyseDistante,
+    );
+    if (repli) section.append(el('p', { class: 'avis-repli', role: 'status', texte: repli }));
 
     for (const groupe of file.groupes) {
       section.append(await rendreGroupe(groupe.captureId, groupe.entrees));
@@ -1344,9 +1354,11 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // visible sur l'élément. La date est une déduction ; « avant vendredi » est ce
     // qui a été dit, et c'est lui qui permet de voir d'un coup d'œil qu'elle est
     // juste — ou qu'elle ne l'est pas.
+    const origine = origineLisible(e);
     const raisons = [
       e.poidsIndice ? `Poids : ${e.poidsIndice}.` : '',
       e.echeanceIndice ? `Échéance : « ${e.echeanceIndice} ».` : '',
+      origine ? `Origine : ${origine}.` : '',
     ].filter((r) => r !== '');
     const justification = el('p', {
       class: 'entree__indice',

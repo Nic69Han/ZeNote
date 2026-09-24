@@ -21,7 +21,7 @@ import {
 } from '../src/stockage/depot.ts';
 import { capturer } from '../src/services/pipeline.ts';
 import { peutTransmettre } from '../src/analyse/transmission.ts';
-import { completerRevue, typeAConfirmer } from '../src/analyse/origine.ts';
+import { avisRepli, completerRevue, origineLisible, typeAConfirmer } from '../src/analyse/origine.ts';
 import { revueObjets, type ElementJson } from '../src/core/regles.ts';
 
 const ALLUMEE = { analyseDistante: true, spheresExclues: [] as ('PROFESSIONNEL' | 'PERSONNEL')[] };
@@ -184,5 +184,34 @@ describe('correction humaine face à l’analyse distante', () => {
     const relu = (await listerElements()).find((x) => x.id === 'el-corrige');
     expect(relu?.type).toBe('DECISION');
     expect(relu?.corrigeParHumain).toBe(true);
+  });
+});
+
+describe('état dégradé et origine, à l’écran', () => {
+  it('dit l’origine de chaque élément, et se tait pour un élément ancien', () => {
+    expect(origineLisible(elementSur({ origineAnalyse: { moteur: 'LOCAL', modele: null } }))).toBe(
+      'analyse sur l’appareil',
+    );
+    expect(origineLisible(elementSur({ origineAnalyse: DISTANT }))).toBe('service d’analyse distant (jev-system-one)');
+    expect(origineLisible(elementSur())).toBeNull();
+  });
+
+  it('signale le repli une seule fois, pour les seules captures en Revue', () => {
+    const captures = [
+      { id: 'a', repliAnalyse: true },
+      { id: 'b', repliAnalyse: true },
+      { id: 'c', repliAnalyse: false },
+      { id: 'd' },
+      { id: 'hors-revue', repliAnalyse: true },
+    ];
+    expect(avisRepli(captures, ['a', 'b', 'c', 'd'], true)).toBe(
+      '2 notes ont été analysées sur l’appareil : le service d’analyse n’était pas disponible.',
+    );
+    expect(avisRepli(captures, ['a'], true)).toMatch(/^1 note a été analysée/);
+    expect(avisRepli(captures, ['c', 'd'], true)).toBeNull();
+  });
+
+  it('ne parle pas de repli quand l’analyse distante est éteinte', () => {
+    expect(avisRepli([{ id: 'a', repliAnalyse: true }], ['a'], false)).toBeNull();
   });
 });

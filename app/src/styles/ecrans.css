@@ -1325,3 +1325,13 @@
 .source__transmission[aria-pressed='true']::before {
   content: '✓ ';
 }
+
+/* L'analyse distante n'a pas répondu : un fait, pas une erreur. */
+.avis-repli {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--rayon);
+  background: var(--fond-creux);
+  color: var(--encre-douce);
+  font-size: 0.85rem;
+}

@@ -67,3 +67,34 @@ export function completerRevue(file: RevueJson, elements: ElementJson[]): RevueJ
     })),
   };
 }
+
+/**
+ * D'où vient cet élément, en clair. Spec `analyse-distante` — « Origine consultable ».
+ * `null` pour un élément antérieur à ce champ : on ne prétend pas savoir.
+ */
+export function origineLisible(e: ElementJson): string | null {
+  const o = e.origineAnalyse;
+  if (!o) return null;
+  if (o.moteur === 'LOCAL') return 'analyse sur l’appareil';
+  return o.modele ? `service d’analyse distant (${o.modele})` : 'service d’analyse distant';
+}
+
+/**
+ * L'avis d'état dégradé, une seule fois pour toute la Revue — ou rien.
+ *
+ * Décision 6 : le repli n'est jamais une erreur, seulement un fait à savoir. Il
+ * n'est dit que si l'analyse distante est allumée (sinon, analyser sur l'appareil
+ * est la règle, pas un repli) et seulement pour les captures présentes en Revue.
+ */
+export function avisRepli(
+  captures: { id: string; repliAnalyse?: boolean }[],
+  capturesEnRevue: string[],
+  analyseDistante: boolean,
+): string | null {
+  if (!analyseDistante) return null;
+  const presentes = new Set(capturesEnRevue);
+  const n = captures.filter((c) => c.repliAnalyse === true && presentes.has(c.id)).length;
+  if (n === 0) return null;
+  const sujet = n === 1 ? '1 note a été analysée' : `${n} notes ont été analysées`;
+  return `${sujet} sur l’appareil : le service d’analyse n’était pas disponible.`;
+}
