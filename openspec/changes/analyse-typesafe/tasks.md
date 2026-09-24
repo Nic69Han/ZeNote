@@ -26,7 +26,7 @@ Les groupes suivent le plan de mise en service de `design.md` — Migration Plan
 
 - [x] 4.1 Ajouter le réglage « Analyse sur un service distant », **éteint par défaut**, dont l'activation montre avant confirmation ce qui part, vers qui, et ce qui ne part jamais ; réécrire le bloc « Ce qui quitte l'appareil » de `app/src/ui/reglages.ts` pour qu'il dise la vérité dans les deux états. Vérifier par un test d'écran que l'allumage sans confirmation laisse le réglage éteint
 - [x] 4.2 Réviser `tests/bout-en-bout.mjs` : la vérification « aucune donnée ne quitte l'appareil » reste stricte réglage éteint et pour une capture non transmissible ; une nouvelle vérification, réglage allumé, échoue sur toute requête sortante autre que `POST /api/analyser` de l'origine, et contrôle que son corps ne contient que des passages (ni audio, ni date, ni identifiant). Vérifier que les deux passent avec la fonction simulée par `tests/servir.mjs`
-- [ ] 4.3 Ajouter une vérification post-construction qui cherche `TYPESAFE`, le préfixe de clé du fournisseur et le nom de paquet `@typesafe-ai/sdk` dans `app/dist/` ; vérifier qu'elle échoue en y plaçant volontairement la chaîne, puis passe sur le vrai paquet
+- [x] 4.3 Ajouter une vérification post-construction qui cherche `TYPESAFE`, le préfixe de clé du fournisseur et le nom de paquet `@typesafe-ai/sdk` dans `app/dist/` ; vérifier qu'elle échoue en y plaçant volontairement la chaîne, puis passe sur le vrai paquet — *`TYPESAFE_` plutôt que `TYPESAFE`, qui est la valeur légitime de `origineAnalyse.moteur` ; TypeSafe ne publiant pas de préfixe de clé, la vérification cherche la valeur même de `TYPESAFE_API_KEY` quand elle est présente à la construction (chez l'hébergeur)*
 
 ## 5. Évaluation et activation
 

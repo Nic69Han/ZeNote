@@ -6,7 +6,7 @@
   "description": "ZeNote — PWA de capture, revue et priorisation",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
+    "build": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build && node tests/verifier-paquet.mjs",
     "preview": "vite preview --port 4173",
     "test": "vitest run",
     "test:watch": "vitest",
