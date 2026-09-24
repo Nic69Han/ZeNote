@@ -116,7 +116,7 @@ await cdp.send('WebAuthn.addVirtualAuthenticator', {
 });
 
 // Tout ce que la page tente d'envoyer ailleurs que chez elle. La promesse du produit
-// — l'analyse se fait ici, rien n'est déposé sur un serveur ZeNote — ne vaut que si
+// — réglage d'analyse distante éteint, rien ne sort — ne vaut que si
 // elle se mesure ; une page peut affirmer n'importe quoi dans son écran de confiance.
 const sorties = [];
 page.on('request', (r) => {
@@ -773,6 +773,37 @@ try {
   );
   await page.getByRole('checkbox', { name: /notes personnelles/i }).uncheck();
   await page.waitForTimeout(300);
+
+  // Change `analyse-typesafe`, tâche 4.1 : allumer sans confirmer laisse éteint.
+  await page.getByRole('button', { name: /allumer l’analyse distante/i }).click();
+  const explication = await page.locator('.analyse-distante__confirmation').innerText();
+  verifier(
+    'allumer l’analyse distante dit d’abord ce qui part, vers qui, et ce qui ne part jamais',
+    /Ce qui part/.test(explication) && /TypeSafe/.test(explication) && /Ce qui ne part jamais/.test(explication),
+  );
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await page.waitForTimeout(600);
+  verifier(
+    'sans confirmation, l’analyse distante reste éteinte',
+    /éteinte/.test(await page.locator('.analyse-distante__etat').innerText()) &&
+      /L’analyse se fait sur cet appareil/.test(await page.locator('.faits').innerText()),
+  );
+  await page.getByRole('button', { name: /allumer l’analyse distante/i }).click();
+  await page.getByRole('button', { name: /^allumer$/i }).click();
+  await page.waitForTimeout(600);
+  verifier(
+    'confirmée, elle s’allume, et « Ce qui quitte l’appareil » le dit en tête',
+    /allumée/.test(await page.locator('.analyse-distante__etat').innerText()) &&
+      /Le texte de vos notes part/.test(await page.locator('.faits .fait__titre').first().innerText()),
+  );
+  await page.getByRole('button', { name: /éteindre l’analyse distante/i }).click();
+  await page.waitForTimeout(600);
+  verifier(
+    'et s’éteint d’un geste',
+    /éteinte/.test(await page.locator('.analyse-distante__etat').innerText()),
+  );
   await page.locator('.nav__lien[data-onglet="revue"]').click();
   await page.waitForTimeout(600);
 

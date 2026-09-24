@@ -4,8 +4,10 @@ Capturer en un geste, ranger une fois par jour, savoir quoi faire maintenant.
 
 **L'application est en ligne : https://zenote-app.netlify.app**
 Ouvrez-la sur le téléphone, puis « Ajouter à l'écran d'accueil ». Elle s'installe et fonctionne
-hors ligne. Vos notes vivent dans le navigateur, sur l'appareil : il n'y a pas de serveur ZeNote,
-pas de compte, pas de mesure d'audience. La **dictée** aussi reste sur l'appareil : l'audio est
+hors ligne. Vos notes vivent dans le navigateur, sur l'appareil : rien n'est stocké sur un serveur,
+pas de compte, pas de mesure d'audience. L'**analyse** se fait sur l'appareil ; une analyse
+distante (TypeSafe), éteinte par défaut, peut être allumée dans « Vos données » : seul le texte des
+passages part alors, jamais l'audio ni les dates. La **dictée** aussi reste sur l'appareil : l'audio est
 transcrit par un moteur embarqué (Vosk, en WebAssembly, modèle français de 40 Mo téléchargé une
 fois), jamais envoyé nulle part. Le **chiffrement** s'active depuis « Vos données » : les notes
 deviennent illisibles sans votre empreinte, votre visage ou votre phrase de passe — sans que

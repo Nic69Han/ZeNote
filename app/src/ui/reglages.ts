@@ -61,23 +61,37 @@ interface Fait {
  * déléguée au navigateur, et l'application ne peut, depuis son propre code, ni
  * observer ni empêcher ce que celui-ci envoie.
  */
-function faits(coffre: EtatCoffre): Fait[] {
+function faits(coffre: EtatCoffre, analyseDistante: boolean): Fait[] {
   return [
+  // Change `analyse-typesafe` — tâche 4.1 : ce bloc dit vrai dans les deux états du
+  // réglage. Allumé, la sortie du texte vient en tête, parce que c'est d'abord ce
+  // qu'on veut savoir.
+  analyseDistante
+    ? {
+        rassurant: false,
+        titre: 'Le texte de vos notes part à l’analyse distante.',
+        detail:
+          'Pour chaque note que vous n’avez pas gardée sur l’appareil, le texte de ses ' +
+          'passages part vers le service d’analyse de ZeNote, qui le soumet à TypeSafe pour ' +
+          'juger le type et la sphère de chaque passage. Ni l’audio, ni les dates, ni les ' +
+          'identifiants ne partent. Le reste de l’analyse — échéances, poids, personnes — se ' +
+          'fait ici.',
+      }
+    : {
+        rassurant: true,
+        titre: 'L’analyse se fait sur cet appareil.',
+        detail:
+          'Le découpage d’une capture en tâches, engagements et informations est lexical : il ' +
+          'compare des mots, ici, dans cet onglet. L’analyse distante, qui enverrait le texte ' +
+          'des passages à un modèle, est éteinte : aucun texte ne sort.',
+      },
   {
     rassurant: true,
-    titre: 'L’analyse se fait sur cet appareil.',
+    titre: 'Aucun compte, aucun stockage distant, aucune mesure d’audience.',
     detail:
-      'Le découpage d’une capture en tâches, engagements et informations est lexical : il ' +
-      'compare des mots, ici, dans cet onglet. Aucun texte n’est envoyé à un service ' +
-      'd’analyse ni à un modèle de langage.',
-  },
-  {
-    rassurant: true,
-    titre: 'Aucun compte, aucun serveur, aucune mesure d’audience.',
-    detail:
-      'Il n’y a pas de serveur ZeNote : rien n’est déposé ailleurs, faute d’un ailleurs où ' +
-      'le déposer. Tout vit dans IndexedDB, la base de données du navigateur, sur cet ' +
-      'appareil.',
+      'Tout vit dans IndexedDB, la base de données du navigateur, sur cet appareil. Rien ' +
+      'n’est déposé sur un serveur ZeNote : le service d’analyse distante, quand il est ' +
+      'allumé, juge des passages et n’en garde rien.',
   },
   coffre === 'ABSENT'
     ? {
@@ -114,8 +128,8 @@ function faits(coffre: EtatCoffre): Fait[] {
     titre: 'ZeNote ne vous notifiera pas quand elle est fermée.',
     detail:
       'Une page web ne se réveille pas seule : pour vous prévenir application fermée, ' +
-      'il faudrait un serveur qui lui pousse un message, et il n’y a pas de serveur ' +
-      'ZeNote. Vos rappels vous attendent donc à votre retour — regroupés en une seule ' +
+      'il faudrait un serveur qui lui pousse un message, et ZeNote n’en a pas pour ' +
+      'cela. Vos rappels vous attendent donc à votre retour — regroupés en une seule ' +
       'fois — au lieu d’arriver pendant votre absence. C’est une limite de la forme ' +
       'choisie, pas un oubli.',
   },
@@ -170,7 +184,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
         class: 'ecran__sous-titre',
         texte: 'Ce qui reste ici, ce qui sort, et comment tout reprendre.',
       }),
-      blocPerimetre(coffre),
+      blocPerimetre(coffre, reglages.analyseDistante),
       blocAnalyseDistante(reglages),
       blocChiffrement(coffre, appareilPossible, donnees),
       blocCreneau(reglages),
@@ -591,9 +605,9 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
 
   // ------------------------------------------------ ce qui quitte l'appareil
 
-  function blocPerimetre(coffre: EtatCoffre): HTMLElement {
+  function blocPerimetre(coffre: EtatCoffre, analyseDistante: boolean): HTMLElement {
     const liste = el('ul', { class: 'faits' });
-    for (const fait of faits(coffre)) {
+    for (const fait of faits(coffre, analyseDistante)) {
       liste.append(
         el(
           'li',
@@ -652,6 +666,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       'section',
       { class: 'bloc bloc--analyse-distante', 'aria-labelledby': 'titre-analyse-distante' },
       el('h2', { id: 'titre-analyse-distante', class: 'bloc__titre', texte: 'Analyse distante' }),
+      interrupteurAnalyseDistante(reglages.analyseDistante),
       el('p', {
         class: 'bloc__texte',
         texte: reglages.analyseDistante
@@ -668,6 +683,109 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
         choix('PERSONNEL', 'Les notes personnelles'),
         choix('PROFESSIONNEL', 'Les notes professionnelles'),
       ),
+    );
+  }
+
+  /**
+   * « Analyse sur un service distant » : éteinte par défaut, allumée seulement après
+   * avoir lu ce qui part, vers qui, et ce qui ne part jamais.
+   *
+   * Change `analyse-typesafe`, décision 8. Un clic ne suffit pas : l'allumage ouvre
+   * l'explication, et seul « Allumer » au bas de celle-ci pose le réglage. L'éteindre
+   * est immédiat — arrêter d'envoyer ne demande aucune justification.
+   */
+  function interrupteurAnalyseDistante(allumee: boolean): HTMLElement {
+    if (allumee) {
+      return el(
+        'div',
+        { class: 'analyse-distante' },
+        el('p', { class: 'analyse-distante__etat', texte: 'Analyse sur un service distant : allumée.' }),
+        el('button', {
+          class: 'bouton',
+          type: 'button',
+          texte: 'Éteindre l’analyse distante',
+          onclick: () => {
+            void (async () => {
+              await ecrireReglage('analyseDistante', false);
+              annoncer('Analyse distante éteinte. Plus rien ne sort.');
+              await rendre();
+            })();
+          },
+        }),
+      );
+    }
+
+    const explication = el(
+      'div',
+      { class: 'analyse-distante__confirmation', hidden: true, role: 'group', 'aria-label': 'Avant d’allumer' },
+      el('p', { class: 'fait__titre', texte: 'Ce qui part' }),
+      el('p', {
+        class: 'fait__detail',
+        texte:
+          'Le texte de chaque passage d’une note, tel que l’appareil l’a découpé — et rien ' +
+          'd’autre, pour chaque note que vous n’avez pas gardée ici.',
+      }),
+      el('p', { class: 'fait__titre', texte: 'Vers qui' }),
+      el('p', {
+        class: 'fait__detail',
+        texte:
+          'Le service d’analyse de ZeNote, sur ce même site, qui le soumet à TypeSafe, ' +
+          'fournisseur du modèle Jev, pour juger le type et la sphère de chaque passage. ' +
+          'L’appareil ne contacte jamais TypeSafe directement.',
+      }),
+      el('p', { class: 'fait__titre', texte: 'Ce qui ne part jamais' }),
+      el('p', {
+        class: 'fait__detail',
+        texte:
+          'L’audio, la date et l’heure des notes, leurs identifiants, vos décisions, les ' +
+          'notes marquées « Ne pas envoyer à l’analyse », et celles des sphères exclues ' +
+          'ci-dessous.',
+      }),
+      el('p', {
+        class: 'fait__detail',
+        texte:
+          'Encore expérimental : ce service n’a pas été évalué sur des notes en français. ' +
+          'S’il ne répond pas, la note est analysée ici, comme aujourd’hui.',
+      }),
+      el('button', {
+        class: 'bouton bouton--plein',
+        type: 'button',
+        texte: 'Allumer',
+        onclick: () => {
+          void (async () => {
+            await ecrireReglage('analyseDistante', true);
+            annoncer('Analyse distante allumée.');
+            await rendre();
+          })();
+        },
+      }),
+      el('button', {
+        class: 'bouton bouton--discret',
+        type: 'button',
+        texte: 'Laisser éteinte',
+        onclick: () => {
+          explication.hidden = true;
+          ouvrir.hidden = false;
+          ouvrir.focus();
+        },
+      }),
+    );
+    const ouvrir = el('button', {
+      class: 'bouton',
+      type: 'button',
+      texte: 'Allumer l’analyse distante…',
+      onclick: () => {
+        explication.hidden = false;
+        ouvrir.hidden = true;
+      },
+    });
+
+    return el(
+      'div',
+      { class: 'analyse-distante' },
+      el('p', { class: 'analyse-distante__etat', texte: 'Analyse sur un service distant : éteinte.' }),
+      ouvrir,
+      explication,
     );
   }
 

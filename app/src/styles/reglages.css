@@ -275,3 +275,28 @@
   height: 1.25rem;
   accent-color: var(--calme);
 }
+
+.analyse-distante {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.analyse-distante__etat {
+  margin: 0;
+  font-weight: 600;
+}
+
+.analyse-distante__confirmation {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.8rem;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon);
+}
+
+.analyse-distante__confirmation[hidden] {
+  display: none;
+}
