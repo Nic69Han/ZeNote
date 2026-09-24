@@ -1,0 +1,19 @@
+{
+  "name": "zenote-fonctions",
+  "private": true,
+  "description": "Fonctions serveur de ZeNote. Dépendances séparées de l'application : rien d'ici n'entre dans le paquet servi à l'appareil.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@typesafe-ai/sdk": "0.6.0"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "~5.6.0"
+  }
+}

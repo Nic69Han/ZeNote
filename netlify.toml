@@ -7,8 +7,15 @@
 
 [build]
   base = "app"
-  command = "npm run build"
+  # Les dépendances des fonctions serveur s'installent à part : le SDK TypeSafe
+  # n'est jamais une dépendance de l'application, donc jamais dans son paquet.
+  command = "npm ci --prefix ../netlify && npm run build"
   publish = "dist"
+
+# Le point d'analyse distante (change `analyse-typesafe`). Chemin relatif à `base`.
+[functions]
+  directory = "../netlify/functions"
+  node_bundler = "esbuild"
 
 [build.environment]
   NODE_VERSION = "22"
@@ -16,6 +23,15 @@
   # Inutile donc de laisser son script d'installation télécharger un navigateur
   # de 400 Mo à chaque construction chez l'hébergeur.
   PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+
+# L'analyse distante, sur le même domaine que l'application : l'appareil ne
+# contacte jamais le fournisseur du modèle, et n'a besoin d'aucun CORS. Avant le
+# repli de la page unique, sinon il l'attraperait.
+[[redirects]]
+  from = "/api/analyser"
+  to = "/.netlify/functions/analyser"
+  status = 200
+  force = true
 
 # L'application tient en une seule page : toute route inconnue retombe dessus.
 [[redirects]]
@@ -33,8 +49,10 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    # L'application elle-même ne transmet aucune donnée : tout vit dans
-    # IndexedDB, sur l'appareil. Ces en-têtes le rendent vérifiable. À noter :
+    # Tout vit dans IndexedDB, sur l'appareil. Par défaut, l'application ne
+    # transmet rien. Si l'utilisateur allume l'analyse distante, seul le texte des
+    # passages des captures qu'il n'a pas gardées part, vers `/api/analyser` de ce
+    # même domaine — jamais l'audio, les dates ni les identifiants. À noter :
     # l'hébergeur injecte dans la page son propre script de supervision, qui ne
     # fait pas partie de l'application et se désactive dans ses réglages.
     X-Content-Type-Options = "nosniff"
