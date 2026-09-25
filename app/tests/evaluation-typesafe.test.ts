@@ -79,6 +79,7 @@ describe('les chiffres de l’analyseur local', () => {
 describe('les chiffres du service, consignes en français', async () => {
   const appels: string[] = [];
   const predictions = await predireDistant(etiquettes, {
+    identifier: () => 'evaluation',
     creerClient: () => client(appels),
     choix,
     journal: () => {},
@@ -126,7 +127,7 @@ describe('les chiffres du service, consignes en français', async () => {
 
 describe('la variante anglaise, côte à côte', async () => {
   const appels: string[] = [];
-  const deps = { creerClient: () => client(appels), choix, journal: () => {} };
+  const deps = { identifier: () => 'evaluation', creerClient: () => client(appels), choix, journal: () => {} };
   const fr = mesurer(etiquettes, await predireDistant(etiquettes, { ...deps, langue: 'fr' }));
   const en = mesurer(etiquettes, await predireDistant(etiquettes, { ...deps, langue: 'en' }));
   const texte = rapport({

@@ -52,6 +52,7 @@ import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 import { identifiant } from '../analyse/index.ts';
 import { avisRepli, completerRevue, origineLisible } from '../analyse/origine.ts';
+import { compteConnecte } from '../compte/compte.ts';
 import { normaliser } from '../analyse/dates.ts';
 import { agendaPerime, etatAgenda, lireEvenements } from '../stockage/agenda.ts';
 import { apprendre } from '../services/lexique.ts';
@@ -433,7 +434,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const repli = avisRepli(
       captures,
       file.groupes.map((g) => g.captureId),
-      (await lireReglages()).analyseDistante,
+      (await lireReglages()).analyseDistante && compteConnecte(),
     );
     if (repli) section.append(el('p', { class: 'avis-repli', role: 'status', texte: repli }));
 

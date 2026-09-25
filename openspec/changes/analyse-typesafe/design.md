@@ -102,6 +102,14 @@ L'activation par défaut (décision 8) se prend sur ces chiffres, et le seuil re
 
 Un réglage « Analyse sur un service distant » est **éteint par défaut**. L'allumer affiche, avant confirmation, ce qui part (le texte des passages), vers qui (ZeNote puis TypeSafe), et ce qui ne part jamais (audio, dates, identifiants). Le passage à « allumé par défaut » est une modification d'une ligne, faite seulement après l'évaluation.
 
+### 9. Réservée à un compte connecté, vérifié des deux côtés
+
+L'application est publique, et `/api/analyser` peut être appelé hors de ZeNote. Avec une clé posée, n'importe qui consommerait le crédit TypeSafe. Le service refuse donc en 401 (`authentification-requise`) tout appelant qu'il n'identifie pas, avant de créer le client et avant de lire le corps : un refus ne coûte rien et ne dit pas si une clé existe. L'identification est une dépendance obligatoire de `traiter` (`identifier`), branchée sur `netlify/functions/analyser/compte.ts`.
+
+ZeNote n'a pas encore de comptes : `identifierUtilisateur` rend toujours `null`, et `compteConnecte()` côté appareil rend toujours `false`. Tant qu'il en est ainsi, aucune requête ne part, et le réglage ne se propose pas. Un réglage allumé par une version précédente reste enregistré mais sans effet : sans compte, analyser sur l'appareil est la règle, pas un repli.
+
+La garde côté appareil n'est qu'une commodité — elle évite d'envoyer un texte qui serait refusé. La protection est celle du serveur. La change qui créera les comptes devra vérifier la session côté serveur dans `compte.ts` (jamais un simple en-tête posé par le client), limiter les appels par compte, et redemander le consentement de l'analyse distante au premier allumage.
+
 ## Risks / Trade-offs
 
 - [Le français moins bien traité que l'anglais] → évaluation bloquante avant activation par défaut (décision 7), variante d'instructions en anglais, et routage par confiance qui renvoie le doute en Revue.
@@ -119,7 +127,7 @@ Un réglage « Analyse sur un service distant » est **éteint par défaut**. L'
 3. Poser `TYPESAFE_API_KEY` sur Netlify, puis faire l'évaluation.
 4. Selon l'évaluation, allumer par défaut, ou non, et consigner le seuil.
 
-**Retour arrière** : éteindre le réglage, ou retirer la variable d'environnement. Tout retombe sur le local sans migration de données, puisque les champs ajoutés sont optionnels.
+**Retour arrière** : éteindre le réglage, retirer la variable d'environnement, ou ne plus identifier personne (`compte.ts`). Tout retombe sur le local sans migration de données, puisque les champs ajoutés sont optionnels.
 
 ## Open Questions
 

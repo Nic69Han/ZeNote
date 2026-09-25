@@ -159,7 +159,16 @@ export interface ClientTypeSafe {
 /** Une ligne de journal : des nombres et des motifs, jamais un passage. */
 export type Journal = (evenement: Record<string, string | number>) => void;
 
+/**
+ * L'utilisateur connecté à l'origine de la requête, ou `null`.
+ *
+ * Obligatoire : sans compte identifié, la fonction refuse avant de créer le client et
+ * avant de lire le corps. Rien ne part vers le fournisseur pour un appelant anonyme.
+ */
+export type Identification = (requete: Request) => string | null | Promise<string | null>;
+
 export interface Dependances {
+  identifier: Identification;
   /** `null` quand aucune clé n'est configurée. */
   creerClient: () => ClientTypeSafe | null;
   choix: FabriqueChoix;
@@ -171,13 +180,14 @@ export interface Dependances {
 
 // ---------------------------------------------------------------- la requête
 
-function repondre(statut: number, corps: unknown): Response {
+function repondre(statut: number, corps: unknown, entetes: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(corps), {
     status: statut,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       // Une analyse ne se met jamais en cache : ni chez l'hébergeur, ni en route.
       'Cache-Control': 'no-store',
+      ...entetes,
     },
   });
 }
@@ -234,6 +244,19 @@ export async function traiter(requete: Request, dependances: Dependances): Promi
 
   if (requete.method !== 'POST') {
     return repondre(405, { motif: 'methode-refusee' });
+  }
+
+  // Le compte d'abord : un appelant anonyme ne coûte rien, pas même la lecture de
+  // son corps, et ne découvre pas si une clé est configurée.
+  let utilisateur: string | null;
+  try {
+    utilisateur = await dependances.identifier(requete);
+  } catch {
+    utilisateur = null;
+  }
+  if (!utilisateur) {
+    journal({ evenement: 'analyse-refusee', motif: 'authentification-requise' });
+    return repondre(401, { motif: 'authentification-requise' }, { 'WWW-Authenticate': 'Bearer realm="zenote"' });
   }
 
   const client = dependances.creerClient();

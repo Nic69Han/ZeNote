@@ -42,7 +42,7 @@ async function lireJson(requete) {
  *
  * @param simulation facultative : `analyser(corps)` rend `{ statut, corps }` et tient
  *   lieu de `POST /api/analyser`, la fonction Netlify (change `analyse-typesafe`).
- *   Sans elle, ce point répond comme la vraie fonction sans clé : 503.
+ *   Sans elle, ce point répond comme la vraie fonction à un appelant sans compte : 401.
  */
 export function servir(port, simulation = {}) {
   const serveur = createServer(async (requete, reponse) => {
@@ -53,7 +53,7 @@ export function servir(port, simulation = {}) {
           ? { statut: 405, corps: { motif: 'methode-refusee' } }
           : simulation.analyser
             ? simulation.analyser(await lireJson(requete))
-            : { statut: 503, corps: { motif: 'non-configure' } };
+            : { statut: 401, corps: { motif: 'authentification-requise' } };
       reponse.writeHead(statut, { 'content-type': 'application/json; charset=utf-8' });
       reponse.end(JSON.stringify(corps));
       return;

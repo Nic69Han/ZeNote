@@ -50,9 +50,11 @@
   for = "/*"
   [headers.values]
     # Tout vit dans IndexedDB, sur l'appareil. Par défaut, l'application ne
-    # transmet rien. Si l'utilisateur allume l'analyse distante, seul le texte des
-    # passages des captures qu'il n'a pas gardées part, vers `/api/analyser` de ce
-    # même domaine — jamais l'audio, les dates ni les identifiants. À noter :
+    # transmet rien. L'analyse distante est réservée à un utilisateur connecté avec
+    # un compte, et `/api/analyser` refuse tout appelant non identifié (401). Allumée
+    # par un utilisateur connecté, seul le texte des passages des captures qu'il n'a
+    # pas gardées partirait, vers ce même domaine — jamais l'audio, les dates ni les
+    # identifiants. À noter :
     # l'hébergeur injecte dans la page son propre script de supervision, qui ne
     # fait pas partie de l'application et se désactive dans ses réglages.
     X-Content-Type-Options = "nosniff"

@@ -37,6 +37,30 @@ Le système NE DOIT transmettre, pour une capture transmissible, que le texte de
 - **THEN** toute requête sortante de l'application vise uniquement le point d'analyse déclaré de ZeNote
 - **AND** aucune requête ne vise directement le fournisseur du modèle depuis l'appareil
 
+### Requirement: Analyse réservée à un compte connecté
+
+Le service d'analyse distant SHALL refuser toute requête qui ne provient pas d'un utilisateur connecté avec un compte ZeNote. Il vérifie l'appelant côté serveur, avant de lire le contenu et avant tout appel au fournisseur du modèle, que son identifiant d'accès soit configuré ou non.
+
+L'application NE DOIT transmettre aucune capture à l'analyse distante sans utilisateur connecté, quel que soit le réglage enregistré, et NE DOIT pas proposer d'allumer l'analyse distante sans compte.
+
+#### Scenario: Appel sans compte
+
+- **WHEN** une requête parvient au service d'analyse sans utilisateur identifié
+- **THEN** il la refuse comme non authentifiée
+- **AND** aucun appel au fournisseur du modèle n'a lieu, et son corps n'est pas lu
+
+#### Scenario: Réglage allumé sans compte
+
+- **WHEN** le réglage d'analyse distante est allumé mais aucun utilisateur n'est connecté
+- **THEN** aucune requête ne part vers le service d'analyse
+- **AND** la capture est analysée localement, sans mention de repli
+
+#### Scenario: Réglage indisponible sans compte
+
+- **WHEN** l'utilisateur ouvre ses réglages sans être connecté
+- **THEN** l'analyse distante ne peut pas être allumée
+- **AND** l'écran dit qu'elle demande un compte
+
 ### Requirement: Identifiant secret hors de l'application
 
 L'identifiant d'accès au fournisseur du modèle SHALL être détenu uniquement par le service d'analyse côté serveur. Il NE DOIT figurer ni dans le code livré à l'appareil, ni dans ses requêtes, ni dans son stockage local.
