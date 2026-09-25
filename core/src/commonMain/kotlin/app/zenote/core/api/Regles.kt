@@ -8,6 +8,7 @@ import app.zenote.core.memoire.ResolutionReferences
 import app.zenote.core.memoire.TypeEntite
 import app.zenote.core.model.CaptureId
 import app.zenote.core.model.Deduit
+import app.zenote.core.model.Duree
 import app.zenote.core.model.ElementDerive
 import app.zenote.core.model.ElementId
 import app.zenote.core.model.ElementResolu
@@ -19,10 +20,13 @@ import app.zenote.core.model.TypeElement
 import app.zenote.core.model.Verdict
 import app.zenote.core.priorisation.ContexteMaintenant
 import app.zenote.core.priorisation.CreneauProtege
+import app.zenote.core.priorisation.Disponibilites
 import app.zenote.core.priorisation.Priorisation
+import app.zenote.core.priorisation.Proposition
 import app.zenote.core.rappels.Declencheur
 import app.zenote.core.rappels.Echeance
 import app.zenote.core.rappels.Echeancier
+import app.zenote.core.rappels.EvenementConnu
 import app.zenote.core.rappels.FileOpportunite
 import app.zenote.core.rappels.Livraison
 import app.zenote.core.rappels.PointDeRupture
@@ -74,16 +78,43 @@ object Regles {
         val propositions = Priorisation.maintenant(
             elements = elements.map { it.versResolu() },
             contexte = ContexteMaintenant(LocalDate.parse(aujourdhui)),
-        ).map { p ->
-            PropositionJson(
-                elementId = p.element.id.value,
-                texte = p.element.texte,
-                raison = p.raison,
-                poidsEffectif = p.poidsEffectif.name,
-                urgence = p.urgence.name,
-            )
-        }
+        ).map { versPropositionJson(it) }
         return json.encodeToString(ListSerializer(PropositionJson.serializer()), propositions)
+    }
+
+    /**
+     * La vue Maintenant selon le temps que l'agenda laisse.
+     *
+     * Sans événement, le résultat est celui de [maintenant]. Change `agenda-local`,
+     * décision 5.
+     *
+     * @param elementsJson tableau d'[ElementJson]
+     * @param contexteJson un [ContexteMaintenantJson]
+     * @return un [MaintenantJson]
+     */
+    fun maintenantAvecContexte(elementsJson: String, contexteJson: String): String {
+        val contexte = json.decodeFromString(ContexteMaintenantJson.serializer(), contexteJson)
+        val maintenant = LocalDateTime.parse(contexte.maintenant)
+        val disponibilite = Disponibilites.a(
+            maintenant = maintenant.toInstant(TimeZone.UTC),
+            evenements = evenementsConnus(contexte.evenements),
+        )
+        val resultat = Priorisation.maintenantSelon(
+            elements = decoder(elementsJson).map { it.versResolu() },
+            contexte = ContexteMaintenant(maintenant.date),
+            disponibilite = disponibilite,
+        )
+        return json.encodeToString(
+            MaintenantJson.serializer(),
+            MaintenantJson(
+                propositions = resultat.propositions.map { versPropositionJson(it) },
+                raison = resultat.raison,
+                ecartes = resultat.ecartes,
+                minutesAvantReunion = disponibilite.minutesAvantReunion,
+                prochaineReunion = disponibilite.prochaineReunion,
+                creneauProtegeSuspendu = resultat.creneauProtegeSuspendu,
+            ),
+        )
     }
 
     /**
@@ -661,6 +692,34 @@ object Regles {
     private fun decoder(elementsJson: String): List<ElementJson> =
         json.decodeFromString(ListSerializer(ElementJson.serializer()), elementsJson)
 
+    private fun versPropositionJson(p: Proposition): PropositionJson = PropositionJson(
+        elementId = p.element.id.value,
+        texte = p.element.texte,
+        raison = p.raison,
+        poidsEffectif = p.poidsEffectif.name,
+        urgence = p.urgence.name,
+    )
+
+    /**
+     * Les événements tels que le cœur les lit. Un événement mal formé — fin avant le
+     * début, date illisible — est ignoré : il ne doit pas faire tomber tout un écran.
+     */
+    private fun evenementsConnus(evenements: List<EvenementJson>): List<EvenementConnu> =
+        evenements.mapNotNull { e ->
+            runCatching {
+                EvenementConnu(
+                    id = e.id,
+                    titre = e.titre,
+                    debut = LocalDateTime.parse(e.debut).toInstant(TimeZone.UTC),
+                    fin = LocalDateTime.parse(e.fin).toInstant(TimeZone.UTC),
+                    lieu = e.lieu,
+                    participants = e.participants,
+                    recurrent = e.recurrent,
+                    journeeEntiere = e.journeeEntiere,
+                )
+            }.getOrNull()
+        }
+
     /**
      * Vrai quand cet élément ne vient que de passages mal entendus.
      *
@@ -732,6 +791,17 @@ object Regles {
             plan = planDeclencheur?.let { d ->
                 planAction?.let { a -> Deduit(Plan(d, a), 1.0, "plan posé en Revue") }
             },
+            // Une durée que ce cœur ne connaît pas est traitée comme inconnue, pas comme
+            // une erreur : une surface plus récente ne doit pas faire tomber le classement.
+            duree = duree
+                ?.let { nom -> Duree.entries.firstOrNull { it.name == nom } }
+                ?.let { palier ->
+                    Deduit(
+                        palier,
+                        (dureeConfiance ?: 1.0).coerceIn(0.0, 1.0),
+                        dureeIndice?.takeIf { it.isNotBlank() } ?: "fourni",
+                    )
+                },
         )
         return ElementResolu(
             id = ElementId(id),
@@ -748,6 +818,8 @@ object Regles {
             aConfirmer = aConfirmer(),
             corrigeParHumain = corrigeParHumain,
             indicePoids = if (corrigeParHumain && poids != null) "poids fixé à la main" else poidsIndice,
+            duree = derive.duree?.valeur,
+            dureeSure = derive.duree?.sûr ?: false,
         )
     }
 }

@@ -17,6 +17,13 @@ object ZeNoteRegles {
     fun maintenant(elementsJson: String, aujourdhui: String): String =
         Regles.maintenant(elementsJson, aujourdhui)
 
+    /**
+     * Vue Maintenant selon l'agenda : `[ElementJson]` + `ContexteMaintenantJson` →
+     * `MaintenantJson`. Sans événement, mêmes propositions que [maintenant].
+     */
+    fun maintenantAvecContexte(elementsJson: String, contexteJson: String): String =
+        Regles.maintenantAvecContexte(elementsJson, contexteJson)
+
     /** File de Revue : `[ElementJson]` + date ISO → `RevueJson`. */
     fun revue(elementsJson: String, aujourdhui: String): String =
         Regles.revue(elementsJson, aujourdhui)

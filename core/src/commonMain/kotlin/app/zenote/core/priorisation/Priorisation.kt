@@ -60,6 +60,20 @@ data class Proposition(
     val urgence: Urgence,
 )
 
+/**
+ * La vue Maintenant, avec ce que la contrainte d'agenda a retiré.
+ *
+ * @param ecartes combien d'éléments classés ne tiennent pas dans le contexte — pour
+ *   pouvoir dire « rien qui tienne » plutôt que « rien à faire ».
+ * @param raison la contrainte en vigueur, en une phrase, ou une chaîne vide.
+ */
+data class ResultatMaintenant(
+    val propositions: List<Proposition>,
+    val ecartes: Int,
+    val raison: String,
+    val creneauProtegeSuspendu: Boolean,
+)
+
 object Priorisation {
 
     /** La vue Maintenant ne montre jamais plus de trois choses à la fois. */
@@ -114,6 +128,30 @@ object Priorisation {
         elements: List<ElementResolu>,
         contexte: ContexteMaintenant,
     ): List<Proposition> = classer(elements, contexte).take(MAX_PROPOSITIONS)
+
+    /**
+     * La vue Maintenant selon le temps que l'agenda laisse.
+     *
+     * Le classement ne change pas : on retire seulement ce qui ne tient pas, puis on
+     * garde les trois premiers. Change `agenda-local`, décision 5.
+     */
+    fun maintenantSelon(
+        elements: List<ElementResolu>,
+        contexte: ContexteMaintenant,
+        disponibilite: Disponibilite,
+    ): ResultatMaintenant {
+        val classement = classer(elements, contexte)
+        val retenus = classement.filter { Disponibilites.tient(it.element, disponibilite) }
+        return ResultatMaintenant(
+            propositions = retenus.take(MAX_PROPOSITIONS),
+            ecartes = classement.size - retenus.size,
+            raison = Disponibilites.raison(disponibilite),
+            // Le créneau protégé demande du temps et de l'attention : le proposer à sept
+            // minutes d'une réunion, ou au sortir de trois heures de réunions, le
+            // condamnerait à être sauté.
+            creneauProtegeSuspendu = !disponibilite.libre,
+        )
+    }
 
     private fun raison(element: ElementResolu, urgence: Urgence): String {
         val consequence = element.indicePoids ?: "poids non déterminé, à confirmer en Revue"

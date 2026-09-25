@@ -27,6 +27,13 @@ data class ElementResolu(
      * texte que la vue Maintenant affiche en justification, jamais un score.
      */
     val indicePoids: String?,
+    /** Le palier de durée estimé, ou `null` s'il est inconnu. */
+    val duree: Duree? = null,
+    /**
+     * `true` quand la durée est assez sûre pour décider qu'un élément tient dans un
+     * créneau : au-dessus du seuil, ou fixée à la main.
+     */
+    val dureeSure: Boolean = false,
 ) {
     /**
      * Un élément accepté sans plan ni classement « un jour » est incomplet : il est
@@ -57,6 +64,8 @@ data class ElementResolu(
             } else {
                 derive.poids?.indice
             },
+            duree = derive.duree?.valeur,
+            dureeSure = derive.duree?.sûr ?: false,
         )
     }
 }

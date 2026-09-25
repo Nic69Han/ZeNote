@@ -49,6 +49,16 @@ data class ElementJson(
     val interlocuteurConfiance: Double? = null,
     /** PROFESSIONNEL, PERSONNEL */
     val sphere: String? = null,
+    /**
+     * COURTE, MOYENNE, LONGUE — le temps que l'élément demande, ou absent s'il est
+     * inconnu. Change `agenda-local` : c'est ce qui décide si un élément tient dans le
+     * temps restant avant la prochaine réunion.
+     */
+    val duree: String? = null,
+    /** Confiance de la durée, de 0 à 1. 1 = fixée à la main. */
+    val dureeConfiance: Double? = null,
+    /** Ce qui a fait estimer cette durée, affichable tel quel. */
+    val dureeIndice: String? = null,
     val planDeclencheur: String? = null,
     val planAction: String? = null,
     /** EN_ATTENTE, ACCEPTE, UN_JOUR, REJETE */
@@ -94,6 +104,52 @@ data class PropositionJson(
     val raison: String,
     val poidsEffectif: String,
     val urgence: String,
+)
+
+/**
+ * Un événement d'agenda tel que la surface le passe au cœur.
+ *
+ * Déjà développé (une ligne par occurrence) et en heure locale de l'appareil : le
+ * cœur n'a ni fuseau à connaître ni règle de récurrence à rejouer. Change
+ * `agenda-local`, décisions 1 et 2.
+ */
+@Serializable
+data class EvenementJson(
+    val id: String,
+    val titre: String,
+    /** Début, en heure locale `AAAA-MM-JJTHH:MM`. */
+    val debut: String,
+    /** Fin, en heure locale `AAAA-MM-JJTHH:MM`. */
+    val fin: String,
+    val lieu: String? = null,
+    val participants: List<String> = emptyList(),
+    val recurrent: Boolean = false,
+    val journeeEntiere: Boolean = false,
+)
+
+/** Le moment présent et l'agenda connu, pour la vue Maintenant. */
+@Serializable
+data class ContexteMaintenantJson(
+    /** Heure locale `AAAA-MM-JJTHH:MM`. */
+    val maintenant: String,
+    val evenements: List<EvenementJson> = emptyList(),
+)
+
+/**
+ * La vue Maintenant selon l'agenda.
+ *
+ * [raison] est vide quand aucune contrainte ne s'applique. [ecartes] dit combien
+ * d'éléments ne tiennent pas : zéro proposition avec des écartés, c'est « rien qui
+ * tienne », pas « rien à faire ».
+ */
+@Serializable
+data class MaintenantJson(
+    val propositions: List<PropositionJson>,
+    val raison: String = "",
+    val ecartes: Int = 0,
+    val minutesAvantReunion: Int? = null,
+    val prochaineReunion: String? = null,
+    val creneauProtegeSuspendu: Boolean = false,
 )
 
 @Serializable
