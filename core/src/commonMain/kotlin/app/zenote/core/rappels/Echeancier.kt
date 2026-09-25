@@ -32,8 +32,17 @@ import kotlinx.datetime.plus
 /** Le moment où un signal se produit, et ce qu'il faut en dire. */
 sealed interface Echeance {
 
-    /** Le signal est observable : il se produit à cet instant précis. */
-    data class Observable(val quand: LocalDateTime) : Echeance
+    /**
+     * Le signal est observable : il se produit à cet instant précis.
+     *
+     * @param enRetardApres au-delà, le rappel arrive après le signal. Par défaut le
+     *   signal lui-même ; pour une réunion, son début, alors que le rappel est dû un peu
+     *   avant.
+     */
+    data class Observable(
+        val quand: LocalDateTime,
+        val enRetardApres: LocalDateTime = quand,
+    ) : Echeance
 
     /**
      * Le signal n'est pas observable par ce produit. Le rappel s'accroche à la
@@ -53,7 +62,7 @@ object Echeancier {
     val DEBUT_DE_MATINEE: LocalTime = LocalTime(7, 0)
 
     const val SIGNAL_NON_OBSERVABLE: String =
-        "ZeNote ne sait pas encore reconnaître ce signal : l'agenda n'est pas branché, " +
+        "ZeNote ne sait pas encore reconnaître ce signal : aucun agenda n'est importé, " +
             "et la position n'est pas collectée."
 
     /**
@@ -62,8 +71,14 @@ object Echeancier {
      * @param declencheur la formulation telle que l'utilisateur l'a choisie ou écrite.
      * @param poseLe le moment où le plan a été attaché. « Ce soir » dit un soir précis :
      *   celui du jour où on l'a dit, pas celui où on relit.
+     * @param evenements l'agenda connu, s'il y en a un. Vide, rien ne change : les
+     *   signaux de personne et d'événement restent substitués (change `agenda-local`).
      */
-    fun quand(declencheur: String, poseLe: LocalDateTime): Echeance {
+    fun quand(
+        declencheur: String,
+        poseLe: LocalDateTime,
+        evenements: List<EvenementConnu> = emptyList(),
+    ): Echeance {
         val plie = Texte.plier(declencheur)
 
         if (plie.contains("ce soir")) {
@@ -83,6 +98,10 @@ object Echeancier {
             )
         }
 
+        if (evenements.isNotEmpty()) {
+            return SignauxAgenda.reconnaitre(declencheur, poseLe, evenements)
+                ?: Echeance.Substituee(SignauxAgenda.SIGNAL_HORS_AGENDA)
+        }
         return Echeance.Substituee(SIGNAL_NON_OBSERVABLE)
     }
 

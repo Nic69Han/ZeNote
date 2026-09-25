@@ -318,3 +318,14 @@ main:focus {
   color: var(--encre);
   background: var(--fond-creux);
 }
+
+/*
+ * Le badge que l'hébergeur injecte de lui-même dans chaque page publiée
+ * (`/.netlify/scripts/hud`). Il ne fait pas partie de l'application, se fixe en bas
+ * à droite au-dessus de tout, et recouvrait sur téléphone un bouton de l'écran. Son
+ * cadre ne porte qu'un style en ligne, sans `!important` : cette règle l'emporte.
+ */
+#nl-badge-frame,
+#nl-hud-frame {
+  display: none !important;
+}

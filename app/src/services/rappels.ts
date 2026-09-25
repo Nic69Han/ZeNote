@@ -9,9 +9,10 @@
  * ## Le seul point de rupture qu'un navigateur observe
  *
  * La spec en reconnaît trois : fin de réunion, fin de créneau d'agenda, reprise de
- * l'appareil. Les deux premiers demandent l'agenda, qui n'est pas branché. Reste la
- * reprise — le retour dans l'application après une absence — et c'est celui-là qui
- * est implémenté.
+ * l'appareil. La reprise — le retour dans l'application après une absence — est
+ * toujours observée. La fin de réunion l'est quand un agenda a été importé (change
+ * `agenda-local`) : le cœur retient alors pendant la réunion ce qui n'est pas critique,
+ * et le livre à sa fin, si l'application est ouverte ou rouverte à ce moment-là.
  *
  * ## Ce qu'une application web ne peut pas faire, et qu'il faut dire
  *
@@ -32,6 +33,7 @@ import {
   type ElementStocke,
 } from '../stockage/depot.ts';
 import { maintenantLocal } from './pipeline.ts';
+import { lireEvenements } from '../stockage/agenda.ts';
 
 /**
  * L'absence au-delà de laquelle revenir est une reprise.
@@ -65,7 +67,10 @@ export async function rappelsDuPointDeRupture(
 ): Promise<RappelsDuMoment> {
   const elements = await listerElements();
   const enJeu = elements.filter((e) => !e.faitLe);
-  return rappelsObjets(enJeu, instant, suivisRappelDe(enJeu));
+  // Tout l'agenda connu : « quand je vois Marc » cherche la première réunion avec Marc
+  // après la pose du plan, qui peut dater de plusieurs jours.
+  const evenements = await lireEvenements();
+  return rappelsObjets(enJeu, instant, suivisRappelDe(enJeu), evenements);
 }
 
 /**
@@ -115,4 +120,18 @@ export async function deleguer(elementId: string, aQui: string): Promise<Element
     relanceLe: new Date().toISOString().slice(0, 10),
     rappelIgnoreFois: 0,
   });
+}
+
+/**
+ * La réunion qui vient de se terminer, si une réunion connue de l'agenda a fini dans
+ * la dernière minute écoulée : c'est un point de rupture à présenter. Rend son
+ * identifiant, ou `null`.
+ */
+export async function reunionQuiSeTermine(instant: Date = new Date()): Promise<string | null> {
+  const local = maintenantLocal(instant);
+  const ilYAUneMinute = maintenantLocal(new Date(instant.getTime() - 60_000));
+  const finies = (await lireEvenements(maintenantLocal(new Date(instant.getTime() - 24 * 3600_000)), local)).filter(
+    (e) => !e.journeeEntiere && e.fin > ilYAUneMinute && e.fin <= local,
+  );
+  return finies.at(-1)?.id ?? null;
 }

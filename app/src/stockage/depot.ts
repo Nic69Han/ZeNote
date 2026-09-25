@@ -41,6 +41,7 @@ import {
 import {
   MAGASIN_CAPTURES,
   MAGASIN_ELEMENTS,
+  MAGASIN_EVENEMENTS,
   MAGASIN_LEXIQUE,
   MAGASIN_MORCEAUX,
   MAGASIN_REGLAGES,
@@ -205,6 +206,21 @@ export interface Capture {
    * Absent quand rien n'a été tenté. La Revue le signale, une seule fois.
    */
   repliAnalyse?: boolean;
+  /**
+   * La réunion à laquelle cette capture se rattache, quand l'agenda en connaît une :
+   * faite pendant, juste après, ou proposée avant (une dépose). Change `agenda-local`.
+   * Elle survit à l'effacement de l'agenda : c'est un fait sur la capture.
+   */
+  agenda?: AgendaDeCapture | null;
+}
+
+/** Ce qu'une capture retient de la réunion à laquelle elle se rattache. */
+export interface AgendaDeCapture {
+  evenementId: string;
+  titre: string;
+  participants: string[];
+  /** `true` pour une dépose : ce que l'on quittait, noté juste avant la réunion. */
+  depose?: boolean;
 }
 
 /**
@@ -800,14 +816,15 @@ export async function ecrireReglage<C extends keyof Reglages>(
 /** Efface toutes les données locales. Utilisé par les tests et par l'export/purge. */
 export async function toutEffacer(): Promise<void> {
   await transaction(
-    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES, MAGASIN_MORCEAUX, MAGASIN_LEXIQUE],
+    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES, MAGASIN_MORCEAUX, MAGASIN_LEXIQUE, MAGASIN_EVENEMENTS],
     'readwrite',
-    ([captures, elements, reglages, morceaux, lexique]) => {
+    ([captures, elements, reglages, morceaux, lexique, evenements]) => {
       captures.clear();
       elements.clear();
       reglages.clear();
       morceaux.clear();
       lexique.clear();
+      evenements.clear();
     },
   );
 }

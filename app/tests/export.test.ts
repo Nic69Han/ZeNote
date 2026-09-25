@@ -252,3 +252,25 @@ describe('l’origine de l’analyse voyage avec l’export', () => {
     expect(Object.keys(exporte.champs.captures)).toContain('transmissible');
   });
 });
+
+describe('l’agenda et l’export (change agenda-local)', () => {
+  it('dit que l’agenda n’y figure pas, et emporte le rattachement d’une capture', async () => {
+    const capture = await capturer({
+      texte: 'Je reprends le devis ligne 12',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+      agenda: { evenementId: 'comite', titre: 'Comité', participants: ['Marc Dupont'], depose: true },
+    });
+
+    const exporte = await construireExport();
+    expect(exporte.lisezMoi.join(' ')).toContain('L’agenda importé n’est PAS dans ce fichier');
+    expect(exporte.captures.find((c) => c.id === capture.id)?.agenda).toEqual({
+      evenementId: 'comite',
+      titre: 'Comité',
+      participants: ['Marc Dupont'],
+      depose: true,
+    });
+    expect(Object.keys(exporte.champs.captures)).toContain('agenda');
+    expect(Object.keys(exporte.champs.elements)).toEqual(expect.arrayContaining(['duree', 'dureeConfiance', 'dureeIndice']));
+  });
+});

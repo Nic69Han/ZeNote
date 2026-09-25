@@ -300,3 +300,35 @@
 .analyse-distante__confirmation[hidden] {
   display: none;
 }
+
+/* L'agenda : un fichier lu ici, rien qui parte. */
+.agenda__fichier {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.agenda__importer {
+  position: relative;
+  align-self: flex-start;
+  cursor: pointer;
+}
+
+.agenda__importer:focus-within {
+  outline: 2px solid var(--calme);
+  outline-offset: 2px;
+}
+
+.agenda__retour:empty {
+  display: none;
+}
+
+.agenda__retour[data-ton='echec'] {
+  color: var(--temoin);
+}
+
+.agenda__limite {
+  color: var(--encre-tres-douce);
+  font-size: 0.85rem;
+}

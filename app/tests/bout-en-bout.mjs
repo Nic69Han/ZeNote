@@ -676,6 +676,9 @@ try {
   await page.waitForTimeout(900);
 
   const escalade = page.locator('.escalades__ligne').first();
+  // La Revue se rend en plusieurs lectures (agenda compris) : on attend la ligne
+  // plutôt qu'un délai fixe, qui finit toujours par être trop court quelque part.
+  await escalade.waitFor({ state: 'attached', timeout: 5000 }).catch(() => {});
   verifier(
     'il remonte en Revue au lieu de disparaître',
     (await page.locator('.escalades__ligne').count()) >= 1,
@@ -1802,9 +1805,293 @@ try {
     revueRouverte === 1 ? 'Revue rendue, notes lisibles' : 'la Revue ne s’est pas rouverte',
   );
 
+  {
+  // --- L'agenda --------------------------------------------------------------
+  // Change `agenda-local`. Un agenda .ics est importé par le vrai champ de fichier,
+  // puis l'horloge de la page est figée pour traverser « 7 minutes avant », « 2
+  // minutes avant », « fin de réunion » et « sortie de trois heures de réunions ». Le
+  // coffre est actif à ce stade : l'agenda doit y être scellé comme les notes.
+  const minute = 60_000;
+  const T = new Date();
+  T.setHours(10, 53, 0, 0);
+  const a = (minutes) => new Date(T.getTime() + minutes * minute);
+  const ics = (...evenements) =>
+    [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//ZeNote//Verification//FR',
+      ...evenements.flatMap(({ uid, titre, debut, fin, participants = [] }) => [
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTART:${debut.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`,
+        `DTEND:${fin.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`,
+        `SUMMARY:${titre}`,
+        ...participants.map((p) => `ATTENDEE;CN=${p}:mailto:${p.toLowerCase().replace(' ', '.')}@exemple.fr`),
+        'END:VEVENT',
+      ]),
+      'END:VCALENDAR',
+    ].join('\r\n');
+  const importer = async (texte) => {
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    await page.locator('.agenda__fichier').setInputFiles({
+      name: 'agenda.ics',
+      mimeType: 'text/calendar',
+      buffer: Buffer.from(texte, 'utf8'),
+    });
+    await page.waitForTimeout(900);
+    return page.locator('.agenda__retour').innerText().catch(() => '');
+  };
+  const ouvrir = async (onglet) => {
+    await page.locator('.nav__lien[data-onglet="capturer"]').click();
+    await page.waitForTimeout(250);
+    await page.locator(`.nav__lien[data-onglet="${onglet}"]`).click();
+    await page.waitForTimeout(800);
+  };
+  const texteDe = (selecteur) => page.locator(selecteur).first().innerText().catch(() => '');
+  const propositions = () => page.locator('.proposition__texte').allInnerTexts();
+
+  await page.clock.setFixedTime(T);
+
+  // Deux tâches acceptées, l'une courte, l'autre longue, et un plan « quand je vois Sophie ».
+  const capturesAgenda = await page.evaluate(async (poseLe) => {
+    const z = window.__zenote;
+    const ids = [];
+    for (const [texte, plan] of [
+      ['Envoyer le devis à Durand.', 'ce soir'],
+      ['Préparer le budget annuel du comité.', 'ce soir'],
+      ['Rendre le livre à Sophie.', 'quand je vois Sophie'],
+    ]) {
+      const c = await z.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', agenda: null });
+      ids.push(c.id);
+      await z.traiterFileAnalyse();
+      for (const e of await z.elementsDeCapture(c.id)) {
+        await z.majElement(e.id, { verdict: 'ACCEPTE', planDeclencheur: plan, planAction: e.texte, planPoseLe: poseLe });
+      }
+    }
+    return ids;
+  }, `${T.getFullYear()}-${String(T.getMonth() + 1).padStart(2, '0')}-${String(T.getDate()).padStart(2, '0')}T08:00`);
+
+  const aucunAgenda = await (async () => {
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    return texteDe('.agenda__etat');
+  })();
+  const retourImport = await importer(
+    ics(
+      { uid: 'point', titre: 'Point équipe', debut: a(7), fin: a(37), participants: ['Marc Dupont'] },
+      { uid: 'dej', titre: 'Déjeuner avec Sophie', debut: a(180), fin: a(240) },
+    ),
+  );
+  verifier(
+    'scénario « Import réussi » — le fichier est lu sur l’appareil, et l’écran dit ce qu’il a compris',
+    /Aucun agenda importé/.test(aucunAgenda) && /Agenda importé : 2 occurrences connues/.test(retourImport),
+    retourImport || 'aucun retour',
+  );
+  verifier(
+    'scénario « Couverture affichée » — date d’import et date jusqu’à laquelle l’agenda est connu',
+    /Importé le .* Connu jusqu’au/.test(await texteDe('.agenda__etat')),
+    await texteDe('.agenda__etat'),
+  );
+  verifier(
+    'scénario « Agenda protégé par le coffre » — aucun titre d’événement en clair dans la base',
+    !(await page.evaluate(async () => {
+      const base = await new Promise((ok) => {
+        const r = indexedDB.open('zenote');
+        r.onsuccess = () => ok(r.result);
+      });
+      const tout = await new Promise((ok) => {
+        const d = base.transaction('evenements', 'readonly').objectStore('evenements').getAll();
+        d.onsuccess = () => ok(d.result);
+      });
+      return JSON.stringify(tout, (_c, v) => (v instanceof ArrayBuffer || ArrayBuffer.isView(v) ? '[octets]' : v));
+    })).includes('Point équipe'),
+  );
+
+  await ouvrir('maintenant');
+  const creneau = await texteDe('.maintenant__contexte');
+  const dansLeCreneau = await propositions();
+  verifier(
+    'scénario « Créneau court » — à sept minutes, le court seulement, et le temps restant dit',
+    /7 minutes avant « Point équipe »/.test(creneau) &&
+      dansLeCreneau.some((t) => /devis à Durand/.test(t)) &&
+      !dansLeCreneau.some((t) => /budget annuel/.test(t)),
+    `${creneau} — ${dansLeCreneau.join(' | ')}`,
+  );
+
+  await importer(
+    ics(
+      { uid: 's1', titre: 'Comité', debut: a(-200), fin: a(-100) },
+      { uid: 's2', titre: 'Revue projet', debut: a(-95), fin: a(-40) },
+      { uid: 's3', titre: 'Client', debut: a(-40), fin: a(-10) },
+    ),
+  );
+  await ouvrir('maintenant');
+  const dense = await texteDe('.maintenant__contexte');
+  const apresSequence = await propositions();
+  verifier(
+    'scénario « Journée dense » — au sortir de plus de trois heures de réunions, le court d’abord',
+    /réunions enchaînées/.test(dense) &&
+      apresSequence.some((t) => /devis à Durand/.test(t)) &&
+      !apresSequence.some((t) => /budget annuel/.test(t)),
+    `${dense} — ${apresSequence.join(' | ')}`,
+  );
+
+  // Dépose, reprise, vidage.
+  await importer(ics({ uid: 'comite', titre: 'Comité budget', debut: a(2), fin: a(32), participants: ['Marc Dupont'] }));
+  await ouvrir('maintenant');
+  const avant = await texteDe('.moment--avant');
+  verifier('scénario « Dépose proposée » — à deux minutes, une dépose', /Comité budget/.test(avant) && /Déposer/.test(avant), avant);
+  await page.locator('.moment__deposer').click();
+  await page.waitForTimeout(800);
+  const pourDepose = await texteDe('.rattachement');
+  const etatMicro = await page.locator('.bouton-capture').getAttribute('data-etat');
+  verifier(
+    'scénario « Aucun enregistrement implicite » — la capture s’ouvre rattachée, micro au repos',
+    /Pour « Comité budget »/.test(pourDepose) && etatMicro === 'REPOS',
+    `${pourDepose} — micro ${etatMicro}`,
+  );
+  await page.getByRole('button', { name: /écrire plutôt/i }).click();
+  await page.locator('textarea').first().fill('Je reprends le devis ligne 12');
+  await page.getByRole('button', { name: /^déposer$/i }).click();
+  await page.waitForTimeout(900);
+
+  await page.clock.setFixedTime(a(37));
+  await ouvrir('maintenant');
+  const apres = await texteDe('.moment--apres');
+  const deposeRendue = await texteDe('.moment__depose-texte');
+  verifier(
+    'scénario « Reprise après réunion » — la dépose faite avant, telle quelle',
+    /« Comité budget » est terminée/.test(apres) && deposeRendue === 'Je reprends le devis ligne 12',
+    `${apres} — ${deposeRendue}`,
+  );
+  await page.locator('.moment__vider').click();
+  await page.waitForTimeout(800);
+  const pourVidage = await texteDe('.rattachement');
+  verifier(
+    'scénario « Capture post-réunion contextualisée » — la capture s’ouvre rattachée à la réunion',
+    /Pour « Comité budget » : ce que la réunion a laissé/.test(pourVidage) &&
+      (await page.locator('.bouton-capture').getAttribute('data-etat')) === 'REPOS',
+    pourVidage,
+  );
+  await page.getByRole('button', { name: /sans réunion/i }).click();
+
+  await page.clock.setFixedTime(T);
+  await importer(
+    ics(
+      { uid: 'm1', titre: 'Atelier', debut: a(-60), fin: a(-1) },
+      { uid: 'm2', titre: 'Fournisseur', debut: a(1), fin: a(30) },
+    ),
+  );
+  await ouvrir('maintenant');
+  const entreDeux = await page.locator('.moment--apres').count();
+  await page.clock.setFixedTime(a(35));
+  await ouvrir('maintenant');
+  const finEnchainement = await texteDe('.moment--apres');
+  verifier(
+    'scénario « Proposition non intrusive » — le vidage attend la fin de l’enchaînement',
+    entreDeux === 0 && /« Fournisseur » est terminée \(après « Atelier »\)/.test(finEnchainement),
+    `${entreDeux} moment(s) entre deux — ${finEnchainement}`,
+  );
+
+  // Rappels : une réunion en cours retient, sa fin livre, en retard.
+  const reprise = async (depuis, jusqua) => {
+    await page.clock.setFixedTime(depuis);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.clock.setFixedTime(jusqua);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForTimeout(900);
+  };
+  await importer(
+    ics(
+      { uid: 'longue', titre: 'Séminaire', debut: a(-10), fin: a(60) },
+      { uid: 'sophie', titre: 'Déjeuner avec Sophie', debut: a(5), fin: a(50) },
+    ),
+  );
+  await reprise(a(-40), a(20));
+  const pendant = await page.locator('.rappels__ligne', { hasText: /livre à Sophie/ }).count();
+  await reprise(a(25), a(62));
+  const aLaFin = await page.locator('.rappels__ligne', { hasText: /livre à Sophie/ });
+  verifier(
+    'scénarios « Rappel lié à une personne » et « Report à la fin de la réunion »',
+    pendant === 0 && (await aLaFin.count()) === 1 && (await aLaFin.locator('.rappels__retard').count()) === 1,
+    `pendant : ${pendant}, à la fin : ${await aLaFin.count()}`,
+  );
+  if ((await page.locator('.rappels').count()) > 0) {
+    await page.locator('.rappels').getByRole('button', { name: /plus tard/i }).click().catch(() => {});
+  }
+
+  // Durée corrigée en Revue, puis agenda périmé.
+  await ouvrir('revue');
+  // La première entrée de la file, quelle qu'elle soit : la file peut être réduite,
+  // et ce qui se vérifie ici est le formulaire, pas un élément en particulier.
+  const entreeACorriger = page.locator('.entree').first();
+  const [idACorriger, captureACorriger] = await Promise.all([
+    entreeACorriger.getAttribute('data-element'),
+    entreeACorriger.getAttribute('data-capture'),
+  ]);
+  await entreeACorriger.getByRole('button', { name: /^ajuster$/i }).click();
+  await entreeACorriger.locator('select[aria-label="Durée"]').selectOption('LONGUE');
+  await entreeACorriger.getByRole('button', { name: /enregistrer la correction/i }).click();
+  await page.waitForTimeout(800);
+  const corrige = await page.evaluate(
+    async ([capture, element]) => (await window.__zenote.elementsDeCapture(capture)).find((e) => e.id === element),
+    [captureACorriger, idACorriger],
+  );
+  verifier(
+    'scénario « Durée corrigée » — la durée choisie est fixée à la main',
+    corrige?.duree === 'LONGUE' && corrige?.dureeConfiance === 1 && corrige?.corrigeParHumain === true,
+    JSON.stringify({ duree: corrige?.duree, confiance: corrige?.dureeConfiance }),
+  );
+
+  await page.clock.setFixedTime(a(9 * 24 * 60));
+  await ouvrir('revue');
+  const perime = await texteDe('.agenda-perime');
+  verifier('scénario « Agenda périmé » — signalé une fois en Revue', /réimportez-le/.test(perime) && (await page.locator('.agenda-perime').count()) === 1, perime);
+
+  // Effacer l'agenda : tout redevient comme avant, les notes restent.
+  await page.clock.setFixedTime(T);
+  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('.agenda__effacer').click();
+  await page.waitForTimeout(700);
+  const efface = await texteDe('.agenda__etat');
+  await ouvrir('maintenant');
+  verifier(
+    'scénario « Agenda effacé » — comme si rien n’avait été importé',
+    /Aucun agenda importé/.test(efface) && (await page.locator('.maintenant__contexte, .moment').count()) === 0,
+    efface,
+  );
+
+  await page.evaluate(async (ids) => {
+    for (const id of ids) await window.__zenote.supprimerCapture(id);
+  }, capturesAgenda);
+  await page.clock.setFixedTime(new Date());
+  }
+
   const minuteriesVivantes = await page.evaluate(
     () => document.querySelectorAll('.ecran').length,
   );
+  // Le badge que l'hébergeur injecte dans les pages publiées recouvrait un bouton
+  // sur téléphone. Le serveur de vérification ne l'injecte pas : on pose son cadre
+  // tel que le script de l'hébergeur le crée, et l'on vérifie qu'il reste caché.
+  const badgeVisible = await page.evaluate(() => {
+    const cadre = document.createElement('iframe');
+    cadre.id = 'nl-badge-frame';
+    cadre.style.cssText = 'position:fixed;bottom:0;right:0;border:0;z-index:2147483645;';
+    document.body.append(cadre);
+    const visible = getComputedStyle(cadre).display !== 'none';
+    cadre.remove();
+    return visible;
+  });
+  verifier('le badge de l’hébergeur ne recouvre pas l’application', !badgeVisible);
+
   verifier(
     'aucune donnée ne quitte l’appareil pendant tout le parcours',
     sorties.length === 0,

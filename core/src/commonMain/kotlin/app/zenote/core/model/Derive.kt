@@ -66,6 +66,27 @@ enum class Poids { FAIBLE, MOYEN, FORT }
 enum class Sphere { PROFESSIONNEL, PERSONNEL }
 
 /**
+ * Le temps qu'un élément demande, en trois paliers.
+ *
+ * Une estimation en minutes serait faussement précise, comme le score continu que la
+ * décision 5 refuse. Trois paliers suffisent à répondre à la seule question qu'on lui
+ * pose : cet élément tient-il dans le temps qui reste avant la prochaine réunion ?
+ * (Change `agenda-local`, décision 4.)
+ *
+ * @param minutes l'ordre de grandeur retenu pour le palier, pas une promesse.
+ */
+enum class Duree(val minutes: Int) {
+    /** Quelques minutes : envoyer, répondre, confirmer. */
+    COURTE(5),
+
+    /** Une vingtaine de minutes. */
+    MOYENNE(20),
+
+    /** Une heure ou plus : préparer, rédiger, analyser. */
+    LONGUE(60),
+}
+
+/**
  * Un plan d'exécution, formulé en intention d'implémentation : « quand [declencheur],
  * je fais [action] ». C'est lui, et non la note, qui ferme la boucle mentale.
  */
@@ -99,6 +120,7 @@ data class ElementDerive(
     val interlocuteur: Deduit<String>? = null,
     val sphere: Deduit<Sphere>? = null,
     val plan: Deduit<Plan>? = null,
+    val duree: Deduit<Duree>? = null,
 ) {
     init {
         require(texte.isNotBlank()) { "Un élément sans texte n'a rien à proposer." }
@@ -110,6 +132,10 @@ data class ElementDerive(
     /**
      * `true` dès qu'une déduction passe sous le seuil : l'élément est alors présenté
      * comme une question à confirmer, et aucun rappel n'est planifié dessus.
+     *
+     * La durée n'y entre pas : une durée incertaine n'est pas présentée comme un fait,
+     * elle retire seulement l'élément des créneaux courts. En faire une question
+     * changerait la Revue de tous ceux qui n'ont pas d'agenda, sans rien leur apporter.
      */
     val aConfirmer: Boolean
         get() = listOfNotNull(echeance, poids, interlocuteur, sphere, plan).any { !it.sûr }

@@ -218,8 +218,10 @@ if (typeof String.prototype.startsWith === 'undefined') {
   initMetadataForClass(StringBuilder, 'StringBuilder', StringBuilder_init_$Create$_0, VOID, [CharSequence]);
   initMetadataForCompanion(Companion_4);
   initMetadataForClass(Regex, 'Regex');
+  initMetadataForClass(RegexOption, 'RegexOption', VOID, Enum);
   initMetadataForClass(MatchGroup, 'MatchGroup');
-  initMetadataForClass(findNext$1$groups$1, VOID, VOID, AbstractCollection, [Collection, AbstractCollection]);
+  initMetadataForInterface(MatchNamedGroupCollection, 'MatchNamedGroupCollection', VOID, VOID, [Collection]);
+  initMetadataForClass(findNext$1$groups$1, VOID, VOID, AbstractCollection, [MatchNamedGroupCollection, AbstractCollection]);
   initMetadataForClass(AbstractList, 'AbstractList', VOID, AbstractCollection, [AbstractCollection, KtList]);
   initMetadataForClass(findNext$1$groupValues$1, VOID, VOID, AbstractList);
   function get_destructured() {
@@ -247,6 +249,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   initMetadataForClass(FilteringSequence$iterator$1);
   initMetadataForClass(FilteringSequence, 'FilteringSequence', VOID, VOID, [Sequence]);
   initMetadataForObject(EmptySet, 'EmptySet', VOID, VOID, [KtSet]);
+  initMetadataForObject(NaturalOrderComparator, 'NaturalOrderComparator', VOID, VOID, [Comparator]);
   initMetadataForClass(sam$kotlin_Comparator$0, 'sam$kotlin_Comparator$0', VOID, VOID, [Comparator, FunctionAdapter]);
   initMetadataForObject(Key, 'Key');
   function releaseInterceptedContinuation(continuation) {
@@ -258,7 +261,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   initMetadataForCompanion(Companion_8);
   initMetadataForClass(IntProgression, 'IntProgression');
   function contains(value) {
-    return compareTo(value, this.bd()) >= 0 && compareTo(value, this.cd()) <= 0;
+    return compareTo(value, this.hd()) >= 0 && compareTo(value, this.id()) <= 0;
   }
   initMetadataForInterface(ClosedRange, 'ClosedRange');
   initMetadataForClass(IntRange, 'IntRange', VOID, IntProgression, [IntProgression, ClosedRange]);
@@ -343,6 +346,9 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return destination;
   }
+  function contains_0(_this__u8e3s4, element) {
+    return indexOf_0(_this__u8e3s4, element) >= 0;
+  }
   function single(_this__u8e3s4) {
     var tmp;
     switch (_this__u8e3s4.length) {
@@ -373,6 +379,20 @@ if (typeof String.prototype.startsWith === 'undefined') {
       }
     }
     return destination;
+  }
+  function indexOf_0(_this__u8e3s4, element) {
+    var inductionVariable = 0;
+    var last = _this__u8e3s4.length - 1 | 0;
+    if (inductionVariable <= last)
+      do {
+        var index = inductionVariable;
+        inductionVariable = inductionVariable + 1 | 0;
+        if (element === _this__u8e3s4[index]) {
+          return index;
+        }
+      }
+       while (inductionVariable <= last);
+    return -1;
   }
   function get_lastIndex_1(_this__u8e3s4) {
     return _this__u8e3s4.length - 1 | 0;
@@ -605,7 +625,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
       if (n >= _this__u8e3s4.l())
         return toList(_this__u8e3s4);
       if (n === 1)
-        return listOf(first(_this__u8e3s4));
+        return listOf(first_0(_this__u8e3s4));
     }
     var count = 0;
     var list = ArrayList_init_$Create$_0(n);
@@ -650,6 +670,35 @@ if (typeof String.prototype.startsWith === 'undefined') {
     result.e(element);
     return result;
   }
+  function sorted(_this__u8e3s4) {
+    if (isInterface(_this__u8e3s4, Collection)) {
+      if (_this__u8e3s4.l() <= 1)
+        return toList(_this__u8e3s4);
+      // Inline function 'kotlin.collections.toTypedArray' call
+      var tmp = copyToArray(_this__u8e3s4);
+      // Inline function 'kotlin.apply' call
+      var this_0 = isArray(tmp) ? tmp : THROW_CCE();
+      // Inline function 'kotlin.collections.sorted.<anonymous>' call
+      sort(this_0);
+      return asList(this_0);
+    }
+    // Inline function 'kotlin.apply' call
+    var this_1 = toMutableList_0(_this__u8e3s4);
+    // Inline function 'kotlin.collections.sorted.<anonymous>' call
+    sort_0(this_1);
+    return this_1;
+  }
+  function singleOrNull(_this__u8e3s4) {
+    return _this__u8e3s4.l() === 1 ? _this__u8e3s4.k(0) : null;
+  }
+  function lastOrNull(_this__u8e3s4) {
+    return _this__u8e3s4.j() ? null : _this__u8e3s4.k(_this__u8e3s4.l() - 1 | 0);
+  }
+  function first(_this__u8e3s4) {
+    if (_this__u8e3s4.j())
+      throw NoSuchElementException_init_$Create$_0('List is empty.');
+    return _this__u8e3s4.k(0);
+  }
   function asSequence(_this__u8e3s4) {
     // Inline function 'kotlin.sequences.Sequence' call
     return new asSequence$$inlined$Sequence$1(_this__u8e3s4);
@@ -689,20 +738,15 @@ if (typeof String.prototype.startsWith === 'undefined') {
       return toMutableList(_this__u8e3s4);
     return toCollection_0(_this__u8e3s4, ArrayList_init_$Create$());
   }
-  function first(_this__u8e3s4) {
+  function first_0(_this__u8e3s4) {
     if (isInterface(_this__u8e3s4, KtList))
-      return first_0(_this__u8e3s4);
+      return first(_this__u8e3s4);
     else {
       var iterator = _this__u8e3s4.g();
       if (!iterator.h())
         throw NoSuchElementException_init_$Create$_0('Collection is empty.');
       return iterator.i();
     }
-  }
-  function first_0(_this__u8e3s4) {
-    if (_this__u8e3s4.j())
-      throw NoSuchElementException_init_$Create$_0('List is empty.');
-    return _this__u8e3s4.k(0);
   }
   function single_1(_this__u8e3s4) {
     if (isInterface(_this__u8e3s4, KtList))
@@ -716,12 +760,6 @@ if (typeof String.prototype.startsWith === 'undefined') {
         throw IllegalArgumentException_init_$Create$_0('Collection has more than one element.');
       return single;
     }
-  }
-  function singleOrNull(_this__u8e3s4) {
-    return _this__u8e3s4.l() === 1 ? _this__u8e3s4.k(0) : null;
-  }
-  function lastOrNull(_this__u8e3s4) {
-    return _this__u8e3s4.j() ? null : _this__u8e3s4.k(_this__u8e3s4.l() - 1 | 0);
   }
   function asSequence$$inlined$Sequence$1($this_asSequence) {
     this.r_1 = $this_asSequence;
@@ -742,10 +780,19 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function coerceAtLeast(_this__u8e3s4, minimumValue) {
     return _this__u8e3s4 < minimumValue ? minimumValue : _this__u8e3s4;
   }
+  function coerceIn(_this__u8e3s4, minimumValue, maximumValue) {
+    if (minimumValue > maximumValue)
+      throw IllegalArgumentException_init_$Create$_0('Cannot coerce value to an empty range: maximum ' + maximumValue + ' is less than minimum ' + minimumValue + '.');
+    if (_this__u8e3s4 < minimumValue)
+      return minimumValue;
+    if (_this__u8e3s4 > maximumValue)
+      return maximumValue;
+    return _this__u8e3s4;
+  }
   function downTo(_this__u8e3s4, to) {
     return Companion_instance_9.w(_this__u8e3s4, to, -1);
   }
-  function coerceIn(_this__u8e3s4, minimumValue, maximumValue) {
+  function coerceIn_0(_this__u8e3s4, minimumValue, maximumValue) {
     if (minimumValue.z(maximumValue) > 0)
       throw IllegalArgumentException_init_$Create$_0('Cannot coerce value to an empty range: maximum ' + maximumValue.toString() + ' is less than minimum ' + minimumValue.toString() + '.');
     if (_this__u8e3s4.z(minimumValue) < 0)
@@ -757,7 +804,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function coerceAtMost(_this__u8e3s4, maximumValue) {
     return _this__u8e3s4 > maximumValue ? maximumValue : _this__u8e3s4;
   }
-  function coerceIn_0(_this__u8e3s4, minimumValue, maximumValue) {
+  function coerceIn_1(_this__u8e3s4, minimumValue, maximumValue) {
     if (minimumValue > maximumValue)
       throw IllegalArgumentException_init_$Create$_0('Cannot coerce value to an empty range: maximum ' + maximumValue + ' is less than minimum ' + minimumValue + '.');
     if (_this__u8e3s4 < minimumValue)
@@ -766,7 +813,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
       return maximumValue;
     return _this__u8e3s4;
   }
-  function contains_0(_this__u8e3s4, value) {
+  function contains_1(_this__u8e3s4, value) {
     // Inline function 'kotlin.let' call
     // Inline function 'kotlin.ranges.contains.<anonymous>' call
     var it = toIntExactOrNull(value);
@@ -2438,6 +2485,11 @@ if (typeof String.prototype.startsWith === 'undefined') {
       sortArrayWith(_this__u8e3s4, comparator);
     }
   }
+  function sort(_this__u8e3s4) {
+    if (_this__u8e3s4.length > 1) {
+      sortArray(_this__u8e3s4);
+    }
+  }
   function copyOf_0(_this__u8e3s4, newSize) {
     // Inline function 'kotlin.require' call
     if (!(newSize >= 0)) {
@@ -2679,6 +2731,9 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return count;
   }
+  function sort_0(_this__u8e3s4) {
+    collectionsSort(_this__u8e3s4, naturalOrder());
+  }
   function checkIndexOverflow(index) {
     if (index < 0) {
       throwIndexOverflow();
@@ -2795,9 +2850,9 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return new IteratorImpl(this);
   };
   protoOf(AbstractMutableList).r1 = function (element) {
-    return this.s1(element) >= 0;
+    return this.t1(element) >= 0;
   };
-  protoOf(AbstractMutableList).s1 = function (element) {
+  protoOf(AbstractMutableList).t1 = function (element) {
     var tmp$ret$1;
     $l$block: {
       // Inline function 'kotlin.collections.indexOfFirst' call
@@ -3080,7 +3135,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     tmp.n_1 = [];
     this.p3_1 = this.p3_1 + 1 | 0;
   };
-  protoOf(ArrayList).s1 = function (element) {
+  protoOf(ArrayList).t1 = function (element) {
     return indexOf(this.n_1, element);
   };
   protoOf(ArrayList).toString = function () {
@@ -3106,6 +3161,17 @@ if (typeof String.prototype.startsWith === 'undefined') {
       // Inline function 'kotlin.js.unsafeCast' call
       // Inline function 'kotlin.js.asDynamic' call
       mergeSort(array, 0, get_lastIndex(array), comparator);
+    }
+  }
+  function sortArray(array) {
+    if (getStableSortingIsSupported()) {
+      var comparison = sortArray$lambda;
+      // Inline function 'kotlin.js.asDynamic' call
+      array.sort(comparison);
+    } else {
+      // Inline function 'kotlin.js.unsafeCast' call
+      // Inline function 'kotlin.js.asDynamic' call
+      mergeSort(array, 0, get_lastIndex(array), naturalOrder());
     }
   }
   function getStableSortingIsSupported() {
@@ -3204,6 +3270,9 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return function (a, b) {
       return $comparator.compare(a, b);
     };
+  }
+  function sortArray$lambda(a, b) {
+    return compareTo(a, b);
   }
   function getStableSortingIsSupported$lambda(a, b) {
     return (a & 3) - (b & 3) | 0;
@@ -3374,7 +3443,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   protoOf(HashMapEntrySetBase).p = function (elements) {
     throw UnsupportedOperationException_init_$Create$();
   };
-  protoOf(HashMapEntrySetBase).t1 = function (elements) {
+  protoOf(HashMapEntrySetBase).s1 = function (elements) {
     return this.j5_1.o5(elements);
   };
   protoOf(HashMapEntrySetBase).k3 = function () {
@@ -5398,12 +5467,19 @@ if (typeof String.prototype.startsWith === 'undefined') {
         return false;
     }
   }
-  function Regex_init_$Init$(pattern, $this) {
+  function Regex_init_$Init$(pattern, option, $this) {
+    Regex.call($this, pattern, setOf(option));
+    return $this;
+  }
+  function Regex_init_$Create$(pattern, option) {
+    return Regex_init_$Init$(pattern, option, objectCreate(protoOf(Regex)));
+  }
+  function Regex_init_$Init$_0(pattern, $this) {
     Regex.call($this, pattern, emptySet());
     return $this;
   }
-  function Regex_init_$Create$(pattern) {
-    return Regex_init_$Init$(pattern, objectCreate(protoOf(Regex)));
+  function Regex_init_$Create$_0(pattern) {
+    return Regex_init_$Init$_0(pattern, objectCreate(protoOf(Regex)));
   }
   function Companion_4() {
     Companion_instance_4 = this;
@@ -5411,6 +5487,12 @@ if (typeof String.prototype.startsWith === 'undefined') {
     this.ia_1 = new RegExp('[\\\\$]', 'g');
     this.ja_1 = new RegExp('\\$', 'g');
   }
+  protoOf(Companion_4).ka = function (literal) {
+    // Inline function 'kotlin.text.nativeReplace' call
+    var pattern = this.ha_1;
+    // Inline function 'kotlin.js.asDynamic' call
+    return literal.replace(pattern, '\\$&');
+  };
   var Companion_instance_4;
   function Companion_getInstance_4() {
     if (Companion_instance_4 == null)
@@ -5419,33 +5501,80 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function Regex(pattern, options) {
     Companion_getInstance_4();
-    this.ka_1 = pattern;
-    this.la_1 = toSet_0(options);
-    this.ma_1 = new RegExp(pattern, toFlags(options, 'gu'));
-    this.na_1 = null;
+    this.la_1 = pattern;
+    this.ma_1 = toSet_0(options);
+    this.na_1 = new RegExp(pattern, toFlags(options, 'gu'));
     this.oa_1 = null;
+    this.pa_1 = null;
   }
-  protoOf(Regex).pa = function (input, startIndex) {
+  protoOf(Regex).qa = function (input, startIndex) {
     if (startIndex < 0 || startIndex > charSequenceLength(input)) {
       throw IndexOutOfBoundsException_init_$Create$_0('Start index out of bounds: ' + startIndex + ', input length: ' + charSequenceLength(input));
     }
-    return findNext(this.ma_1, toString_1(input), startIndex, this.ma_1);
+    return findNext(this.na_1, toString_1(input), startIndex, this.na_1);
   };
-  protoOf(Regex).qa = function (input, startIndex, $super) {
+  protoOf(Regex).ra = function (input, startIndex, $super) {
     startIndex = startIndex === VOID ? 0 : startIndex;
-    return $super === VOID ? this.pa(input, startIndex) : $super.pa.call(this, input, startIndex);
+    return $super === VOID ? this.qa(input, startIndex) : $super.qa.call(this, input, startIndex);
+  };
+  protoOf(Regex).sa = function (input, replacement) {
+    if (!contains_2(replacement, _Char___init__impl__6a9atx(92)) && !contains_2(replacement, _Char___init__impl__6a9atx(36))) {
+      var nonGlobalOptions = toFlags(this.ma_1, 'u');
+      var tmp0 = toString_1(input);
+      // Inline function 'kotlin.text.nativeReplace' call
+      var pattern = new RegExp(this.la_1, nonGlobalOptions);
+      // Inline function 'kotlin.js.asDynamic' call
+      return tmp0.replace(pattern, replacement);
+    }
+    var tmp0_elvis_lhs = this.ra(input);
+    var tmp;
+    if (tmp0_elvis_lhs == null) {
+      return toString_1(input);
+    } else {
+      tmp = tmp0_elvis_lhs;
+    }
+    var match = tmp;
+    // Inline function 'kotlin.text.buildString' call
+    // Inline function 'kotlin.apply' call
+    var this_0 = StringBuilder_init_$Create$_0();
+    // Inline function 'kotlin.text.Regex.replaceFirst.<anonymous>' call
+    // Inline function 'kotlin.text.substring' call
+    var endIndex = match.ta().t_1;
+    var tmp$ret$2 = toString_1(charSequenceSubSequence(input, 0, endIndex));
+    this_0.k7(tmp$ret$2);
+    this_0.k7(substituteGroupRefs(match, replacement));
+    var tmp4 = match.ta().u_1 + 1 | 0;
+    // Inline function 'kotlin.text.substring' call
+    var endIndex_0 = charSequenceLength(input);
+    var tmp$ret$3 = toString_1(charSequenceSubSequence(input, tmp4, endIndex_0));
+    this_0.k7(tmp$ret$3);
+    return this_0.toString();
   };
   protoOf(Regex).toString = function () {
-    return this.ma_1.toString();
+    return this.na_1.toString();
   };
+  var RegexOption_IGNORE_CASE_instance;
+  var RegexOption_MULTILINE_instance;
+  var RegexOption_entriesInitialized;
+  function RegexOption_initEntries() {
+    if (RegexOption_entriesInitialized)
+      return Unit_instance;
+    RegexOption_entriesInitialized = true;
+    RegexOption_IGNORE_CASE_instance = new RegexOption('IGNORE_CASE', 0, 'i');
+    RegexOption_MULTILINE_instance = new RegexOption('MULTILINE', 1, 'm');
+  }
+  function RegexOption(name, ordinal, value) {
+    Enum.call(this, name, ordinal);
+    this.wa_1 = value;
+  }
   function MatchGroup(value) {
-    this.ra_1 = value;
+    this.xa_1 = value;
   }
   protoOf(MatchGroup).toString = function () {
-    return 'MatchGroup(value=' + this.ra_1 + ')';
+    return 'MatchGroup(value=' + this.xa_1 + ')';
   };
   protoOf(MatchGroup).hashCode = function () {
-    return getStringHashCode(this.ra_1);
+    return getStringHashCode(this.xa_1);
   };
   protoOf(MatchGroup).equals = function (other) {
     if (this === other)
@@ -5453,7 +5582,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     if (!(other instanceof MatchGroup))
       return false;
     var tmp0_other_with_cast = other instanceof MatchGroup ? other : THROW_CCE();
-    if (!(this.ra_1 === tmp0_other_with_cast.ra_1))
+    if (!(this.xa_1 === tmp0_other_with_cast.xa_1))
       return false;
     return true;
   };
@@ -5468,21 +5597,126 @@ if (typeof String.prototype.startsWith === 'undefined') {
     var range = numberRangeToNumber(match.index, _this__u8e3s4.lastIndex - 1 | 0);
     return new findNext$1(range, match, nextPattern, input);
   }
+  function substituteGroupRefs(match, replacement) {
+    var index = 0;
+    var result = StringBuilder_init_$Create$_0();
+    while (index < replacement.length) {
+      var _unary__edvuaz = index;
+      index = _unary__edvuaz + 1 | 0;
+      var char = charSequenceGet(replacement, _unary__edvuaz);
+      if (char === _Char___init__impl__6a9atx(92)) {
+        if (index === replacement.length)
+          throw IllegalArgumentException_init_$Create$_0('The Char to be escaped is missing');
+        var _unary__edvuaz_0 = index;
+        index = _unary__edvuaz_0 + 1 | 0;
+        result.l7(charSequenceGet(replacement, _unary__edvuaz_0));
+      } else if (char === _Char___init__impl__6a9atx(36)) {
+        if (index === replacement.length)
+          throw IllegalArgumentException_init_$Create$_0('Capturing group index is missing');
+        if (charSequenceGet(replacement, index) === _Char___init__impl__6a9atx(123)) {
+          index = index + 1 | 0;
+          var endIndex = readGroupName(replacement, index);
+          if (index === endIndex)
+            throw IllegalArgumentException_init_$Create$_0('Named capturing group reference should have a non-empty name');
+          if (endIndex === replacement.length || !(charSequenceGet(replacement, endIndex) === _Char___init__impl__6a9atx(125)))
+            throw IllegalArgumentException_init_$Create$_0("Named capturing group reference is missing trailing '}'");
+          // Inline function 'kotlin.text.substring' call
+          var startIndex = index;
+          // Inline function 'kotlin.js.asDynamic' call
+          var groupName = replacement.substring(startIndex, endIndex);
+          var tmp0_safe_receiver = get(match.ya(), groupName);
+          var tmp1_elvis_lhs = tmp0_safe_receiver == null ? null : tmp0_safe_receiver.xa_1;
+          result.k7(tmp1_elvis_lhs == null ? '' : tmp1_elvis_lhs);
+          index = endIndex + 1 | 0;
+        } else {
+          var containsArg = charSequenceGet(replacement, index);
+          if (!(_Char___init__impl__6a9atx(48) <= containsArg ? containsArg <= _Char___init__impl__6a9atx(57) : false))
+            throw IllegalArgumentException_init_$Create$_0('Invalid capturing group reference');
+          var groups = match.ya();
+          var endIndex_0 = readGroupIndex(replacement, index, groups.l());
+          // Inline function 'kotlin.text.substring' call
+          var startIndex_0 = index;
+          // Inline function 'kotlin.js.asDynamic' call
+          var tmp$ret$3 = replacement.substring(startIndex_0, endIndex_0);
+          var groupIndex = toInt(tmp$ret$3);
+          if (groupIndex >= groups.l())
+            throw IndexOutOfBoundsException_init_$Create$_0('Group with index ' + groupIndex + ' does not exist');
+          var tmp2_safe_receiver = groups.k(groupIndex);
+          var tmp3_elvis_lhs = tmp2_safe_receiver == null ? null : tmp2_safe_receiver.xa_1;
+          result.k7(tmp3_elvis_lhs == null ? '' : tmp3_elvis_lhs);
+          index = endIndex_0;
+        }
+      } else {
+        result.l7(char);
+      }
+    }
+    return result.toString();
+  }
+  function readGroupName(_this__u8e3s4, startIndex) {
+    var index = startIndex;
+    $l$loop: while (index < _this__u8e3s4.length) {
+      if (charSequenceGet(_this__u8e3s4, index) === _Char___init__impl__6a9atx(125)) {
+        break $l$loop;
+      } else {
+        index = index + 1 | 0;
+      }
+    }
+    return index;
+  }
+  function get(_this__u8e3s4, name) {
+    var tmp0_elvis_lhs = isInterface(_this__u8e3s4, MatchNamedGroupCollection) ? _this__u8e3s4 : null;
+    var tmp;
+    if (tmp0_elvis_lhs == null) {
+      throw UnsupportedOperationException_init_$Create$_0('Retrieving groups by name is not supported on this platform.');
+    } else {
+      tmp = tmp0_elvis_lhs;
+    }
+    var namedGroups = tmp;
+    return namedGroups.za(name);
+  }
+  function readGroupIndex(_this__u8e3s4, startIndex, groupCount) {
+    var index = startIndex + 1 | 0;
+    var groupIndex = Char__minus_impl_a2frrh(charSequenceGet(_this__u8e3s4, startIndex), _Char___init__impl__6a9atx(48));
+    $l$loop_0: while (true) {
+      var tmp;
+      if (index < _this__u8e3s4.length) {
+        var containsArg = charSequenceGet(_this__u8e3s4, index);
+        tmp = _Char___init__impl__6a9atx(48) <= containsArg ? containsArg <= _Char___init__impl__6a9atx(57) : false;
+      } else {
+        tmp = false;
+      }
+      if (!tmp) {
+        break $l$loop_0;
+      }
+      var newGroupIndex = imul(groupIndex, 10) + Char__minus_impl_a2frrh(charSequenceGet(_this__u8e3s4, index), _Char___init__impl__6a9atx(48)) | 0;
+      if (0 <= newGroupIndex ? newGroupIndex < groupCount : false) {
+        groupIndex = newGroupIndex;
+        index = index + 1 | 0;
+      } else {
+        break $l$loop_0;
+      }
+    }
+    return index;
+  }
   function toFlags$lambda(it) {
-    return it.ua_1;
+    return it.wa_1;
   }
   function findNext$o$groups$o$iterator$lambda(this$0) {
     return function (it) {
       return this$0.k(it);
     };
   }
+  function hasOwnPrototypeProperty($this, o, name) {
+    // Inline function 'kotlin.js.unsafeCast' call
+    return Object.prototype.hasOwnProperty.call(o, name);
+  }
   function findNext$1$groups$1($match, this$0) {
-    this.va_1 = $match;
-    this.wa_1 = this$0;
+    this.ab_1 = $match;
+    this.bb_1 = this$0;
     AbstractCollection.call(this);
   }
   protoOf(findNext$1$groups$1).l = function () {
-    return this.va_1.length;
+    return this.ab_1.length;
   };
   protoOf(findNext$1$groups$1).g = function () {
     var tmp = asSequence(get_indices_1(this));
@@ -5491,7 +5725,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   protoOf(findNext$1$groups$1).k = function (index) {
     // Inline function 'kotlin.js.get' call
     // Inline function 'kotlin.js.asDynamic' call
-    var tmp0_safe_receiver = this.va_1[index];
+    var tmp0_safe_receiver = this.ab_1[index];
     var tmp;
     if (tmp0_safe_receiver == null) {
       tmp = null;
@@ -5502,36 +5736,67 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return tmp;
   };
+  protoOf(findNext$1$groups$1).za = function (name) {
+    // Inline function 'kotlin.js.asDynamic' call
+    var tmp0_elvis_lhs = this.ab_1.groups;
+    var tmp;
+    if (tmp0_elvis_lhs == null) {
+      throw IllegalArgumentException_init_$Create$_0('Capturing group with name {' + name + '} does not exist. No named capturing group was defined in Regex');
+    } else {
+      tmp = tmp0_elvis_lhs;
+    }
+    var groups = tmp;
+    if (!hasOwnPrototypeProperty(this.bb_1, groups, name))
+      throw IllegalArgumentException_init_$Create$_0('Capturing group with name {' + name + '} does not exist');
+    var value = groups[name];
+    var tmp_0;
+    if (value == undefined) {
+      tmp_0 = null;
+    } else {
+      tmp_0 = new MatchGroup((!(value == null) ? typeof value === 'string' : false) ? value : THROW_CCE());
+    }
+    return tmp_0;
+  };
   function findNext$1$groupValues$1($match) {
-    this.xa_1 = $match;
+    this.cb_1 = $match;
     AbstractList.call(this);
   }
   protoOf(findNext$1$groupValues$1).l = function () {
-    return this.xa_1.length;
+    return this.cb_1.length;
   };
   protoOf(findNext$1$groupValues$1).k = function (index) {
     // Inline function 'kotlin.js.get' call
     // Inline function 'kotlin.js.asDynamic' call
-    var tmp0_elvis_lhs = this.xa_1[index];
+    var tmp0_elvis_lhs = this.cb_1[index];
     return tmp0_elvis_lhs == null ? '' : tmp0_elvis_lhs;
   };
   function findNext$1($range, $match, $nextPattern, $input) {
-    this.bb_1 = $range;
-    this.cb_1 = $match;
-    this.db_1 = $nextPattern;
-    this.eb_1 = $input;
-    this.ya_1 = $range;
+    this.gb_1 = $range;
+    this.hb_1 = $match;
+    this.ib_1 = $nextPattern;
+    this.jb_1 = $input;
+    this.db_1 = $range;
     var tmp = this;
-    tmp.za_1 = new findNext$1$groups$1($match, this);
-    this.ab_1 = null;
+    tmp.eb_1 = new findNext$1$groups$1($match, this);
+    this.fb_1 = null;
   }
-  protoOf(findNext$1).fb = function () {
-    if (this.ab_1 == null) {
-      var tmp = this;
-      tmp.ab_1 = new findNext$1$groupValues$1(this.cb_1);
-    }
-    return ensureNotNull(this.ab_1);
+  protoOf(findNext$1).ta = function () {
+    return this.db_1;
   };
+  protoOf(findNext$1).ya = function () {
+    return this.eb_1;
+  };
+  protoOf(findNext$1).kb = function () {
+    if (this.fb_1 == null) {
+      var tmp = this;
+      tmp.fb_1 = new findNext$1$groupValues$1(this.hb_1);
+    }
+    return ensureNotNull(this.fb_1);
+  };
+  function RegexOption_IGNORE_CASE_getInstance() {
+    RegexOption_initEntries();
+    return RegexOption_IGNORE_CASE_instance;
+  }
   function repeat(_this__u8e3s4, n) {
     // Inline function 'kotlin.require' call
     if (!(n >= 0)) {
@@ -5595,6 +5860,14 @@ if (typeof String.prototype.startsWith === 'undefined') {
        while (inductionVariable < last);
     return true;
   }
+  function replace(_this__u8e3s4, oldChar, newChar, ignoreCase) {
+    ignoreCase = ignoreCase === VOID ? false : ignoreCase;
+    var tmp1 = new RegExp(Companion_getInstance_4().ka(toString(oldChar)), ignoreCase ? 'gui' : 'gu');
+    // Inline function 'kotlin.text.nativeReplace' call
+    var replacement = toString(newChar);
+    // Inline function 'kotlin.js.asDynamic' call
+    return _this__u8e3s4.replace(tmp1, replacement);
+  }
   function startsWith(_this__u8e3s4, prefix, ignoreCase) {
     ignoreCase = ignoreCase === VOID ? false : ignoreCase;
     if (!ignoreCase) {
@@ -5648,25 +5921,29 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function DurationUnit(name, ordinal, scale) {
     Enum.call(this, name, ordinal);
-    this.jb_1 = scale;
+    this.ob_1 = scale;
   }
   function convertDurationUnit(value, sourceUnit, targetUnit) {
-    var sourceCompareTarget = compareTo(sourceUnit.jb_1, targetUnit.jb_1);
-    return sourceCompareTarget > 0 ? value * (sourceUnit.jb_1 / targetUnit.jb_1) : sourceCompareTarget < 0 ? value / (targetUnit.jb_1 / sourceUnit.jb_1) : value;
+    var sourceCompareTarget = compareTo(sourceUnit.ob_1, targetUnit.ob_1);
+    return sourceCompareTarget > 0 ? value * (sourceUnit.ob_1 / targetUnit.ob_1) : sourceCompareTarget < 0 ? value / (targetUnit.ob_1 / sourceUnit.ob_1) : value;
   }
   function convertDurationUnit_0(value, sourceUnit, targetUnit) {
-    var sourceCompareTarget = compareTo(sourceUnit.jb_1, targetUnit.jb_1);
+    var sourceCompareTarget = compareTo(sourceUnit.ob_1, targetUnit.ob_1);
     var tmp;
     if (sourceCompareTarget > 0) {
-      var scale = numberToLong(sourceUnit.jb_1 / targetUnit.jb_1);
+      var scale = numberToLong(sourceUnit.ob_1 / targetUnit.ob_1);
       var result = value.o2(scale);
       tmp = result.p2(scale).equals(value) ? result : value.z(new Long(0, 0)) > 0 ? new Long(-1, 2147483647) : new Long(0, -2147483648);
     } else if (sourceCompareTarget < 0) {
-      tmp = value.p2(numberToLong(targetUnit.jb_1 / sourceUnit.jb_1));
+      tmp = value.p2(numberToLong(targetUnit.ob_1 / sourceUnit.ob_1));
     } else {
       tmp = value;
     }
     return tmp;
+  }
+  function convertDurationUnitOverflow(value, sourceUnit, targetUnit) {
+    var sourceCompareTarget = compareTo(sourceUnit.ob_1, targetUnit.ob_1);
+    return sourceCompareTarget > 0 ? value.o2(numberToLong(sourceUnit.ob_1 / targetUnit.ob_1)) : sourceCompareTarget < 0 ? value.p2(numberToLong(targetUnit.ob_1 / sourceUnit.ob_1)) : value;
   }
   function DurationUnit_NANOSECONDS_getInstance() {
     DurationUnit_initEntries();
@@ -5679,6 +5956,10 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function DurationUnit_SECONDS_getInstance() {
     DurationUnit_initEntries();
     return DurationUnit_SECONDS_instance;
+  }
+  function DurationUnit_MINUTES_getInstance() {
+    DurationUnit_initEntries();
+    return DurationUnit_MINUTES_instance;
   }
   function DurationUnit_DAYS_getInstance() {
     DurationUnit_initEntries();
@@ -5718,7 +5999,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return tmp$ret$0;
   };
-  protoOf(AbstractCollection).t1 = function (elements) {
+  protoOf(AbstractCollection).s1 = function (elements) {
     var tmp$ret$0;
     $l$block_0: {
       // Inline function 'kotlin.collections.all' call
@@ -5755,33 +6036,33 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return collectionToArray(this);
   };
   function IteratorImpl_0($outer) {
-    this.lb_1 = $outer;
-    this.kb_1 = 0;
+    this.qb_1 = $outer;
+    this.pb_1 = 0;
   }
   protoOf(IteratorImpl_0).h = function () {
-    return this.kb_1 < this.lb_1.l();
+    return this.pb_1 < this.qb_1.l();
   };
   protoOf(IteratorImpl_0).i = function () {
     if (!this.h())
       throw NoSuchElementException_init_$Create$();
-    var _unary__edvuaz = this.kb_1;
-    this.kb_1 = _unary__edvuaz + 1 | 0;
-    return this.lb_1.k(_unary__edvuaz);
+    var _unary__edvuaz = this.pb_1;
+    this.pb_1 = _unary__edvuaz + 1 | 0;
+    return this.qb_1.k(_unary__edvuaz);
   };
   function ListIteratorImpl_0($outer, index) {
-    this.ob_1 = $outer;
+    this.tb_1 = $outer;
     IteratorImpl_0.call(this, $outer);
-    Companion_instance_5.w3(index, this.ob_1.l());
-    this.kb_1 = index;
+    Companion_instance_5.w3(index, this.tb_1.l());
+    this.pb_1 = index;
   }
   protoOf(ListIteratorImpl_0).x3 = function () {
-    return this.kb_1 > 0;
+    return this.pb_1 > 0;
   };
   protoOf(ListIteratorImpl_0).y3 = function () {
     if (!this.x3())
       throw NoSuchElementException_init_$Create$();
-    this.kb_1 = this.kb_1 - 1 | 0;
-    return this.ob_1.k(this.kb_1);
+    this.pb_1 = this.pb_1 - 1 | 0;
+    return this.tb_1.k(this.pb_1);
   };
   function Companion_5() {
     this.v3_1 = 2147483639;
@@ -5847,7 +6128,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   protoOf(AbstractList).g = function () {
     return new IteratorImpl_0(this);
   };
-  protoOf(AbstractList).s1 = function (element) {
+  protoOf(AbstractList).t1 = function (element) {
     var tmp$ret$1;
     $l$block: {
       // Inline function 'kotlin.collections.indexOfFirst' call
@@ -5880,13 +6161,13 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return Companion_instance_5.c4(this);
   };
   function AbstractMap$keys$1$iterator$1($entryIterator) {
-    this.pb_1 = $entryIterator;
+    this.ub_1 = $entryIterator;
   }
   protoOf(AbstractMap$keys$1$iterator$1).h = function () {
-    return this.pb_1.h();
+    return this.ub_1.h();
   };
   protoOf(AbstractMap$keys$1$iterator$1).i = function () {
-    return this.pb_1.i().u1();
+    return this.ub_1.i().u1();
   };
   function toString_2($this, entry) {
     return toString_3($this, entry.u1()) + '=' + toString_3($this, entry.v1());
@@ -5919,11 +6200,11 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return Companion_instance_6;
   }
   function AbstractMap$keys$1(this$0) {
-    this.qb_1 = this$0;
+    this.vb_1 = this$0;
     AbstractSet.call(this);
   }
   protoOf(AbstractMap$keys$1).z4 = function (element) {
-    return this.qb_1.w1(element);
+    return this.vb_1.w1(element);
   };
   protoOf(AbstractMap$keys$1).r1 = function (element) {
     if (!(element == null ? true : !(element == null)))
@@ -5931,11 +6212,11 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return this.z4((element == null ? true : !(element == null)) ? element : THROW_CCE());
   };
   protoOf(AbstractMap$keys$1).g = function () {
-    var entryIterator = this.qb_1.a2().g();
+    var entryIterator = this.vb_1.a2().g();
     return new AbstractMap$keys$1$iterator$1(entryIterator);
   };
   protoOf(AbstractMap$keys$1).l = function () {
-    return this.qb_1.l();
+    return this.vb_1.l();
   };
   function AbstractMap$toString$lambda(this$0) {
     return function (it) {
@@ -6073,7 +6354,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   protoOf(Companion_7).m4 = function (c, other) {
     if (!(c.l() === other.l()))
       return false;
-    return c.t1(other);
+    return c.s1(other);
   };
   var Companion_instance_7;
   function Companion_getInstance_7() {
@@ -6129,7 +6410,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function EmptyList() {
     EmptyList_instance = this;
-    this.rb_1 = new Long(-1478467534, -1720727600);
+    this.wb_1 = new Long(-1478467534, -1720727600);
   }
   protoOf(EmptyList).equals = function (other) {
     var tmp;
@@ -6152,13 +6433,19 @@ if (typeof String.prototype.startsWith === 'undefined') {
   protoOf(EmptyList).j = function () {
     return true;
   };
+  protoOf(EmptyList).xb = function (elements) {
+    return elements.j();
+  };
+  protoOf(EmptyList).s1 = function (elements) {
+    return this.xb(elements);
+  };
   protoOf(EmptyList).k = function (index) {
     throw IndexOutOfBoundsException_init_$Create$_0("Empty list doesn't contain element at index " + index + '.');
   };
-  protoOf(EmptyList).sb = function (element) {
+  protoOf(EmptyList).yb = function (element) {
     return -1;
   };
-  protoOf(EmptyList).s1 = function (element) {
+  protoOf(EmptyList).t1 = function (element) {
     if (!false)
       return -1;
     var tmp;
@@ -6167,7 +6454,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     } else {
       tmp = THROW_CCE();
     }
-    return this.sb(tmp);
+    return this.yb(tmp);
   };
   protoOf(EmptyList).g = function () {
     return EmptyIterator_instance;
@@ -6184,18 +6471,18 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return EmptyList_instance;
   }
   function ArrayAsCollection(values, isVarargs) {
-    this.tb_1 = values;
-    this.ub_1 = isVarargs;
+    this.zb_1 = values;
+    this.ac_1 = isVarargs;
   }
   protoOf(ArrayAsCollection).l = function () {
-    return this.tb_1.length;
+    return this.zb_1.length;
   };
   protoOf(ArrayAsCollection).j = function () {
     // Inline function 'kotlin.collections.isEmpty' call
-    return this.tb_1.length === 0;
+    return this.zb_1.length === 0;
   };
   protoOf(ArrayAsCollection).g = function () {
-    return arrayIterator(this.tb_1);
+    return arrayIterator(this.zb_1);
   };
   function binarySearch(_this__u8e3s4, fromIndex, toIndex, comparison) {
     fromIndex = fromIndex === VOID ? 0 : fromIndex;
@@ -6284,7 +6571,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function getOrImplicitDefault(_this__u8e3s4, key) {
     if (isInterface(_this__u8e3s4, MapWithDefault))
-      return _this__u8e3s4.vb(key);
+      return _this__u8e3s4.bc(key);
     var tmp$ret$0;
     $l$block: {
       // Inline function 'kotlin.collections.getOrElseNullable' call
@@ -6312,7 +6599,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function EmptyMap() {
     EmptyMap_instance = this;
-    this.wb_1 = new Long(-888910638, 1920087921);
+    this.cc_1 = new Long(-888910638, 1920087921);
   }
   protoOf(EmptyMap).equals = function (other) {
     var tmp;
@@ -6335,21 +6622,21 @@ if (typeof String.prototype.startsWith === 'undefined') {
   protoOf(EmptyMap).j = function () {
     return true;
   };
-  protoOf(EmptyMap).xb = function (key) {
+  protoOf(EmptyMap).dc = function (key) {
     return false;
   };
   protoOf(EmptyMap).w1 = function (key) {
     if (!(key == null ? true : !(key == null)))
       return false;
-    return this.xb((key == null ? true : !(key == null)) ? key : THROW_CCE());
+    return this.dc((key == null ? true : !(key == null)) ? key : THROW_CCE());
   };
-  protoOf(EmptyMap).yb = function (key) {
+  protoOf(EmptyMap).ec = function (key) {
     return null;
   };
   protoOf(EmptyMap).y1 = function (key) {
     if (!(key == null ? true : !(key == null)))
       return null;
-    return this.yb((key == null ? true : !(key == null)) ? key : THROW_CCE());
+    return this.ec((key == null ? true : !(key == null)) ? key : THROW_CCE());
   };
   protoOf(EmptyMap).a2 = function () {
     return EmptySet_getInstance();
@@ -6375,8 +6662,8 @@ if (typeof String.prototype.startsWith === 'undefined') {
     while (inductionVariable < last) {
       var _destruct__k2r9zo = pairs[inductionVariable];
       inductionVariable = inductionVariable + 1 | 0;
-      var key = _destruct__k2r9zo.bc();
-      var value = _destruct__k2r9zo.cc();
+      var key = _destruct__k2r9zo.hc();
+      var value = _destruct__k2r9zo.ic();
       _this__u8e3s4.b2(key, value);
     }
   }
@@ -6409,66 +6696,66 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function IntIterator() {
   }
   protoOf(IntIterator).i = function () {
-    return this.dc();
+    return this.jc();
   };
   function Sequence() {
   }
   function TransformingSequence$iterator$1(this$0) {
-    this.fc_1 = this$0;
-    this.ec_1 = this$0.gc_1.g();
+    this.lc_1 = this$0;
+    this.kc_1 = this$0.mc_1.g();
   }
   protoOf(TransformingSequence$iterator$1).i = function () {
-    return this.fc_1.hc_1(this.ec_1.i());
+    return this.lc_1.nc_1(this.kc_1.i());
   };
   protoOf(TransformingSequence$iterator$1).h = function () {
-    return this.ec_1.h();
+    return this.kc_1.h();
   };
   function TransformingSequence(sequence, transformer) {
-    this.gc_1 = sequence;
-    this.hc_1 = transformer;
+    this.mc_1 = sequence;
+    this.nc_1 = transformer;
   }
   protoOf(TransformingSequence).g = function () {
     return new TransformingSequence$iterator$1(this);
   };
   function calcNext($this) {
-    while ($this.ic_1.h()) {
-      var item = $this.ic_1.i();
-      if ($this.lc_1.oc_1(item) === $this.lc_1.nc_1) {
-        $this.kc_1 = item;
-        $this.jc_1 = 1;
+    while ($this.oc_1.h()) {
+      var item = $this.oc_1.i();
+      if ($this.rc_1.uc_1(item) === $this.rc_1.tc_1) {
+        $this.qc_1 = item;
+        $this.pc_1 = 1;
         return Unit_instance;
       }
     }
-    $this.jc_1 = 0;
+    $this.pc_1 = 0;
   }
   function FilteringSequence$iterator$1(this$0) {
-    this.lc_1 = this$0;
-    this.ic_1 = this$0.mc_1.g();
-    this.jc_1 = -1;
-    this.kc_1 = null;
+    this.rc_1 = this$0;
+    this.oc_1 = this$0.sc_1.g();
+    this.pc_1 = -1;
+    this.qc_1 = null;
   }
   protoOf(FilteringSequence$iterator$1).i = function () {
-    if (this.jc_1 === -1) {
+    if (this.pc_1 === -1) {
       calcNext(this);
     }
-    if (this.jc_1 === 0)
+    if (this.pc_1 === 0)
       throw NoSuchElementException_init_$Create$();
-    var result = this.kc_1;
-    this.kc_1 = null;
-    this.jc_1 = -1;
+    var result = this.qc_1;
+    this.qc_1 = null;
+    this.pc_1 = -1;
     return (result == null ? true : !(result == null)) ? result : THROW_CCE();
   };
   protoOf(FilteringSequence$iterator$1).h = function () {
-    if (this.jc_1 === -1) {
+    if (this.pc_1 === -1) {
       calcNext(this);
     }
-    return this.jc_1 === 1;
+    return this.pc_1 === 1;
   };
   function FilteringSequence(sequence, sendWhen, predicate) {
     sendWhen = sendWhen === VOID ? true : sendWhen;
-    this.mc_1 = sequence;
-    this.nc_1 = sendWhen;
-    this.oc_1 = predicate;
+    this.sc_1 = sequence;
+    this.tc_1 = sendWhen;
+    this.uc_1 = predicate;
   }
   protoOf(FilteringSequence).g = function () {
     return new FilteringSequence$iterator$1(this);
@@ -6481,7 +6768,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function EmptySet() {
     EmptySet_instance = this;
-    this.pc_1 = new Long(1993859828, 793161749);
+    this.vc_1 = new Long(1993859828, 793161749);
   }
   protoOf(EmptySet).equals = function (other) {
     var tmp;
@@ -6504,7 +6791,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   protoOf(EmptySet).j = function () {
     return true;
   };
-  protoOf(EmptySet).qc = function (element) {
+  protoOf(EmptySet).wc = function (element) {
     return false;
   };
   protoOf(EmptySet).r1 = function (element) {
@@ -6516,13 +6803,13 @@ if (typeof String.prototype.startsWith === 'undefined') {
     } else {
       tmp = THROW_CCE();
     }
-    return this.qc(tmp);
+    return this.wc(tmp);
   };
-  protoOf(EmptySet).rc = function (elements) {
+  protoOf(EmptySet).xb = function (elements) {
     return elements.j();
   };
-  protoOf(EmptySet).t1 = function (elements) {
-    return this.rc(elements);
+  protoOf(EmptySet).s1 = function (elements) {
+    return this.xb(elements);
   };
   protoOf(EmptySet).g = function () {
     return EmptyIterator_instance;
@@ -6566,6 +6853,10 @@ if (typeof String.prototype.startsWith === 'undefined') {
       return 1;
     return compareTo((!(a == null) ? isComparable(a) : false) ? a : THROW_CCE(), b);
   }
+  function naturalOrder() {
+    var tmp = NaturalOrderComparator_instance;
+    return isInterface(tmp, Comparator) ? tmp : THROW_CCE();
+  }
   function compareValuesByImpl(a, b, selectors) {
     var inductionVariable = 0;
     var last = selectors.length;
@@ -6580,17 +6871,30 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return 0;
   }
-  function sam$kotlin_Comparator$0(function_0) {
-    this.sc_1 = function_0;
+  function NaturalOrderComparator() {
   }
-  protoOf(sam$kotlin_Comparator$0).tc = function (a, b) {
-    return this.sc_1(a, b);
+  protoOf(NaturalOrderComparator).xc = function (a, b) {
+    return compareTo(a, b);
+  };
+  protoOf(NaturalOrderComparator).compare = function (a, b) {
+    var tmp = (!(a == null) ? isComparable(a) : false) ? a : THROW_CCE();
+    return this.xc(tmp, (!(b == null) ? isComparable(b) : false) ? b : THROW_CCE());
+  };
+  var NaturalOrderComparator_instance;
+  function NaturalOrderComparator_getInstance() {
+    return NaturalOrderComparator_instance;
+  }
+  function sam$kotlin_Comparator$0(function_0) {
+    this.yc_1 = function_0;
+  }
+  protoOf(sam$kotlin_Comparator$0).zc = function (a, b) {
+    return this.yc_1(a, b);
   };
   protoOf(sam$kotlin_Comparator$0).compare = function (a, b) {
-    return this.tc(a, b);
+    return this.zc(a, b);
   };
   protoOf(sam$kotlin_Comparator$0).y2 = function () {
-    return this.sc_1;
+    return this.yc_1;
   };
   protoOf(sam$kotlin_Comparator$0).equals = function (other) {
     var tmp;
@@ -6627,7 +6931,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function EmptyCoroutineContext() {
     EmptyCoroutineContext_instance = this;
-    this.uc_1 = new Long(0, 0);
+    this.ad_1 = new Long(0, 0);
   }
   protoOf(EmptyCoroutineContext).i8 = function (key) {
     return null;
@@ -6671,37 +6975,37 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function EnumEntriesList(entries) {
     AbstractList.call(this);
-    this.vc_1 = entries;
+    this.bd_1 = entries;
   }
   protoOf(EnumEntriesList).l = function () {
-    return this.vc_1.length;
+    return this.bd_1.length;
   };
   protoOf(EnumEntriesList).k = function (index) {
-    Companion_instance_5.p4(index, this.vc_1.length);
-    return this.vc_1[index];
+    Companion_instance_5.p4(index, this.bd_1.length);
+    return this.bd_1[index];
   };
-  protoOf(EnumEntriesList).wc = function (element) {
+  protoOf(EnumEntriesList).cd = function (element) {
     if (element === null)
       return false;
-    var target = getOrNull(this.vc_1, element.g2_1);
+    var target = getOrNull(this.bd_1, element.g2_1);
     return target === element;
   };
   protoOf(EnumEntriesList).r1 = function (element) {
     if (!(element instanceof Enum))
       return false;
-    return this.wc(element instanceof Enum ? element : THROW_CCE());
+    return this.cd(element instanceof Enum ? element : THROW_CCE());
   };
-  protoOf(EnumEntriesList).xc = function (element) {
+  protoOf(EnumEntriesList).dd = function (element) {
     if (element === null)
       return -1;
     var ordinal = element.g2_1;
-    var target = getOrNull(this.vc_1, ordinal);
+    var target = getOrNull(this.bd_1, ordinal);
     return target === element ? ordinal : -1;
   };
-  protoOf(EnumEntriesList).s1 = function (element) {
+  protoOf(EnumEntriesList).t1 = function (element) {
     if (!(element instanceof Enum))
       return -1;
-    return this.xc(element instanceof Enum ? element : THROW_CCE());
+    return this.dd(element instanceof Enum ? element : THROW_CCE());
   };
   function getProgressionLastElement(start, end, step) {
     var tmp;
@@ -6735,17 +7039,17 @@ if (typeof String.prototype.startsWith === 'undefined') {
     Companion_getInstance_8();
     IntProgression.call(this, start, endInclusive, 1);
   }
-  protoOf(IntRange).bd = function () {
+  protoOf(IntRange).hd = function () {
     return this.t_1;
   };
-  protoOf(IntRange).cd = function () {
+  protoOf(IntRange).id = function () {
     return this.u_1;
   };
-  protoOf(IntRange).dd = function (value) {
+  protoOf(IntRange).jd = function (value) {
     return this.t_1 <= value && value <= this.u_1;
   };
   protoOf(IntRange).a1 = function (value) {
-    return this.dd(typeof value === 'number' ? value : THROW_CCE());
+    return this.jd(typeof value === 'number' ? value : THROW_CCE());
   };
   protoOf(IntRange).j = function () {
     return this.t_1 > this.u_1;
@@ -6767,22 +7071,22 @@ if (typeof String.prototype.startsWith === 'undefined') {
   };
   function IntProgressionIterator(first, last, step) {
     IntIterator.call(this);
-    this.ed_1 = step;
-    this.fd_1 = last;
-    this.gd_1 = this.ed_1 > 0 ? first <= last : first >= last;
-    this.hd_1 = this.gd_1 ? first : this.fd_1;
+    this.kd_1 = step;
+    this.ld_1 = last;
+    this.md_1 = this.kd_1 > 0 ? first <= last : first >= last;
+    this.nd_1 = this.md_1 ? first : this.ld_1;
   }
   protoOf(IntProgressionIterator).h = function () {
-    return this.gd_1;
+    return this.md_1;
   };
-  protoOf(IntProgressionIterator).dc = function () {
-    var value = this.hd_1;
-    if (value === this.fd_1) {
-      if (!this.gd_1)
+  protoOf(IntProgressionIterator).jc = function () {
+    var value = this.nd_1;
+    if (value === this.ld_1) {
+      if (!this.md_1)
         throw NoSuchElementException_init_$Create$();
-      this.gd_1 = false;
+      this.md_1 = false;
     } else {
-      this.hd_1 = this.hd_1 + this.ed_1 | 0;
+      this.nd_1 = this.nd_1 + this.kd_1 | 0;
     }
     return value;
   };
@@ -7004,15 +7308,55 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return destination;
   }
-  function contains_1(_this__u8e3s4, other, ignoreCase) {
+  function contains_2(_this__u8e3s4, char, ignoreCase) {
+    ignoreCase = ignoreCase === VOID ? false : ignoreCase;
+    return indexOf_1(_this__u8e3s4, char, VOID, ignoreCase) >= 0;
+  }
+  function substringBefore(_this__u8e3s4, delimiter, missingDelimiterValue) {
+    missingDelimiterValue = missingDelimiterValue === VOID ? _this__u8e3s4 : missingDelimiterValue;
+    var index = indexOf_1(_this__u8e3s4, delimiter);
+    var tmp;
+    if (index === -1) {
+      tmp = missingDelimiterValue;
+    } else {
+      // Inline function 'kotlin.text.substring' call
+      // Inline function 'kotlin.js.asDynamic' call
+      tmp = _this__u8e3s4.substring(0, index);
+    }
+    return tmp;
+  }
+  function contains_3(_this__u8e3s4, other, ignoreCase) {
     ignoreCase = ignoreCase === VOID ? false : ignoreCase;
     var tmp;
     if (typeof other === 'string') {
-      tmp = indexOf_1(_this__u8e3s4, other, VOID, ignoreCase) >= 0;
+      tmp = indexOf_2(_this__u8e3s4, other, VOID, ignoreCase) >= 0;
     } else {
-      tmp = indexOf_2(_this__u8e3s4, other, 0, charSequenceLength(_this__u8e3s4), ignoreCase) >= 0;
+      tmp = indexOf_3(_this__u8e3s4, other, 0, charSequenceLength(_this__u8e3s4), ignoreCase) >= 0;
     }
     return tmp;
+  }
+  function trimEnd(_this__u8e3s4, chars) {
+    // Inline function 'kotlin.text.trimEnd' call
+    var tmp0 = isCharSequence(_this__u8e3s4) ? _this__u8e3s4 : THROW_CCE();
+    var tmp$ret$1;
+    $l$block: {
+      // Inline function 'kotlin.text.trimEnd' call
+      var inductionVariable = charSequenceLength(tmp0) - 1 | 0;
+      if (0 <= inductionVariable)
+        do {
+          var index = inductionVariable;
+          inductionVariable = inductionVariable + -1 | 0;
+          // Inline function 'kotlin.text.trimEnd.<anonymous>' call
+          var it = charSequenceGet(tmp0, index);
+          if (!contains_0(chars, it)) {
+            tmp$ret$1 = charSequenceSubSequence(tmp0, 0, index + 1 | 0);
+            break $l$block;
+          }
+        }
+         while (0 <= inductionVariable);
+      tmp$ret$1 = '';
+    }
+    return toString_1(tmp$ret$1);
   }
   function split_0(_this__u8e3s4, delimiters, ignoreCase, limit) {
     ignoreCase = ignoreCase === VOID ? false : ignoreCase;
@@ -7039,7 +7383,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function substringAfter(_this__u8e3s4, delimiter, missingDelimiterValue) {
     missingDelimiterValue = missingDelimiterValue === VOID ? _this__u8e3s4 : missingDelimiterValue;
-    var index = indexOf_1(_this__u8e3s4, delimiter);
+    var index = indexOf_2(_this__u8e3s4, delimiter);
     var tmp;
     if (index === -1) {
       tmp = missingDelimiterValue;
@@ -7052,7 +7396,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return tmp;
   }
-  function indexOf_0(_this__u8e3s4, char, startIndex, ignoreCase) {
+  function indexOf_1(_this__u8e3s4, char, startIndex, ignoreCase) {
     startIndex = startIndex === VOID ? 0 : startIndex;
     ignoreCase = ignoreCase === VOID ? false : ignoreCase;
     var tmp;
@@ -7159,7 +7503,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function split_1(_this__u8e3s4, delimiter, ignoreCase, limit) {
     requireNonNegativeLimit(limit);
     var currentOffset = 0;
-    var nextIndex = indexOf_1(_this__u8e3s4, delimiter, currentOffset, ignoreCase);
+    var nextIndex = indexOf_2(_this__u8e3s4, delimiter, currentOffset, ignoreCase);
     if (nextIndex === -1 || limit === 1) {
       return listOf(toString_1(_this__u8e3s4));
     }
@@ -7174,7 +7518,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
       currentOffset = nextIndex + delimiter.length | 0;
       if (isLimited && result.l() === (limit - 1 | 0))
         break $l$loop;
-      nextIndex = indexOf_1(_this__u8e3s4, delimiter, currentOffset, ignoreCase);
+      nextIndex = indexOf_2(_this__u8e3s4, delimiter, currentOffset, ignoreCase);
     }
      while (!(nextIndex === -1));
     var tmp4 = currentOffset;
@@ -7185,7 +7529,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return result;
   }
   function substring(_this__u8e3s4, range) {
-    return toString_1(charSequenceSubSequence(_this__u8e3s4, range.bd(), range.cd() + 1 | 0));
+    return toString_1(charSequenceSubSequence(_this__u8e3s4, range.hd(), range.id() + 1 | 0));
   }
   function rangesDelimitedBy(_this__u8e3s4, delimiters, startIndex, ignoreCase, limit) {
     startIndex = startIndex === VOID ? 0 : startIndex;
@@ -7194,7 +7538,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     requireNonNegativeLimit(limit);
     return new DelimitedRangesSequence(_this__u8e3s4, startIndex, limit, rangesDelimitedBy$lambda(delimiters, ignoreCase));
   }
-  function indexOf_1(_this__u8e3s4, string, startIndex, ignoreCase) {
+  function indexOf_2(_this__u8e3s4, string, startIndex, ignoreCase) {
     startIndex = startIndex === VOID ? 0 : startIndex;
     ignoreCase = ignoreCase === VOID ? false : ignoreCase;
     var tmp;
@@ -7205,7 +7549,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
       tmp_0 = !(typeof _this__u8e3s4 === 'string');
     }
     if (tmp_0) {
-      tmp = indexOf_2(_this__u8e3s4, string, startIndex, charSequenceLength(_this__u8e3s4), ignoreCase);
+      tmp = indexOf_3(_this__u8e3s4, string, startIndex, charSequenceLength(_this__u8e3s4), ignoreCase);
     } else {
       // Inline function 'kotlin.text.nativeIndexOf' call
       // Inline function 'kotlin.js.asDynamic' call
@@ -7213,7 +7557,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return tmp;
   }
-  function indexOf_2(_this__u8e3s4, other, startIndex, endIndex, ignoreCase, last) {
+  function indexOf_3(_this__u8e3s4, other, startIndex, endIndex, ignoreCase, last) {
     last = last === VOID ? false : last;
     var indices = !last ? numberRangeToNumber(coerceAtLeast(startIndex, 0), coerceAtMost(endIndex, charSequenceLength(_this__u8e3s4))) : downTo(coerceAtMost(startIndex, get_lastIndex_3(_this__u8e3s4)), coerceAtLeast(endIndex, 0));
     var tmp;
@@ -7313,73 +7657,73 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return tmp;
   }
   function calcNext_0($this) {
-    if ($this.kd_1 < 0) {
-      $this.id_1 = 0;
-      $this.ld_1 = null;
+    if ($this.qd_1 < 0) {
+      $this.od_1 = 0;
+      $this.rd_1 = null;
     } else {
       var tmp;
       var tmp_0;
-      if ($this.nd_1.qd_1 > 0) {
-        $this.md_1 = $this.md_1 + 1 | 0;
-        tmp_0 = $this.md_1 >= $this.nd_1.qd_1;
+      if ($this.td_1.wd_1 > 0) {
+        $this.sd_1 = $this.sd_1 + 1 | 0;
+        tmp_0 = $this.sd_1 >= $this.td_1.wd_1;
       } else {
         tmp_0 = false;
       }
       if (tmp_0) {
         tmp = true;
       } else {
-        tmp = $this.kd_1 > charSequenceLength($this.nd_1.od_1);
+        tmp = $this.qd_1 > charSequenceLength($this.td_1.ud_1);
       }
       if (tmp) {
-        $this.ld_1 = numberRangeToNumber($this.jd_1, get_lastIndex_3($this.nd_1.od_1));
-        $this.kd_1 = -1;
+        $this.rd_1 = numberRangeToNumber($this.pd_1, get_lastIndex_3($this.td_1.ud_1));
+        $this.qd_1 = -1;
       } else {
-        var match = $this.nd_1.rd_1($this.nd_1.od_1, $this.kd_1);
+        var match = $this.td_1.xd_1($this.td_1.ud_1, $this.qd_1);
         if (match == null) {
-          $this.ld_1 = numberRangeToNumber($this.jd_1, get_lastIndex_3($this.nd_1.od_1));
-          $this.kd_1 = -1;
+          $this.rd_1 = numberRangeToNumber($this.pd_1, get_lastIndex_3($this.td_1.ud_1));
+          $this.qd_1 = -1;
         } else {
-          var index = match.bc();
-          var length = match.cc();
-          $this.ld_1 = until($this.jd_1, index);
-          $this.jd_1 = index + length | 0;
-          $this.kd_1 = $this.jd_1 + (length === 0 ? 1 : 0) | 0;
+          var index = match.hc();
+          var length = match.ic();
+          $this.rd_1 = until($this.pd_1, index);
+          $this.pd_1 = index + length | 0;
+          $this.qd_1 = $this.pd_1 + (length === 0 ? 1 : 0) | 0;
         }
       }
-      $this.id_1 = 1;
+      $this.od_1 = 1;
     }
   }
   function DelimitedRangesSequence$iterator$1(this$0) {
-    this.nd_1 = this$0;
-    this.id_1 = -1;
-    this.jd_1 = coerceIn_0(this$0.pd_1, 0, charSequenceLength(this$0.od_1));
-    this.kd_1 = this.jd_1;
-    this.ld_1 = null;
-    this.md_1 = 0;
+    this.td_1 = this$0;
+    this.od_1 = -1;
+    this.pd_1 = coerceIn_1(this$0.vd_1, 0, charSequenceLength(this$0.ud_1));
+    this.qd_1 = this.pd_1;
+    this.rd_1 = null;
+    this.sd_1 = 0;
   }
   protoOf(DelimitedRangesSequence$iterator$1).i = function () {
-    if (this.id_1 === -1) {
+    if (this.od_1 === -1) {
       calcNext_0(this);
     }
-    if (this.id_1 === 0)
+    if (this.od_1 === 0)
       throw NoSuchElementException_init_$Create$();
-    var tmp = this.ld_1;
+    var tmp = this.rd_1;
     var result = tmp instanceof IntRange ? tmp : THROW_CCE();
-    this.ld_1 = null;
-    this.id_1 = -1;
+    this.rd_1 = null;
+    this.od_1 = -1;
     return result;
   };
   protoOf(DelimitedRangesSequence$iterator$1).h = function () {
-    if (this.id_1 === -1) {
+    if (this.od_1 === -1) {
       calcNext_0(this);
     }
-    return this.id_1 === 1;
+    return this.od_1 === 1;
   };
   function DelimitedRangesSequence(input, startIndex, limit, getNextMatch) {
-    this.od_1 = input;
-    this.pd_1 = startIndex;
-    this.qd_1 = limit;
-    this.rd_1 = getNextMatch;
+    this.ud_1 = input;
+    this.vd_1 = startIndex;
+    this.wd_1 = limit;
+    this.xd_1 = getNextMatch;
   }
   protoOf(DelimitedRangesSequence).g = function () {
     return new DelimitedRangesSequence$iterator$1(this);
@@ -7387,7 +7731,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function findAnyOf(_this__u8e3s4, strings, startIndex, ignoreCase, last) {
     if (!ignoreCase && strings.l() === 1) {
       var string = single_1(strings);
-      var index = !last ? indexOf_1(_this__u8e3s4, string, startIndex) : lastIndexOf(_this__u8e3s4, string, startIndex);
+      var index = !last ? indexOf_2(_this__u8e3s4, string, startIndex) : lastIndexOf(_this__u8e3s4, string, startIndex);
       return index < 0 ? null : to(index, string);
     }
     var indices = !last ? numberRangeToNumber(coerceAtLeast(startIndex, 0), charSequenceLength(_this__u8e3s4)) : downTo(coerceAtMost(startIndex, get_lastIndex_3(_this__u8e3s4)), 0);
@@ -7459,7 +7803,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
       tmp_0 = !(typeof _this__u8e3s4 === 'string');
     }
     if (tmp_0) {
-      tmp = indexOf_2(_this__u8e3s4, string, startIndex, 0, ignoreCase, true);
+      tmp = indexOf_3(_this__u8e3s4, string, startIndex, 0, ignoreCase, true);
     } else {
       // Inline function 'kotlin.text.nativeLastIndexOf' call
       // Inline function 'kotlin.js.asDynamic' call
@@ -7476,22 +7820,9 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return _this__u8e3s4;
   }
-  function substringBefore(_this__u8e3s4, delimiter, missingDelimiterValue) {
-    missingDelimiterValue = missingDelimiterValue === VOID ? _this__u8e3s4 : missingDelimiterValue;
-    var index = indexOf_0(_this__u8e3s4, delimiter);
-    var tmp;
-    if (index === -1) {
-      tmp = missingDelimiterValue;
-    } else {
-      // Inline function 'kotlin.text.substring' call
-      // Inline function 'kotlin.js.asDynamic' call
-      tmp = _this__u8e3s4.substring(0, index);
-    }
-    return tmp;
-  }
   function substringAfter_0(_this__u8e3s4, delimiter, missingDelimiterValue) {
     missingDelimiterValue = missingDelimiterValue === VOID ? _this__u8e3s4 : missingDelimiterValue;
-    var index = indexOf_0(_this__u8e3s4, delimiter);
+    var index = indexOf_1(_this__u8e3s4, delimiter);
     var tmp;
     if (index === -1) {
       tmp = missingDelimiterValue;
@@ -7541,15 +7872,17 @@ if (typeof String.prototype.startsWith === 'undefined') {
       } else {
         // Inline function 'kotlin.let' call
         // Inline function 'kotlin.text.rangesDelimitedBy.<anonymous>.<anonymous>' call
-        tmp = to(tmp0_safe_receiver.zb_1, tmp0_safe_receiver.ac_1.length);
+        tmp = to(tmp0_safe_receiver.fc_1, tmp0_safe_receiver.gc_1.length);
       }
       return tmp;
     };
   }
   function Destructured(match) {
-    this.sd_1 = match;
+    this.yd_1 = match;
   }
   function MatchResult() {
+  }
+  function MatchNamedGroupCollection() {
   }
   function _Duration___init__impl__kdtzql(rawValue) {
     // Inline function 'kotlin.time.durationAssertionsEnabled' call
@@ -7588,15 +7921,21 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function Companion_10() {
     Companion_instance_10 = this;
-    this.td_1 = _Duration___init__impl__kdtzql(new Long(0, 0));
-    this.ud_1 = durationOfMillis(new Long(-1, 1073741823));
-    this.vd_1 = durationOfMillis(new Long(1, -1073741824));
+    this.zd_1 = _Duration___init__impl__kdtzql(new Long(0, 0));
+    this.ae_1 = durationOfMillis(new Long(-1, 1073741823));
+    this.be_1 = durationOfMillis(new Long(1, -1073741824));
   }
   var Companion_instance_10;
   function Companion_getInstance_10() {
     if (Companion_instance_10 == null)
       new Companion_10();
     return Companion_instance_10;
+  }
+  function Duration__unaryMinus_impl_x2k1y0($this) {
+    var tmp = _get_value__a43j40_0($this).r2();
+    // Inline function 'kotlin.time.Duration.unitDiscriminator' call
+    var tmp$ret$0 = _get_rawValue__5zfu4e($this).b1() & 1;
+    return durationOf(tmp, tmp$ret$0);
   }
   function Duration__plus_impl_yu9v8f($this, other) {
     if (Duration__isInfinite_impl_tsn9y3($this)) {
@@ -7630,22 +7969,60 @@ if (typeof String.prototype.startsWith === 'undefined') {
       var otherNanoRemainder = otherNanos.n2(millisToNanos(otherMillis));
       tmp = durationOfNanos(millisToNanos(resultMillis).m2(otherNanoRemainder));
     } else {
-      tmp = durationOfMillis(coerceIn(resultMillis, new Long(1, -1073741824), new Long(-1, 1073741823)));
+      tmp = durationOfMillis(coerceIn_0(resultMillis, new Long(1, -1073741824), new Long(-1, 1073741823)));
     }
     return tmp;
   }
+  function Duration__isNegative_impl_pbysfa($this) {
+    return _get_rawValue__5zfu4e($this).z(new Long(0, 0)) < 0;
+  }
+  function Duration__isPositive_impl_tvkkt2($this) {
+    return _get_rawValue__5zfu4e($this).z(new Long(0, 0)) > 0;
+  }
   function Duration__isInfinite_impl_tsn9y3($this) {
-    return _get_rawValue__5zfu4e($this).equals(_get_rawValue__5zfu4e(Companion_getInstance_10().ud_1)) || _get_rawValue__5zfu4e($this).equals(_get_rawValue__5zfu4e(Companion_getInstance_10().vd_1));
+    return _get_rawValue__5zfu4e($this).equals(_get_rawValue__5zfu4e(Companion_getInstance_10().ae_1)) || _get_rawValue__5zfu4e($this).equals(_get_rawValue__5zfu4e(Companion_getInstance_10().be_1));
   }
   function Duration__isFinite_impl_rzjsps($this) {
     return !Duration__isInfinite_impl_tsn9y3($this);
   }
+  function Duration__compareTo_impl_pchp0f($this, other) {
+    var compareBits = _get_rawValue__5zfu4e($this).w2(_get_rawValue__5zfu4e(other));
+    if (compareBits.z(new Long(0, 0)) < 0 || (compareBits.b1() & 1) === 0)
+      return _get_rawValue__5zfu4e($this).z(_get_rawValue__5zfu4e(other));
+    // Inline function 'kotlin.time.Duration.unitDiscriminator' call
+    var tmp = _get_rawValue__5zfu4e($this).b1() & 1;
+    // Inline function 'kotlin.time.Duration.unitDiscriminator' call
+    var r = tmp - (_get_rawValue__5zfu4e(other).b1() & 1) | 0;
+    return Duration__isNegative_impl_pbysfa($this) ? -r | 0 : r;
+  }
+  function _Duration___get_nanosecondsComponent__impl__nh19kq($this) {
+    var tmp;
+    if (Duration__isInfinite_impl_tsn9y3($this)) {
+      tmp = 0;
+    } else if (isInMillis($this)) {
+      // Inline function 'kotlin.Long.rem' call
+      var tmp$ret$0 = _get_value__a43j40_0($this).q2(toLong(1000));
+      tmp = millisToNanos(tmp$ret$0).b1();
+    } else {
+      var tmp2 = _get_value__a43j40_0($this);
+      // Inline function 'kotlin.Long.rem' call
+      var other = 1000000000;
+      tmp = tmp2.q2(toLong(other)).b1();
+    }
+    return tmp;
+  }
   function Duration__toLong_impl_shr43i($this, unit) {
     var tmp0_subject = _get_rawValue__5zfu4e($this);
-    return tmp0_subject.equals(_get_rawValue__5zfu4e(Companion_getInstance_10().ud_1)) ? new Long(-1, 2147483647) : tmp0_subject.equals(_get_rawValue__5zfu4e(Companion_getInstance_10().vd_1)) ? new Long(0, -2147483648) : convertDurationUnit_0(_get_value__a43j40_0($this), _get_storageUnit__szjgha($this), unit);
+    return tmp0_subject.equals(_get_rawValue__5zfu4e(Companion_getInstance_10().ae_1)) ? new Long(-1, 2147483647) : tmp0_subject.equals(_get_rawValue__5zfu4e(Companion_getInstance_10().be_1)) ? new Long(0, -2147483648) : convertDurationUnit_0(_get_value__a43j40_0($this), _get_storageUnit__szjgha($this), unit);
   }
   function _Duration___get_inWholeDays__impl__7bvpxz($this) {
     return Duration__toLong_impl_shr43i($this, DurationUnit_DAYS_getInstance());
+  }
+  function _Duration___get_inWholeMinutes__impl__dognoh($this) {
+    return Duration__toLong_impl_shr43i($this, DurationUnit_MINUTES_getInstance());
+  }
+  function _Duration___get_inWholeSeconds__impl__hpy7b3($this) {
+    return Duration__toLong_impl_shr43i($this, DurationUnit_SECONDS_getInstance());
   }
   function durationOfMillis(normalMillis) {
     // Inline function 'kotlin.Long.plus' call
@@ -7653,6 +8030,24 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return _Duration___init__impl__kdtzql(tmp$ret$0);
   }
   function toDuration(_this__u8e3s4, unit) {
+    var tmp;
+    if (unit.h2(DurationUnit_SECONDS_getInstance()) <= 0) {
+      tmp = durationOfNanos(convertDurationUnitOverflow(toLong(_this__u8e3s4), unit, DurationUnit_NANOSECONDS_getInstance()));
+    } else {
+      tmp = toDuration_0(toLong(_this__u8e3s4), unit);
+    }
+    return tmp;
+  }
+  function toDuration_0(_this__u8e3s4, unit) {
+    var maxNsInUnit = convertDurationUnitOverflow(new Long(-387905, 1073741823), DurationUnit_NANOSECONDS_getInstance(), unit);
+    if (maxNsInUnit.r2().z(_this__u8e3s4) <= 0 ? _this__u8e3s4.z(maxNsInUnit) <= 0 : false) {
+      return durationOfNanos(convertDurationUnitOverflow(_this__u8e3s4, unit, DurationUnit_NANOSECONDS_getInstance()));
+    } else {
+      var millis = convertDurationUnit_0(_this__u8e3s4, unit, DurationUnit_MILLISECONDS_getInstance());
+      return durationOfMillis(coerceIn_0(millis, new Long(1, -1073741824), new Long(-1, 1073741823)));
+    }
+  }
+  function toDuration_1(_this__u8e3s4, unit) {
     var valueInNs = convertDurationUnit(_this__u8e3s4, unit, DurationUnit_NANOSECONDS_getInstance());
     // Inline function 'kotlin.require' call
     if (!!isNaN_0(valueInNs)) {
@@ -7670,6 +8065,11 @@ if (typeof String.prototype.startsWith === 'undefined') {
     }
     return tmp;
   }
+  function durationOf(normalValue, unitDiscriminator) {
+    // Inline function 'kotlin.Long.plus' call
+    var tmp$ret$0 = normalValue.t2(1).m2(toLong(unitDiscriminator));
+    return _Duration___init__impl__kdtzql(tmp$ret$0);
+  }
   function durationOfNanosNormalized(nanos) {
     var tmp;
     if ((new Long(387905, -1073741824)).z(nanos) <= 0 ? nanos.z(new Long(-387905, 1073741823)) <= 0 : false) {
@@ -7684,7 +8084,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     if ((new Long(1108857478, -1074)).z(millis) <= 0 ? millis.z(new Long(-1108857478, 1073)) <= 0 : false) {
       tmp = durationOfNanos(millisToNanos(millis));
     } else {
-      tmp = durationOfMillis(coerceIn(millis, new Long(1, -1073741824), new Long(-1, 1073741823)));
+      tmp = durationOfMillis(coerceIn_0(millis, new Long(1, -1073741824), new Long(-1, 1073741823)));
     }
     return tmp;
   }
@@ -7708,41 +8108,41 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function invoke(_this__u8e3s4, value) {
     _init_properties_DeepRecursive_kt__zbwcac();
-    return (new DeepRecursiveScopeImpl(_this__u8e3s4.xd_1, value)).ce();
+    return (new DeepRecursiveScopeImpl(_this__u8e3s4.de_1, value)).ie();
   }
   function DeepRecursiveFunction(block) {
-    this.xd_1 = block;
+    this.de_1 = block;
   }
   function DeepRecursiveScopeImpl(block, value) {
     DeepRecursiveScope.call(this);
     var tmp = this;
-    tmp.yd_1 = isSuspendFunction(block, 2) ? block : THROW_CCE();
-    this.zd_1 = value;
+    tmp.ee_1 = isSuspendFunction(block, 2) ? block : THROW_CCE();
+    this.fe_1 = value;
     var tmp_0 = this;
-    tmp_0.ae_1 = isInterface(this, Continuation) ? this : THROW_CCE();
-    this.be_1 = get_UNDEFINED_RESULT();
+    tmp_0.ge_1 = isInterface(this, Continuation) ? this : THROW_CCE();
+    this.he_1 = get_UNDEFINED_RESULT();
   }
   protoOf(DeepRecursiveScopeImpl).c8 = function () {
     return EmptyCoroutineContext_getInstance();
   };
-  protoOf(DeepRecursiveScopeImpl).de = function (result) {
-    this.ae_1 = null;
-    this.be_1 = result;
+  protoOf(DeepRecursiveScopeImpl).je = function (result) {
+    this.ge_1 = null;
+    this.he_1 = result;
   };
   protoOf(DeepRecursiveScopeImpl).h8 = function (result) {
-    return this.de(result);
+    return this.je(result);
   };
-  protoOf(DeepRecursiveScopeImpl).wd = function (value, $completion) {
+  protoOf(DeepRecursiveScopeImpl).ce = function (value, $completion) {
     // Inline function 'kotlin.DeepRecursiveScopeImpl.callRecursive.<anonymous>' call
     var tmp = this;
-    tmp.ae_1 = isInterface($completion, Continuation) ? $completion : THROW_CCE();
-    this.zd_1 = value;
+    tmp.ge_1 = isInterface($completion, Continuation) ? $completion : THROW_CCE();
+    this.fe_1 = value;
     return get_COROUTINE_SUSPENDED();
   };
-  protoOf(DeepRecursiveScopeImpl).ce = function () {
+  protoOf(DeepRecursiveScopeImpl).ie = function () {
     $l$loop: while (true) {
-      var result = this.be_1;
-      var tmp0_elvis_lhs = this.ae_1;
+      var result = this.he_1;
+      var tmp0_elvis_lhs = this.ge_1;
       var tmp;
       if (tmp0_elvis_lhs == null) {
         // Inline function 'kotlin.getOrThrow' call
@@ -7757,9 +8157,9 @@ if (typeof String.prototype.startsWith === 'undefined') {
       if (equals(get_UNDEFINED_RESULT(), result)) {
         var tmp_1;
         try {
-          var tmp1 = this.yd_1;
+          var tmp1 = this.ee_1;
           // Inline function 'kotlin.coroutines.intrinsics.startCoroutineUninterceptedOrReturn' call
-          var param = this.zd_1;
+          var param = this.fe_1;
           tmp_1 = startCoroutineUninterceptedOrReturnNonGeneratorVersion(tmp1, this, param, cont);
         } catch ($p) {
           var tmp_2;
@@ -7783,7 +8183,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
           cont.h8(tmp$ret$4);
         }
       } else {
-        this.be_1 = get_UNDEFINED_RESULT();
+        this.he_1 = get_UNDEFINED_RESULT();
         cont.h8(result);
       }
     }
@@ -7813,22 +8213,22 @@ if (typeof String.prototype.startsWith === 'undefined') {
     Enum.call(this, name, ordinal);
   }
   function UnsafeLazyImpl(initializer) {
-    this.ee_1 = initializer;
-    this.fe_1 = UNINITIALIZED_VALUE_instance;
+    this.ke_1 = initializer;
+    this.le_1 = UNINITIALIZED_VALUE_instance;
   }
   protoOf(UnsafeLazyImpl).v1 = function () {
-    if (this.fe_1 === UNINITIALIZED_VALUE_instance) {
-      this.fe_1 = ensureNotNull(this.ee_1)();
-      this.ee_1 = null;
+    if (this.le_1 === UNINITIALIZED_VALUE_instance) {
+      this.le_1 = ensureNotNull(this.ke_1)();
+      this.ke_1 = null;
     }
-    var tmp = this.fe_1;
+    var tmp = this.le_1;
     return (tmp == null ? true : !(tmp == null)) ? tmp : THROW_CCE();
   };
-  protoOf(UnsafeLazyImpl).ge = function () {
-    return !(this.fe_1 === UNINITIALIZED_VALUE_instance);
+  protoOf(UnsafeLazyImpl).me = function () {
+    return !(this.le_1 === UNINITIALIZED_VALUE_instance);
   };
   protoOf(UnsafeLazyImpl).toString = function () {
-    return this.ge() ? toString_0(this.v1()) : 'Lazy value not initialized yet.';
+    return this.me() ? toString_0(this.v1()) : 'Lazy value not initialized yet.';
   };
   function UNINITIALIZED_VALUE() {
   }
@@ -7853,7 +8253,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function Result__exceptionOrNull_impl_p6xea9($this) {
     var tmp;
     if (_Result___get_value__impl__bjfvqg($this) instanceof Failure) {
-      tmp = _Result___get_value__impl__bjfvqg($this).he_1;
+      tmp = _Result___get_value__impl__bjfvqg($this).ne_1;
     } else {
       tmp = null;
     }
@@ -7875,22 +8275,22 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return Companion_instance_11;
   }
   function Failure(exception) {
-    this.he_1 = exception;
+    this.ne_1 = exception;
   }
   protoOf(Failure).equals = function (other) {
     var tmp;
     if (other instanceof Failure) {
-      tmp = equals(this.he_1, other.he_1);
+      tmp = equals(this.ne_1, other.ne_1);
     } else {
       tmp = false;
     }
     return tmp;
   };
   protoOf(Failure).hashCode = function () {
-    return hashCode(this.he_1);
+    return hashCode(this.ne_1);
   };
   protoOf(Failure).toString = function () {
-    return 'Failure(' + this.he_1.toString() + ')';
+    return 'Failure(' + this.ne_1.toString() + ')';
   };
   function Result__hashCode_impl_d2zufp($this) {
     return $this == null ? 0 : hashCode($this);
@@ -7898,22 +8298,22 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function Result__equals_impl_bxgmep($this, other) {
     if (!(other instanceof Result))
       return false;
-    var tmp0_other_with_cast = other instanceof Result ? other.ie_1 : THROW_CCE();
+    var tmp0_other_with_cast = other instanceof Result ? other.oe_1 : THROW_CCE();
     if (!equals($this, tmp0_other_with_cast))
       return false;
     return true;
   }
   function Result(value) {
-    this.ie_1 = value;
+    this.oe_1 = value;
   }
   protoOf(Result).toString = function () {
-    return Result__toString_impl_yu5r8k(this.ie_1);
+    return Result__toString_impl_yu5r8k(this.oe_1);
   };
   protoOf(Result).hashCode = function () {
-    return Result__hashCode_impl_d2zufp(this.ie_1);
+    return Result__hashCode_impl_d2zufp(this.oe_1);
   };
   protoOf(Result).equals = function (other) {
-    return Result__equals_impl_bxgmep(this.ie_1, other);
+    return Result__equals_impl_bxgmep(this.oe_1, other);
   };
   function createFailure(exception) {
     return new Failure(exception);
@@ -7921,7 +8321,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function throwOnFailure(_this__u8e3s4) {
     var tmp = _Result___get_value__impl__bjfvqg(_this__u8e3s4);
     if (tmp instanceof Failure)
-      throw _Result___get_value__impl__bjfvqg(_this__u8e3s4).he_1;
+      throw _Result___get_value__impl__bjfvqg(_this__u8e3s4).ne_1;
   }
   function NotImplementedError(message) {
     message = message === VOID ? 'An operation is not implemented.' : message;
@@ -7929,21 +8329,21 @@ if (typeof String.prototype.startsWith === 'undefined') {
     captureStack(this, NotImplementedError);
   }
   function Pair(first, second) {
-    this.zb_1 = first;
-    this.ac_1 = second;
+    this.fc_1 = first;
+    this.gc_1 = second;
   }
   protoOf(Pair).toString = function () {
-    return '(' + toString_0(this.zb_1) + ', ' + toString_0(this.ac_1) + ')';
+    return '(' + toString_0(this.fc_1) + ', ' + toString_0(this.gc_1) + ')';
   };
-  protoOf(Pair).bc = function () {
-    return this.zb_1;
+  protoOf(Pair).hc = function () {
+    return this.fc_1;
   };
-  protoOf(Pair).cc = function () {
-    return this.ac_1;
+  protoOf(Pair).ic = function () {
+    return this.gc_1;
   };
   protoOf(Pair).hashCode = function () {
-    var result = this.zb_1 == null ? 0 : hashCode(this.zb_1);
-    result = imul(result, 31) + (this.ac_1 == null ? 0 : hashCode(this.ac_1)) | 0;
+    var result = this.fc_1 == null ? 0 : hashCode(this.fc_1);
+    result = imul(result, 31) + (this.gc_1 == null ? 0 : hashCode(this.gc_1)) | 0;
     return result;
   };
   protoOf(Pair).equals = function (other) {
@@ -7952,9 +8352,9 @@ if (typeof String.prototype.startsWith === 'undefined') {
     if (!(other instanceof Pair))
       return false;
     var tmp0_other_with_cast = other instanceof Pair ? other : THROW_CCE();
-    if (!equals(this.zb_1, tmp0_other_with_cast.zb_1))
+    if (!equals(this.fc_1, tmp0_other_with_cast.fc_1))
       return false;
-    if (!equals(this.ac_1, tmp0_other_with_cast.ac_1))
+    if (!equals(this.gc_1, tmp0_other_with_cast.gc_1))
       return false;
     return true;
   };
@@ -7969,7 +8369,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   //region block: post-declaration
   protoOf(InternalHashMap).o5 = containsAllEntries;
-  protoOf(findNext$1).gb = get_destructured;
+  protoOf(findNext$1).lb = get_destructured;
   //endregion
   //region block: init
   Companion_instance_0 = new Companion_0();
@@ -7983,6 +8383,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   Companion_instance_6 = new Companion_6();
   Companion_instance_7 = new Companion_7();
   EmptyIterator_instance = new EmptyIterator();
+  NaturalOrderComparator_instance = new NaturalOrderComparator();
   Key_instance = new Key();
   Companion_instance_9 = new Companion_9();
   UNINITIALIZED_VALUE_instance = new UNINITIALIZED_VALUE();
@@ -7993,221 +8394,239 @@ if (typeof String.prototype.startsWith === 'undefined') {
   _.$_$.a = getKClassFromExpression;
   _.$_$.b = getKClass;
   _.$_$.c = VOID;
-  _.$_$.d = DurationUnit_NANOSECONDS_getInstance;
-  _.$_$.e = DurationUnit_SECONDS_getInstance;
-  _.$_$.f = LazyThreadSafetyMode_PUBLICATION_getInstance;
-  _.$_$.g = ArrayList_init_$Create$_0;
-  _.$_$.h = ArrayList_init_$Create$;
-  _.$_$.i = ArrayList_init_$Create$_1;
-  _.$_$.j = HashMap_init_$Create$_0;
-  _.$_$.k = HashMap_init_$Create$;
-  _.$_$.l = HashSet_init_$Create$_0;
-  _.$_$.m = LinkedHashMap_init_$Create$_0;
-  _.$_$.n = LinkedHashMap_init_$Create$;
-  _.$_$.o = LinkedHashMap_init_$Create$_1;
-  _.$_$.p = LinkedHashSet_init_$Create$;
-  _.$_$.q = Regex_init_$Create$;
-  _.$_$.r = StringBuilder_init_$Create$;
-  _.$_$.s = StringBuilder_init_$Create$_0;
-  _.$_$.t = ArithmeticException_init_$Create$_0;
-  _.$_$.u = Exception_init_$Init$_0;
-  _.$_$.v = IllegalArgumentException_init_$Init$_2;
-  _.$_$.w = IllegalArgumentException_init_$Create$_1;
-  _.$_$.x = IllegalArgumentException_init_$Init$;
-  _.$_$.y = IllegalArgumentException_init_$Init$_0;
-  _.$_$.z = IllegalArgumentException_init_$Create$_0;
-  _.$_$.a1 = IllegalArgumentException_init_$Init$_1;
-  _.$_$.b1 = IllegalStateException_init_$Create$_0;
-  _.$_$.c1 = IndexOutOfBoundsException_init_$Create$_0;
-  _.$_$.d1 = NoSuchElementException_init_$Create$;
-  _.$_$.e1 = NumberFormatException_init_$Create$_0;
-  _.$_$.f1 = RuntimeException_init_$Init$_2;
-  _.$_$.g1 = RuntimeException_init_$Init$;
-  _.$_$.h1 = RuntimeException_init_$Init$_1;
-  _.$_$.i1 = UnsupportedOperationException_init_$Create$_0;
-  _.$_$.j1 = _Duration___get_inWholeDays__impl__7bvpxz;
-  _.$_$.k1 = Duration__plus_impl_yu9v8f;
-  _.$_$.l1 = _Char___init__impl__6a9atx;
-  _.$_$.m1 = Char__minus_impl_a2frrh;
-  _.$_$.n1 = Char__toInt_impl_vasixd;
-  _.$_$.o1 = toString;
-  _.$_$.p1 = _Result___init__impl__xyqfz8;
-  _.$_$.q1 = _Result___get_isFailure__impl__jpiriv;
-  _.$_$.r1 = _Result___get_value__impl__bjfvqg;
-  _.$_$.s1 = IntCompanionObject_instance;
-  _.$_$.t1 = StringCompanionObject_instance;
-  _.$_$.u1 = Companion_getInstance_10;
-  _.$_$.v1 = Companion_instance_11;
-  _.$_$.w1 = Unit_instance;
-  _.$_$.x1 = ArrayList;
-  _.$_$.y1 = Collection;
-  _.$_$.z1 = LinkedHashMap;
-  _.$_$.a2 = KtList;
-  _.$_$.b2 = KtMap;
-  _.$_$.c2 = KtMutableMap;
-  _.$_$.d2 = addAll;
-  _.$_$.e2 = asSequence;
-  _.$_$.f2 = binarySearch;
-  _.$_$.g2 = checkCountOverflow;
-  _.$_$.h2 = collectionSizeOrDefault;
-  _.$_$.i2 = contentEquals;
-  _.$_$.j2 = contentHashCode;
-  _.$_$.k2 = copyOf_0;
-  _.$_$.l2 = copyOf;
-  _.$_$.m2 = copyToArray;
-  _.$_$.n2 = distinct;
-  _.$_$.o2 = drop;
-  _.$_$.p2 = emptyList;
-  _.$_$.q2 = emptyMap;
-  _.$_$.r2 = emptySet;
-  _.$_$.s2 = firstOrNull;
-  _.$_$.t2 = getOrNull_0;
-  _.$_$.u2 = getValue;
-  _.$_$.v2 = get_indices_0;
-  _.$_$.w2 = get_indices;
-  _.$_$.x2 = get_indices_1;
-  _.$_$.y2 = joinToString_0;
-  _.$_$.z2 = joinTo_0;
-  _.$_$.a3 = get_lastIndex_1;
-  _.$_$.b3 = get_lastIndex_2;
-  _.$_$.c3 = lastOrNull;
-  _.$_$.d3 = last;
-  _.$_$.e3 = listOfNotNull_0;
-  _.$_$.f3 = listOfNotNull;
-  _.$_$.g3 = listOf;
-  _.$_$.h3 = listOf_0;
-  _.$_$.i3 = mapCapacity;
-  _.$_$.j3 = mapOf;
-  _.$_$.k3 = mutableListOf;
-  _.$_$.l3 = plus_1;
-  _.$_$.m3 = plus;
-  _.$_$.n3 = plus_0;
-  _.$_$.o3 = removeLastOrNull;
-  _.$_$.p3 = removeLast;
-  _.$_$.q3 = setOf;
-  _.$_$.r3 = setOf_0;
-  _.$_$.s3 = singleOrNull;
-  _.$_$.t3 = single_0;
-  _.$_$.u3 = sortWith_0;
-  _.$_$.v3 = sortedWith;
-  _.$_$.w3 = take;
-  _.$_$.x3 = toList;
-  _.$_$.y3 = toMutableList;
-  _.$_$.z3 = toSet_0;
-  _.$_$.a4 = compareBy;
-  _.$_$.b4 = compareValues;
-  _.$_$.c4 = minOf;
-  _.$_$.d4 = get_COROUTINE_SUSPENDED;
-  _.$_$.e4 = CoroutineImpl;
-  _.$_$.f4 = enumEntries;
-  _.$_$.g4 = FunctionAdapter;
-  _.$_$.h4 = booleanArray;
-  _.$_$.i4 = captureStack;
-  _.$_$.j4 = charArrayOf;
-  _.$_$.k4 = charArray;
-  _.$_$.l4 = charSequenceGet;
-  _.$_$.m4 = charSequenceLength;
-  _.$_$.n4 = charSequenceSubSequence;
-  _.$_$.o4 = compareTo;
-  _.$_$.p4 = defineProp;
-  _.$_$.q4 = equals;
-  _.$_$.r4 = fillArrayVal;
-  _.$_$.s4 = getBooleanHashCode;
-  _.$_$.t4 = getNumberHashCode;
-  _.$_$.u4 = getPropertyCallableRef;
-  _.$_$.v4 = getStringHashCode;
-  _.$_$.w4 = hashCode;
-  _.$_$.x4 = initMetadataForClass;
-  _.$_$.y4 = initMetadataForCompanion;
-  _.$_$.z4 = initMetadataForCoroutine;
-  _.$_$.a5 = initMetadataForInterface;
-  _.$_$.b5 = initMetadataForLambda;
-  _.$_$.c5 = initMetadataForObject;
-  _.$_$.d5 = isArray;
-  _.$_$.e5 = isCharSequence;
-  _.$_$.f5 = isInterface;
-  _.$_$.g5 = longArray;
-  _.$_$.h5 = numberRangeToNumber;
-  _.$_$.i5 = numberToChar;
-  _.$_$.j5 = numberToDouble;
-  _.$_$.k5 = numberToInt;
-  _.$_$.l5 = numberToLong;
-  _.$_$.m5 = objectCreate;
-  _.$_$.n5 = protoOf;
-  _.$_$.o5 = toByte;
-  _.$_$.p5 = toLong;
-  _.$_$.q5 = toString_1;
-  _.$_$.r5 = abs;
-  _.$_$.s5 = ClosedRange;
-  _.$_$.t5 = coerceAtLeast;
-  _.$_$.u5 = coerceAtMost;
-  _.$_$.v5 = contains_0;
-  _.$_$.w5 = step;
-  _.$_$.x5 = until;
-  _.$_$.y5 = KClass;
-  _.$_$.z5 = KMutableProperty0;
-  _.$_$.a6 = KMutableProperty1;
-  _.$_$.b6 = KProperty0;
-  _.$_$.c6 = KProperty1;
-  _.$_$.d6 = filter;
-  _.$_$.e6 = mapNotNull;
-  _.$_$.f6 = sortedWith_0;
-  _.$_$.g6 = toList_0;
-  _.$_$.h6 = contains_1;
-  _.$_$.i6 = equals_0;
-  _.$_$.j6 = firstOrNull_0;
-  _.$_$.k6 = indexOf_1;
-  _.$_$.l6 = indexOf_0;
-  _.$_$.m6 = isBlank;
-  _.$_$.n6 = isDigit;
-  _.$_$.o6 = isLetterOrDigit;
-  _.$_$.p6 = isUpperCase;
-  _.$_$.q6 = isWhitespace;
-  _.$_$.r6 = get_lastIndex_3;
-  _.$_$.s6 = lastIndexOf;
-  _.$_$.t6 = lastOrNull_0;
-  _.$_$.u6 = padStart;
-  _.$_$.v6 = removePrefix;
-  _.$_$.w6 = removeSuffix;
-  _.$_$.x6 = repeat;
-  _.$_$.y6 = split;
-  _.$_$.z6 = split_0;
-  _.$_$.a7 = startsWith;
-  _.$_$.b7 = startsWith_1;
-  _.$_$.c7 = substringAfter_0;
-  _.$_$.d7 = substringAfter;
-  _.$_$.e7 = substringBefore;
-  _.$_$.f7 = take_0;
-  _.$_$.g7 = toDouble;
-  _.$_$.h7 = toIntOrNull;
-  _.$_$.i7 = toInt;
-  _.$_$.j7 = trim;
-  _.$_$.k7 = toDuration;
-  _.$_$.l7 = ArithmeticException;
-  _.$_$.m7 = Char;
-  _.$_$.n7 = Comparable;
-  _.$_$.o7 = Comparator;
-  _.$_$.p7 = DeepRecursiveFunction;
-  _.$_$.q7 = DeepRecursiveScope;
-  _.$_$.r7 = Enum;
-  _.$_$.s7 = Exception;
-  _.$_$.t7 = IllegalArgumentException;
-  _.$_$.u7 = Long;
-  _.$_$.v7 = RuntimeException;
-  _.$_$.w7 = THROW_CCE;
-  _.$_$.x7 = THROW_IAE;
-  _.$_$.y7 = Unit;
-  _.$_$.z7 = countTrailingZeroBits;
-  _.$_$.a8 = createFailure;
-  _.$_$.b8 = ensureNotNull;
-  _.$_$.c8 = invoke;
-  _.$_$.d8 = isFinite;
-  _.$_$.e8 = lazy;
-  _.$_$.f8 = lazy_0;
-  _.$_$.g8 = noWhenBranchMatchedException;
-  _.$_$.h8 = plus_2;
-  _.$_$.i8 = toString_0;
-  _.$_$.j8 = to;
+  _.$_$.d = RegexOption_IGNORE_CASE_getInstance;
+  _.$_$.e = DurationUnit_MINUTES_getInstance;
+  _.$_$.f = DurationUnit_NANOSECONDS_getInstance;
+  _.$_$.g = DurationUnit_SECONDS_getInstance;
+  _.$_$.h = LazyThreadSafetyMode_PUBLICATION_getInstance;
+  _.$_$.i = ArrayList_init_$Create$_0;
+  _.$_$.j = ArrayList_init_$Create$;
+  _.$_$.k = ArrayList_init_$Create$_1;
+  _.$_$.l = HashMap_init_$Create$_0;
+  _.$_$.m = HashMap_init_$Create$;
+  _.$_$.n = HashSet_init_$Create$_0;
+  _.$_$.o = HashSet_init_$Create$;
+  _.$_$.p = LinkedHashMap_init_$Create$_0;
+  _.$_$.q = LinkedHashMap_init_$Create$;
+  _.$_$.r = LinkedHashMap_init_$Create$_1;
+  _.$_$.s = LinkedHashSet_init_$Create$;
+  _.$_$.t = Regex_init_$Create$_0;
+  _.$_$.u = Regex_init_$Create$;
+  _.$_$.v = StringBuilder_init_$Create$;
+  _.$_$.w = StringBuilder_init_$Create$_0;
+  _.$_$.x = ArithmeticException_init_$Create$_0;
+  _.$_$.y = Exception_init_$Init$_0;
+  _.$_$.z = IllegalArgumentException_init_$Init$_2;
+  _.$_$.a1 = IllegalArgumentException_init_$Create$_1;
+  _.$_$.b1 = IllegalArgumentException_init_$Init$;
+  _.$_$.c1 = IllegalArgumentException_init_$Init$_0;
+  _.$_$.d1 = IllegalArgumentException_init_$Create$_0;
+  _.$_$.e1 = IllegalArgumentException_init_$Init$_1;
+  _.$_$.f1 = IllegalStateException_init_$Create$_0;
+  _.$_$.g1 = IndexOutOfBoundsException_init_$Create$_0;
+  _.$_$.h1 = NoSuchElementException_init_$Create$;
+  _.$_$.i1 = NoSuchElementException_init_$Create$_0;
+  _.$_$.j1 = NumberFormatException_init_$Create$_0;
+  _.$_$.k1 = RuntimeException_init_$Init$_2;
+  _.$_$.l1 = RuntimeException_init_$Init$;
+  _.$_$.m1 = RuntimeException_init_$Init$_1;
+  _.$_$.n1 = UnsupportedOperationException_init_$Create$_0;
+  _.$_$.o1 = Duration__compareTo_impl_pchp0f;
+  _.$_$.p1 = _Duration___get_inWholeDays__impl__7bvpxz;
+  _.$_$.q1 = _Duration___get_inWholeMinutes__impl__dognoh;
+  _.$_$.r1 = _Duration___get_inWholeSeconds__impl__hpy7b3;
+  _.$_$.s1 = Duration__isPositive_impl_tvkkt2;
+  _.$_$.t1 = _Duration___get_nanosecondsComponent__impl__nh19kq;
+  _.$_$.u1 = Duration__plus_impl_yu9v8f;
+  _.$_$.v1 = Duration__unaryMinus_impl_x2k1y0;
+  _.$_$.w1 = _Char___init__impl__6a9atx;
+  _.$_$.x1 = Char__minus_impl_a2frrh;
+  _.$_$.y1 = Char__toInt_impl_vasixd;
+  _.$_$.z1 = toString;
+  _.$_$.a2 = _Result___init__impl__xyqfz8;
+  _.$_$.b2 = _Result___get_isFailure__impl__jpiriv;
+  _.$_$.c2 = _Result___get_value__impl__bjfvqg;
+  _.$_$.d2 = IntCompanionObject_instance;
+  _.$_$.e2 = StringCompanionObject_instance;
+  _.$_$.f2 = Companion_getInstance_10;
+  _.$_$.g2 = Companion_instance_11;
+  _.$_$.h2 = Unit_instance;
+  _.$_$.i2 = ArrayList;
+  _.$_$.j2 = Collection;
+  _.$_$.k2 = LinkedHashMap;
+  _.$_$.l2 = KtList;
+  _.$_$.m2 = KtMap;
+  _.$_$.n2 = KtMutableMap;
+  _.$_$.o2 = addAll;
+  _.$_$.p2 = asSequence;
+  _.$_$.q2 = binarySearch;
+  _.$_$.r2 = checkCountOverflow;
+  _.$_$.s2 = collectionSizeOrDefault;
+  _.$_$.t2 = contentEquals;
+  _.$_$.u2 = contentHashCode;
+  _.$_$.v2 = copyOf_0;
+  _.$_$.w2 = copyOf;
+  _.$_$.x2 = copyToArray;
+  _.$_$.y2 = distinct;
+  _.$_$.z2 = drop;
+  _.$_$.a3 = emptyList;
+  _.$_$.b3 = emptyMap;
+  _.$_$.c3 = emptySet;
+  _.$_$.d3 = firstOrNull;
+  _.$_$.e3 = first;
+  _.$_$.f3 = getOrNull_0;
+  _.$_$.g3 = getValue;
+  _.$_$.h3 = get_indices_0;
+  _.$_$.i3 = get_indices;
+  _.$_$.j3 = get_indices_1;
+  _.$_$.k3 = joinToString_0;
+  _.$_$.l3 = joinTo_0;
+  _.$_$.m3 = get_lastIndex_1;
+  _.$_$.n3 = get_lastIndex_2;
+  _.$_$.o3 = lastOrNull;
+  _.$_$.p3 = last;
+  _.$_$.q3 = listOfNotNull_0;
+  _.$_$.r3 = listOfNotNull;
+  _.$_$.s3 = listOf;
+  _.$_$.t3 = listOf_0;
+  _.$_$.u3 = mapCapacity;
+  _.$_$.v3 = mapOf;
+  _.$_$.w3 = mutableListOf;
+  _.$_$.x3 = plus_1;
+  _.$_$.y3 = plus;
+  _.$_$.z3 = plus_0;
+  _.$_$.a4 = removeLastOrNull;
+  _.$_$.b4 = removeLast;
+  _.$_$.c4 = setOf;
+  _.$_$.d4 = setOf_0;
+  _.$_$.e4 = singleOrNull;
+  _.$_$.f4 = single_0;
+  _.$_$.g4 = sortWith_0;
+  _.$_$.h4 = sortedWith;
+  _.$_$.i4 = sorted;
+  _.$_$.j4 = take;
+  _.$_$.k4 = toList;
+  _.$_$.l4 = toMutableList;
+  _.$_$.m4 = toSet_0;
+  _.$_$.n4 = compareBy;
+  _.$_$.o4 = compareValues;
+  _.$_$.p4 = minOf;
+  _.$_$.q4 = get_COROUTINE_SUSPENDED;
+  _.$_$.r4 = CoroutineImpl;
+  _.$_$.s4 = enumEntries;
+  _.$_$.t4 = FunctionAdapter;
+  _.$_$.u4 = booleanArray;
+  _.$_$.v4 = captureStack;
+  _.$_$.w4 = charArrayOf;
+  _.$_$.x4 = charArray;
+  _.$_$.y4 = charSequenceGet;
+  _.$_$.z4 = charSequenceLength;
+  _.$_$.a5 = charSequenceSubSequence;
+  _.$_$.b5 = compareTo;
+  _.$_$.c5 = defineProp;
+  _.$_$.d5 = equals;
+  _.$_$.e5 = fillArrayVal;
+  _.$_$.f5 = getBooleanHashCode;
+  _.$_$.g5 = getNumberHashCode;
+  _.$_$.h5 = getPropertyCallableRef;
+  _.$_$.i5 = getStringHashCode;
+  _.$_$.j5 = hashCode;
+  _.$_$.k5 = initMetadataForClass;
+  _.$_$.l5 = initMetadataForCompanion;
+  _.$_$.m5 = initMetadataForCoroutine;
+  _.$_$.n5 = initMetadataForInterface;
+  _.$_$.o5 = initMetadataForLambda;
+  _.$_$.p5 = initMetadataForObject;
+  _.$_$.q5 = isArray;
+  _.$_$.r5 = isCharSequence;
+  _.$_$.s5 = isInterface;
+  _.$_$.t5 = longArray;
+  _.$_$.u5 = numberRangeToNumber;
+  _.$_$.v5 = numberToChar;
+  _.$_$.w5 = numberToDouble;
+  _.$_$.x5 = numberToInt;
+  _.$_$.y5 = numberToLong;
+  _.$_$.z5 = objectCreate;
+  _.$_$.a6 = protoOf;
+  _.$_$.b6 = toByte;
+  _.$_$.c6 = toLong;
+  _.$_$.d6 = toString_1;
+  _.$_$.e6 = abs;
+  _.$_$.f6 = ClosedRange;
+  _.$_$.g6 = coerceAtLeast;
+  _.$_$.h6 = coerceAtMost;
+  _.$_$.i6 = coerceIn;
+  _.$_$.j6 = contains_1;
+  _.$_$.k6 = step;
+  _.$_$.l6 = until;
+  _.$_$.m6 = KClass;
+  _.$_$.n6 = KMutableProperty0;
+  _.$_$.o6 = KMutableProperty1;
+  _.$_$.p6 = KProperty0;
+  _.$_$.q6 = KProperty1;
+  _.$_$.r6 = filter;
+  _.$_$.s6 = mapNotNull;
+  _.$_$.t6 = sortedWith_0;
+  _.$_$.u6 = toList_0;
+  _.$_$.v6 = contains_3;
+  _.$_$.w6 = contains_2;
+  _.$_$.x6 = equals_0;
+  _.$_$.y6 = firstOrNull_0;
+  _.$_$.z6 = indexOf_2;
+  _.$_$.a7 = indexOf_1;
+  _.$_$.b7 = isBlank;
+  _.$_$.c7 = isDigit;
+  _.$_$.d7 = isLetterOrDigit;
+  _.$_$.e7 = isUpperCase;
+  _.$_$.f7 = isWhitespace;
+  _.$_$.g7 = get_lastIndex_3;
+  _.$_$.h7 = lastIndexOf;
+  _.$_$.i7 = lastOrNull_0;
+  _.$_$.j7 = padStart;
+  _.$_$.k7 = removePrefix;
+  _.$_$.l7 = removeSuffix;
+  _.$_$.m7 = repeat;
+  _.$_$.n7 = replace;
+  _.$_$.o7 = split;
+  _.$_$.p7 = split_0;
+  _.$_$.q7 = startsWith;
+  _.$_$.r7 = startsWith_1;
+  _.$_$.s7 = substringAfter_0;
+  _.$_$.t7 = substringAfter;
+  _.$_$.u7 = substringBefore;
+  _.$_$.v7 = take_0;
+  _.$_$.w7 = toDouble;
+  _.$_$.x7 = toIntOrNull;
+  _.$_$.y7 = toInt;
+  _.$_$.z7 = trimEnd;
+  _.$_$.a8 = trim;
+  _.$_$.b8 = toDuration_1;
+  _.$_$.c8 = toDuration;
+  _.$_$.d8 = ArithmeticException;
+  _.$_$.e8 = Char;
+  _.$_$.f8 = Comparable;
+  _.$_$.g8 = Comparator;
+  _.$_$.h8 = DeepRecursiveFunction;
+  _.$_$.i8 = DeepRecursiveScope;
+  _.$_$.j8 = Enum;
+  _.$_$.k8 = Exception;
+  _.$_$.l8 = IllegalArgumentException;
+  _.$_$.m8 = Long;
+  _.$_$.n8 = RuntimeException;
+  _.$_$.o8 = THROW_CCE;
+  _.$_$.p8 = THROW_IAE;
+  _.$_$.q8 = Unit;
+  _.$_$.r8 = countTrailingZeroBits;
+  _.$_$.s8 = createFailure;
+  _.$_$.t8 = ensureNotNull;
+  _.$_$.u8 = invoke;
+  _.$_$.v8 = isFinite;
+  _.$_$.w8 = lazy;
+  _.$_$.x8 = lazy_0;
+  _.$_$.y8 = noWhenBranchMatchedException;
+  _.$_$.z8 = plus_2;
+  _.$_$.a9 = toString_0;
+  _.$_$.b9 = to;
   //endregion
   return _;
 }));

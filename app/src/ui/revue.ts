@@ -15,6 +15,7 @@ import {
   signalCreneau,
   transcriptionLisible,
   type ElementJson,
+  type EvenementJson,
   type PassageIncertain,
   type ARevoirJson,
   type CaptureJson,
@@ -51,6 +52,8 @@ import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 import { identifiant } from '../analyse/index.ts';
 import { avisRepli, completerRevue, origineLisible } from '../analyse/origine.ts';
+import { normaliser } from '../analyse/dates.ts';
+import { agendaPerime, etatAgenda, lireEvenements } from '../stockage/agenda.ts';
 import { apprendre } from '../services/lexique.ts';
 import { echosDe } from '../services/echos.ts';
 import {
@@ -127,6 +130,12 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
    * quitter la Revue sans les libérer laisserait les enregistrements en mémoire.
    */
   const lecteurs: Lecteur[] = [];
+  /**
+   * Vrai une fois l'écran quitté. Un rendu se fait en plusieurs lectures : s'il se
+   * termine après qu'on a changé d'écran, il ne doit rien écrire — sans quoi la
+   * Revue recouvrait l'écran suivant.
+   */
+  let demonte = false;
 
   /** Libère tous les lecteurs posés jusqu'ici. Idempotent. */
   function libererLecteurs(): void {
@@ -142,6 +151,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   /** Les captures et éléments du moment, pour chercher à quoi une note renvoie. */
   let capturesConnues: CaptureJson[] = [];
   let elementsConnus: ElementJson[] = [];
+  /** Les réunions des sept prochains jours, pour proposer des signaux d'agenda. */
+  let evenementsAVenir: EvenementJson[] = [];
 
   // Le type stocké, pas seulement le contrat du cœur : une relance touche `relanceLe`
   // et `faitLe`, que les règles ne connaissent pas et n'ont pas à connaître.
@@ -269,6 +280,10 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const tous = await listerElements();
     const elements = filtrerParSphere(tous, sphere);
     const file = completerRevue(revueObjets(elements, jour), elements);
+    evenementsAVenir = await lireEvenements(
+      maintenantLocal(),
+      maintenantLocal(new Date(Date.now() + 7 * 24 * 3600_000)),
+    );
 
     // Ce que la mémoire sait des références de ces éléments. Reconstruite à chaque
     // rendu depuis les captures et les éléments : c'est une couche dérivée, elle n'a
@@ -300,6 +315,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const enTranscription = await capturesATranscrire();
     const moment = await rappelsDuPointDeRupture();
 
+    if (demonte) return;
     vider(racine);
     const section = el(
       'section',
@@ -335,6 +351,25 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // Spec `priorisation` — « Renoncement explicite » : le signal arrive ici, une
     // fois, et porte sur le créneau. Un créneau qu'on saute chaque jour n'est pas au
     // bon moment ; le reprocher le ferait éteindre, et l'on perdrait tout.
+    // Change `agenda-local` : un agenda périmé se dit une fois, ici, en une ligne.
+    // Au-delà de sa couverture, aucun signal n'en est tiré ; mieux vaut le savoir.
+    const agenda = await etatAgenda();
+    if (agendaPerime(agenda, new Date(), maintenantLocal())) {
+      section.append(
+        el(
+          'p',
+          { class: 'agenda-perime', role: 'status' },
+          el('span', {
+            texte: `Votre agenda a été importé le ${new Date(agenda!.importeLe).toLocaleDateString('fr-FR', {
+              day: 'numeric',
+              month: 'long',
+            })} : réimportez-le pour que les réunions restent justes.`,
+          }),
+          el('a', { class: 'bouton bouton--discret', href: '#reglages', texte: 'Réimporter' }),
+        ),
+      );
+    }
+
     const signal = signalCreneau((await lireReglages()).creneauRenoncements ?? 0);
     if (signal) {
       section.append(
@@ -378,6 +413,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
           }),
         ),
       );
+      if (demonte) return;
       racine.append(section);
       return;
     }
@@ -421,6 +457,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       );
     }
 
+    if (demonte) return;
     racine.append(section);
   }
 
@@ -1316,7 +1353,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     source: SourceGroupe,
   ): HTMLElement {
     const e = entree.element;
-    const ligne = el('li', { class: 'entree', 'data-type': e.type });
+    const ligne = el('li', { class: 'entree', 'data-type': e.type, 'data-element': e.id, 'data-capture': e.captureId });
 
     const badges = el(
       'div',
@@ -1528,6 +1565,12 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       { libelle: 'Prochain créneau libre', valeur: 'au prochain créneau libre' },
     ];
     if (e.interlocuteur) {
+      // Change `agenda-local` : les réunions des sept prochains jours qui concernent
+      // l'interlocuteur, proposées comme signal. Le plan reste une phrase ; le cœur la
+      // reconnaîtra dans l'agenda.
+      for (const r of reunionsAvec(e.interlocuteur).reverse()) {
+        liste.unshift({ libelle: `Avant « ${r.titre} » (${quandLisible(r.debut)})`, valeur: `avant ${r.titre}` });
+      }
       liste.unshift({
         libelle: `Quand je vois ${e.interlocuteur}`,
         valeur: `quand je vois ${e.interlocuteur}`,
@@ -1537,6 +1580,23 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       liste.push({ libelle: 'Au prochain point', valeur: 'au prochain point d’équipe' });
     }
     return liste;
+  }
+
+  /** Au plus deux réunions à venir qui concernent cette personne, titres distincts. */
+  function reunionsAvec(personne: string): EvenementJson[] {
+    const prenom = normaliser(personne).split(/\s+/)[0];
+    if (!prenom) return [];
+    const concerne = (texte: string) => normaliser(texte).split(/[^a-z0-9]+/).includes(prenom);
+    const vues = new Set<string>();
+    return evenementsAVenir
+      .filter((ev) => !ev.journeeEntiere && ((ev.participants ?? []).some(concerne) || concerne(ev.titre)))
+      .filter((ev) => !vues.has(ev.titre) && Boolean(vues.add(ev.titre)))
+      .slice(0, 2);
+  }
+
+  function quandLisible(local: string): string {
+    const d = new Date(`${local}:00`);
+    return d.toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
   }
 
   function champLibrePlan(e: ElementJson): HTMLElement {
@@ -1582,6 +1642,17 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       placeholder: 'Interlocuteur',
       'aria-label': 'Interlocuteur',
     });
+    // Change `agenda-local` : la durée se corrige comme le reste, et prime ensuite sur
+    // toute ré-analyse (spec `agenda` — « Durée corrigée »).
+    const dureeChoisie = el('select', { class: 'champ', 'aria-label': 'Durée' });
+    for (const [valeur, libelle] of [
+      ['', 'Inconnue'],
+      ['COURTE', 'Quelques minutes'],
+      ['MOYENNE', 'Une vingtaine de minutes'],
+      ['LONGUE', 'Une heure ou plus'],
+    ] as const) {
+      dureeChoisie.append(el('option', { value: valeur, selected: (e.duree ?? '') === valeur, texte: libelle }));
+    }
     const groupePoids = el('div', { class: 'poids-choix', role: 'group', 'aria-label': 'Poids' });
     let poidsChoisi = e.poids ?? 'MOYEN';
     for (const valeur of ['FAIBLE', 'MOYEN', 'FORT'] as const) {
@@ -1618,6 +1689,9 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
             poidsIndice: 'poids fixé à la main',
             interlocuteur: interlocuteur.value.trim() || null,
             interlocuteurConfiance: interlocuteur.value.trim() ? 1 : null,
+            duree: (dureeChoisie.value || null) as ElementJson['duree'],
+            dureeConfiance: dureeChoisie.value ? 1 : null,
+            dureeIndice: dureeChoisie.value ? 'fixée à la main' : null,
             corrigeParHumain: true,
           },
           'Correction enregistrée.',
@@ -1631,6 +1705,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       el('label', { class: 'champ__etiquette' }, 'Type', type),
       el('label', { class: 'champ__etiquette' }, 'Échéance', echeance),
       el('label', { class: 'champ__etiquette' }, 'Interlocuteur', interlocuteur),
+      el('label', { class: 'champ__etiquette' }, 'Durée', dureeChoisie),
       el('div', { class: 'champ__etiquette' }, 'Poids', groupePoids),
       enregistrer,
     );
@@ -1666,7 +1741,10 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
 
   await rendre();
 
-  return libererLecteurs;
+  return () => {
+    demonte = true;
+    libererLecteurs();
+  };
 }
 
 /** Ce qu'un groupe de Revue offre à ses éléments : sa source, et de quoi la réécouter. */
