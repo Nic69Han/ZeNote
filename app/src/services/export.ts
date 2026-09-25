@@ -15,6 +15,7 @@ import {
   lireReglages,
   listerCaptures,
   listerElements,
+  type AgendaDeCapture,
   type Capture,
   type ElementStocke,
   type Reglages,
@@ -74,6 +75,8 @@ export interface CaptureExportee {
   essaisTranscription: number;
   /** `false` si l'utilisateur a demandé de garder cette capture sur l'appareil. */
   transmissible: boolean;
+  /** La réunion à laquelle la capture se rattache, ou `null`. */
+  agenda: AgendaDeCapture | null;
   audio: AudioNonInclus;
 }
 
@@ -107,6 +110,9 @@ const LISEZ_MOI: string[] = [
   'L’objet « champs » ci-dessous décrit chaque champ des deux listes, un par un.',
   'L’audio des captures dictées n’est PAS dans ce fichier ; l’objet « audio » dit ' +
     'précisément ce qui manque et pourquoi.',
+  'L’agenda importé n’est PAS dans ce fichier non plus : c’est une copie d’un agenda que ' +
+    'vous tenez ailleurs, et il se réimporte depuis sa source. Seul le rattachement d’une ' +
+    'capture à une réunion y figure, dans le champ « agenda » de la capture.',
   'Toutes les dates sont au format ISO 8601. Les horodatages sont en temps universel ' +
     '(UTC, suffixe Z) ; les échéances sont des jours, sans heure.',
 ];
@@ -128,6 +134,9 @@ const CHAMPS_CAPTURES: Record<string, string> = {
   essaisTranscription:
     'Combien de fois le moteur embarqué a été mené à son terme sur cet audio. Zéro : pas ' +
     'encore tenté, la file s’en charge.',
+  agenda:
+    'La réunion de l’agenda à laquelle la capture se rattache — faite pendant, juste après, ' +
+    'ou déposée avant (« depose » vrai) —, avec son titre et ses participants ; null sinon.',
   transmissible:
     'Faux si l’utilisateur a demandé que cette capture ne soit jamais envoyée à une ' +
     'analyse distante. Vrai sinon — ce qui n’implique pas qu’elle l’ait été : cela dépend ' +
@@ -158,6 +167,11 @@ const CHAMPS_ELEMENTS: Record<string, string> = {
   interlocuteur: 'La personne concernée, si elle a été reconnue.',
   interlocuteurConfiance: 'Confiance de la reconnaissance de l’interlocuteur, de 0 à 1.',
   sphere: 'PROFESSIONNEL ou PERSONNEL, si la distinction a été faite.',
+  duree:
+    'COURTE (quelques minutes), MOYENNE (une vingtaine) ou LONGUE (une heure ou plus) : le ' +
+    'temps que l’élément demande, ou null s’il est inconnu.',
+  dureeConfiance: 'Confiance de la durée, de 0 à 1. 1 = fixée à la main.',
+  dureeIndice: 'En clair, ce qui a fait estimer cette durée.',
   typeConfiance:
     'Confiance du type retenu, de 0 à 1. Mesurée si l’analyse est distante ; posée selon la ' +
     'règle qui a tranché si elle est locale. 1 = fixé à la main. Absent sur les éléments ' +
@@ -203,6 +217,7 @@ function exporterCapture(capture: Capture): CaptureExportee {
     analysee: capture.analysee,
     essaisTranscription: capture.essaisTranscription ?? 0,
     transmissible: capture.transmissible !== false,
+    agenda: capture.agenda ?? null,
     audio: {
       inclus: false,
       presentSurLAppareil: capture.aAudio,

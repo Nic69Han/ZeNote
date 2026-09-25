@@ -40,6 +40,8 @@ import {
   type TypeGardien,
 } from '../securite/coffre.ts';
 import { annoncer, el, vider } from './dom.ts';
+import { AgendaIllisible, lireAgenda } from '../agenda/ics.ts';
+import { effacerAgenda, etatAgenda, importerAgenda, type EtatAgenda } from '../stockage/agenda.ts';
 
 /** Empreinte de la construction servie, injectée par Vite. */
 const VERSION: string =
@@ -174,6 +176,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
     const texte = serialiser(donnees);
     const appareilPossible = await gardienAppareilPossible();
     const reglages = await lireReglages();
+    const agenda = await etatAgenda();
 
     vider(vue);
     const section = el(
@@ -185,6 +188,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
         texte: 'Ce qui reste ici, ce qui sort, et comment tout reprendre.',
       }),
       blocPerimetre(coffre, reglages.analyseDistante),
+      blocAgenda(agenda),
       blocAnalyseDistante(reglages),
       blocChiffrement(coffre, appareilPossible, donnees),
       blocCreneau(reglages),
@@ -628,6 +632,124 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       el('h2', { id: 'titre-perimetre', class: 'bloc__titre', texte: 'Ce qui quitte l’appareil' }),
       liste,
     );
+  }
+
+  // ----------------------------------------------------------------- l'agenda
+
+  /**
+   * L'agenda, importé depuis un fichier `.ics` et lu ici.
+   *
+   * Change `agenda-local` ; spec `agenda` — « Import d'un agenda sur l'appareil »,
+   * « Conservation et effacement », « Fraîcheur de l'agenda dite ». Rien ne part : le
+   * fichier est lu dans cet onglet, et seules ses réunions sont gardées. L'écran dit
+   * ce qui a été compris, ce qui ne l'a pas été, et jusqu'à quand l'agenda est connu.
+   */
+  function blocAgenda(etat: EtatAgenda | null): HTMLElement {
+    const retour = el('p', { class: 'agenda__retour', role: 'status' });
+    const champ = el('input', {
+      type: 'file',
+      accept: '.ics,text/calendar',
+      class: 'agenda__fichier',
+      'aria-label': 'Fichier d’agenda (.ics)',
+    }) as HTMLInputElement;
+
+    champ.addEventListener('change', () => {
+      const fichier = champ.files?.[0];
+      if (!fichier) return;
+      void (async () => {
+        try {
+          const lecture = lireAgenda(await fichier.text());
+          const importe = await importerAgenda(lecture);
+          const message = resumeImport(importe);
+          annoncer(message);
+          await rendre();
+          const apres = vue.querySelector('.agenda__retour');
+          if (apres) apres.textContent = message;
+        } catch (erreur) {
+          retour.dataset.ton = 'echec';
+          retour.textContent =
+            erreur instanceof AgendaIllisible
+              ? 'Ce fichier n’a pas été compris comme un agenda. L’agenda précédent reste en place.'
+              : 'L’agenda n’a pas pu être enregistré. Si vos notes sont chiffrées, déverrouillez-les puis réessayez.';
+          annoncer(retour.textContent);
+        } finally {
+          champ.value = '';
+        }
+      })();
+    });
+
+    const etatTexte = etat
+      ? el(
+          'p',
+          { class: 'bloc__texte agenda__etat' },
+          `Importé le ${dateLisible(etat.importeLe)}. Connu jusqu’au ${jourLisible(etat.couvreJusqua)} : ` +
+            `${accord(etat.occurrences, 'réunion ou événement', 'réunions ou événements')}.`,
+        )
+      : el('p', {
+          class: 'bloc__texte agenda__etat',
+          texte: 'Aucun agenda importé : ZeNote fonctionne sans, comme avant.',
+        });
+
+    return el(
+      'section',
+      { class: 'bloc bloc--agenda', 'aria-labelledby': 'titre-agenda' },
+      el('h2', { id: 'titre-agenda', class: 'bloc__titre', texte: 'Agenda' }),
+      el('p', {
+        class: 'bloc__texte',
+        texte:
+          'Exportez votre agenda en fichier .ics (Google Agenda : Paramètres, Importer et exporter ; ' +
+          'Outlook : Enregistrer le calendrier), puis importez-le ici. Il est lu sur cet appareil et ' +
+          'n’est envoyé nulle part. Il sert à ne proposer que ce qui tient avant votre prochaine ' +
+          'réunion, et à préparer puis vider vos réunions.',
+      }),
+      etatTexte,
+      el('label', { class: 'bouton agenda__importer' }, etat ? 'Réimporter un agenda' : 'Importer un agenda', champ),
+      retour,
+      etat
+        ? el('button', {
+            class: 'bouton bouton--discret agenda__effacer',
+            type: 'button',
+            texte: 'Effacer l’agenda',
+            onclick: () => {
+              void (async () => {
+                await effacerAgenda();
+                annoncer('Agenda effacé. Vos notes n’ont pas changé.');
+                await rendre();
+              })();
+            },
+          })
+        : null,
+      el('p', {
+        class: 'bloc__texte agenda__limite',
+        texte:
+          'Il n’est aussi frais que votre dernier import : réimportez-le quand il change. Et les ' +
+          'propositions de réunion n’apparaissent que si ZeNote est ouverte à ce moment-là.',
+      }),
+    );
+  }
+
+  /** Ce que l'import a compris, et ce qu'il n'a pas compris, en une phrase. */
+  function resumeImport(etat: EtatAgenda): string {
+    const parties = [
+      `Agenda importé : ${accord(etat.occurrences, 'occurrence connue', 'occurrences connues')} jusqu’au ${jourLisible(etat.couvreJusqua)}, ` +
+        `${accord(etat.lus, 'événement lu', 'événements lus')}.`,
+    ];
+    if (etat.recurrencesNonComprises > 0) {
+      parties.push(
+        `${accord(etat.recurrencesNonComprises, 'répétition non comprise', 'répétitions non comprises')} : ` +
+          'seule la première occurrence est gardée.',
+      );
+    }
+    for (const { raison, nombre } of etat.ecartes) parties.push(`Écarté (${raison}) : ${nombre}.`);
+    return parties.join(' ');
+  }
+
+  function dateLisible(iso: string): string {
+    return new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function jourLisible(local: string): string {
+    return new Date(`${local.slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
   }
 
   // ------------------------------------------------------ l'analyse distante

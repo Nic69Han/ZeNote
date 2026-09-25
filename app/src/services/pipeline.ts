@@ -11,7 +11,9 @@ import { analyserADistance, reecrire, type IssueAnalyseDistante } from '../analy
 import { peutTransmettre } from '../analyse/transmission.ts';
 import { transcrireAudio, type Transcription } from '../audio/transcripteurLocal.ts';
 import { assurerCoffreCharge } from '../securite/coffre.ts';
+import { consommerRattachement, rattacherDOffice } from '../agenda/rattachement.ts';
 import type {
+  AgendaDeCapture,
   Capture,
   CaptureAEcrire,
   EtatTranscription,
@@ -57,6 +59,11 @@ export interface NouvelleCapture {
   audio?: Blob | null;
   dureeMs?: number | null;
   incomplete?: boolean;
+  /**
+   * La réunion à laquelle rattacher la capture. Absent : un rattachement préparé par
+   * Maintenant s'il y en a un, sinon d'office selon l'agenda. `null` : aucun.
+   */
+  agenda?: AgendaDeCapture | null;
 }
 
 /**
@@ -76,7 +83,13 @@ export async function capturer(entree: NouvelleCapture): Promise<Capture> {
     incomplete: entree.incomplete ?? false,
     analysee: false,
   };
-  return enregistrerCapture(capture);
+  const preparee = entree.agenda === undefined ? consommerRattachement() : entree.agenda;
+  if (preparee) capture.agenda = preparee;
+  const ecrite = await enregistrerCapture(capture);
+  // Le rattachement d'office attend l'écriture : la capture est déjà confirmée quand
+  // on regarde l'agenda (change `agenda-local`, décision 7).
+  if (entree.agenda === undefined && !preparee) void rattacherDOffice(ecrite);
+  return ecrite;
 }
 
 /** L'appel au service d'analyse distante ; remplaçable pour les tests. */
@@ -145,6 +158,9 @@ export async function recupererEnregistrements(): Promise<number> {
         audio: assemble.audio,
         dureeMs: assemble.dureeMs,
         incomplete: true,
+        // Récupérée au démarrage, longtemps après : l'heure de l'écriture ne dit rien
+        // de la réunion pendant laquelle on parlait.
+        agenda: null,
       });
       await supprimerMorceaux(id);
       recuperees += 1;

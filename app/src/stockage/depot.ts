@@ -206,6 +206,21 @@ export interface Capture {
    * Absent quand rien n'a été tenté. La Revue le signale, une seule fois.
    */
   repliAnalyse?: boolean;
+  /**
+   * La réunion à laquelle cette capture se rattache, quand l'agenda en connaît une :
+   * faite pendant, juste après, ou proposée avant (une dépose). Change `agenda-local`.
+   * Elle survit à l'effacement de l'agenda : c'est un fait sur la capture.
+   */
+  agenda?: AgendaDeCapture | null;
+}
+
+/** Ce qu'une capture retient de la réunion à laquelle elle se rattache. */
+export interface AgendaDeCapture {
+  evenementId: string;
+  titre: string;
+  participants: string[];
+  /** `true` pour une dépose : ce que l'on quittait, noté juste avant la réunion. */
+  depose?: boolean;
 }
 
 /**

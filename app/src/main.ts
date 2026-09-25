@@ -19,8 +19,11 @@ import {
 import { assurerCoffreCharge, etatCoffre, verrouiller } from './securite/coffre.ts';
 import {
   ecrireReglage,
+  elementsDeCapture,
+  lireCapture,
   lireReglages,
   majCapture,
+  majElement,
   supprimerCapture,
   toutEffacer,
   type Reglages,
@@ -39,6 +42,7 @@ import {
   ABSENCE_AVANT_REPRISE_MS,
   aQuelqueChose,
   rappelsDuPointDeRupture,
+  reunionQuiSeTermine,
 } from './services/rappels.ts';
 
 type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'personnes' | 'reglages';
@@ -211,6 +215,19 @@ async function demarrer(): Promise<void> {
   // sait observer, et donc le moment où les rappels arrivent.
   void presenterRappels();
 
+  // Change `agenda-local` : la fin d'une réunion de l'agenda est un autre point de
+  // rupture. On le guette chaque minute, application ouverte et visible — une page
+  // fermée ne se réveille pas —, et on ne le présente qu'une fois par réunion.
+  const finsPresentees = new Set<string>();
+  window.setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    void reunionQuiSeTermine().then((id) => {
+      if (!id || finsPresentees.has(id)) return;
+      finsPresentees.add(id);
+      void presenterRappels();
+    });
+  }, 60_000);
+
   /**
    * Le coffre se referme quand l'application reste en arrière-plan.
    *
@@ -277,10 +294,24 @@ declare global {
       ecrireReglage: typeof ecrireReglage;
       /** Retirer une capture et ses éléments, pour qu'un parcours ne pèse pas sur le suivant. */
       supprimerCapture: typeof supprimerCapture;
+      /** Lire les éléments d'une capture, et en décider sans passer par la Revue. */
+      elementsDeCapture: typeof elementsDeCapture;
+      majElement: typeof majElement;
+      lireCapture: typeof lireCapture;
     };
   }
 }
-window.__zenote = { capturer, traiterFileAnalyse, toutEffacer, majCapture, ecrireReglage, supprimerCapture };
+window.__zenote = {
+  capturer,
+  traiterFileAnalyse,
+  toutEffacer,
+  majCapture,
+  ecrireReglage,
+  supprimerCapture,
+  elementsDeCapture,
+  majElement,
+  lireCapture,
+};
 
 registerSW({ immediate: true });
 void demarrer();

@@ -29,6 +29,7 @@ import {
   type Reglages,
 } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
+import { oublierRattachement, rattachementEnAttente } from '../agenda/rattachement.ts';
 
 type Etat = 'REPOS' | 'ENREGISTRE' | 'ECRITURE' | 'CONFIRME' | 'ECHEC';
 
@@ -202,7 +203,35 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
 
   // ---------------------------------------------------------------- rendu
 
+  /**
+   * La réunion pour laquelle cette capture est préparée, s'il y en a une : Maintenant
+   * l'a proposée (dépose ou vidage). Le micro ne démarre pas pour autant — c'est
+   * toujours l'utilisateur qui parle. Une fois la capture faite, la mention s'efface.
+   */
+  const preparee = rattachementEnAttente();
+  const bandeauRattachement = preparee
+    ? el(
+        'p',
+        { class: 'rattachement', role: 'status' },
+        el('span', {
+          texte: preparee.depose
+            ? `Pour « ${preparee.titre} » : où vous en êtes, avant d’y aller.`
+            : `Pour « ${preparee.titre} » : ce que la réunion a laissé.`,
+        }),
+        el('button', {
+          class: 'bouton bouton--discret',
+          type: 'button',
+          texte: 'Sans réunion',
+          onclick: () => {
+            oublierRattachement();
+            bandeauRattachement?.remove();
+          },
+        }),
+      )
+    : null;
+
   function afficherEtat(nouvel: Etat, texte = ''): void {
+    if (bandeauRattachement && !rattachementEnAttente()) bandeauRattachement.remove();
     etat = nouvel;
     bouton.dataset.etat = etat;
     message.dataset.ton =
@@ -643,6 +672,7 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       { class: 'ecran ecran--capture', 'aria-labelledby': 'titre-capture' },
       el('h1', { id: 'titre-capture', class: 'ecran__titre', texte: 'Capturer' }),
       el('p', { class: 'ecran__sous-titre', texte: 'Un geste. Rien à décider.' }),
+      bandeauRattachement,
       el('div', { class: 'zone-bouton' }, bouton, minuterie),
       apercu,
       message,
