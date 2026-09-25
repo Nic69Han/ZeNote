@@ -30,6 +30,8 @@ Les groupes suivent le plan de mise en service de `design.md` — Migration Plan
 
 ## 5. Évaluation et activation
 
+> **En pause (2026-09-25).** L'API TypeSafe est payante : 5.3 et 5.4 sont mises de côté. Tout le reste est livré et l'analyse distante reste éteinte par défaut, donc rien n'est envoyé ni facturé tant que personne ne l'allume ni ne pose de clé.
+
 - [x] 5.1 Écrire `app/tests/evaluation-typesafe.mjs` : il lit un fichier d'étiquettes local et non versionné (passage, type attendu, sphère attendue), le passe dans `analyser()` et dans la fonction, et produit la précision par type pour chaque moteur, la matrice de confusion, et, pour chaque seuil de 0,5 à 0,9, la précision de TypeSafe au-dessus du seuil et la part de questions posées en Revue ; vérifier sur un fichier d'étiquettes de synthèse de dix lignes que les chiffres attendus sortent
 - [x] 5.2 Ajouter au script la variante « instructions en anglais, contenu en français » ; vérifier que le rapport compare les deux variantes côte à côte
 - [ ] 5.3 Poser `TYPESAFE_API_KEY` sur Netlify, étiqueter à la main un lot d'au moins cent passages tirés de captures réelles, lancer l'évaluation et consigner les chiffres agrégés, le modèle épinglé, le délai et le seuil retenus dans `openspec/changes/analyse-typesafe/evaluation.md` — **nécessite une clé et des captures réelles, rien de tout cela n'existe aujourd'hui**
