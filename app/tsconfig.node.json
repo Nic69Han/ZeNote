@@ -1,0 +1,18 @@
+{
+  "//": "Les fichiers de configuration, qui s'exécutent dans Node et non dans le navigateur. Ils sont vérifiés à part pour que `process`, `node:child_process` et consorts ne deviennent pas visibles depuis `src/` : du code de surface qui les utiliserait par erreur passerait alors la vérification et casserait sur l'appareil.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["vite.config.ts", "vitest.config.ts"]
+}

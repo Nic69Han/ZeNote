@@ -1,0 +1,12 @@
+passage	type	sphère
+# Étiquettes de synthèse : dix passages inventés, pour vérifier les calculs du script.
+Appeler le client pour le devis	TACHE	PROFESSIONNEL
+J'attends le retour de Sophie sur le budget	ATTENTE	PROFESSIONNEL
+On a décidé de reporter le lancement	DECISION	PROFESSIONNEL
+J'ai promis à Marc de lui envoyer le planning	ENGAGEMENT	PROFESSIONNEL
+Et si on refaisait la cuisine un jour	IDEE	PERSONNEL
+Le taux de marge est à douze pour cent	INFORMATION	PROFESSIONNEL
+Prendre rendez-vous chez le dentiste pour les enfants	TACHE	PERSONNEL
+Paul a dit que la salle était réservée	INFORMATION	INDECIDABLE
+Je dois rendre le dossier à Claire	ENGAGEMENT	PROFESSIONNEL
+Réserver les billets de train	TACHE	INDECIDABLE

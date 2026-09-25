@@ -1,0 +1,1337 @@
+/* Les trois écrans : Capturer, La Revue, Maintenant. */
+
+.ecran {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ecran__titre {
+  font-size: 1.5rem;
+}
+
+.ecran__sous-titre {
+  color: var(--encre-douce);
+  font-size: 0.95rem;
+  margin-top: -0.7rem;
+}
+
+.titre-section {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
+  color: var(--encre-tres-douce);
+  margin-top: 0.5rem;
+}
+
+.vide {
+  border: 1px dashed var(--trait-fort);
+  border-radius: var(--rayon-large);
+  padding: 2rem 1.25rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.vide__titre {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.vide__detail {
+  color: var(--encre-douce);
+  font-size: 0.92rem;
+  max-width: 26rem;
+}
+
+/* ------------------------------------------------------------- 1. Capturer */
+
+.ecran--capture {
+  align-items: stretch;
+}
+
+.zone-bouton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 0 0.5rem;
+}
+
+.bouton-capture {
+  position: relative;
+  width: min(15rem, 62vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--trait-fort);
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  box-shadow: var(--ombre);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  display: grid;
+  place-items: center;
+}
+
+.bouton-capture__anneau {
+  position: absolute;
+  inset: 12%;
+  border-radius: 50%;
+  border: 3px solid var(--trait);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.bouton-capture__texte {
+  position: relative;
+  z-index: 1;
+}
+
+.bouton-capture[data-etat='ENREGISTRE'] {
+  border-color: var(--temoin);
+  background: var(--temoin-doux);
+}
+
+.bouton-capture[data-etat='ENREGISTRE'] .bouton-capture__anneau {
+  border-color: var(--temoin);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--temoin) 18%, transparent);
+  animation: temoin 1.1s ease-in-out infinite;
+}
+
+.bouton-capture[data-etat='ECRITURE'] .bouton-capture__anneau {
+  border-color: var(--signal);
+}
+
+.bouton-capture[data-etat='CONFIRME'] .bouton-capture__anneau {
+  border-color: var(--calme);
+}
+
+.bouton-capture[data-etat='ECHEC'] {
+  border-color: var(--temoin);
+}
+
+@keyframes temoin {
+  50% {
+    box-shadow: 0 0 0 12px color-mix(in srgb, var(--temoin) 8%, transparent);
+  }
+}
+
+.minuterie {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--encre-douce);
+}
+
+.apercu {
+  min-height: 2.6rem;
+  color: var(--encre-douce);
+  font-size: 0.95rem;
+  text-align: center;
+  font-style: italic;
+}
+
+.message {
+  text-align: center;
+  font-size: 0.98rem;
+  font-weight: 550;
+  min-height: 1.4rem;
+}
+
+.message[data-ton='succes'] {
+  color: var(--calme);
+}
+
+.message[data-ton='echec'] {
+  color: var(--temoin);
+}
+
+.repli {
+  border-left: 3px solid var(--signal);
+  background: var(--signal-doux);
+  color: var(--encre);
+  padding: 0.7rem 0.85rem;
+  border-radius: 0 var(--rayon) var(--rayon) 0;
+  font-size: 0.9rem;
+}
+
+.actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.bloc-ecrit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.zone-ecrite {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  resize: vertical;
+}
+
+.journal {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  overflow: hidden;
+  background: var(--fond-carte);
+}
+
+.journal__ligne {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--trait);
+  font-size: 0.9rem;
+}
+
+.journal__ligne:last-child {
+  border-bottom: none;
+}
+
+.journal__heure {
+  color: var(--encre-tres-douce);
+  flex: none;
+}
+
+.journal__texte {
+  color: var(--encre-douce);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------- 2. La Revue */
+
+.groupe {
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: var(--ombre);
+}
+
+.source__resume {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  cursor: pointer;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  min-height: 2.25rem;
+  /* Poser `display: flex` sur un `summary` lui retire sa puce de repli : sans le
+     chevron ci-dessous, rien ne dit que la ligne s'ouvre. Safari demande en plus
+     que le marqueur soit explicitement retiré. */
+  list-style: none;
+}
+
+.source__resume::-webkit-details-marker {
+  display: none;
+}
+
+.source__resume::after {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg) translate(-0.1rem, -0.1rem);
+  transition: transform 120ms ease-out;
+}
+
+.source[open] > .source__resume::after {
+  transform: rotate(-135deg) translate(-0.1rem, -0.1rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .source__resume::after {
+    transition: none;
+  }
+}
+
+.source__texte {
+  margin-top: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--fond-creux);
+  border-radius: var(--rayon);
+  color: var(--encre-douce);
+  font-size: 0.92rem;
+}
+
+/* ------------------------------------------- réécouter l'enregistrement */
+/* L'audio est le dernier recours quand la transcription se trompe. Il est donc
+   présent partout où l'on lit la source, et discret partout : on y va quand on
+   doute, pas à chaque passage. */
+
+.lecteur {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lecteur__audio {
+  width: 100%;
+  max-width: 100%;
+  min-height: 2.25rem;
+}
+
+.lecteur__note,
+.lecteur--absent {
+  margin: 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.lecteur--absent {
+  margin-top: 0.5rem;
+}
+
+.bouton--ecouter {
+  align-self: flex-start;
+  background: transparent;
+  border-color: var(--trait);
+  color: var(--encre-douce);
+  min-height: 2.5rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.bouton--groupe {
+  align-self: flex-start;
+  border-style: dashed;
+}
+
+.entrees {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.entree {
+  border-top: 1px solid var(--trait);
+  padding-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.entree:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.entree--reportee {
+  opacity: 0.5;
+}
+
+.entree__texte {
+  font-size: 1.02rem;
+  font-weight: 550;
+}
+
+.entree__indice {
+  color: var(--encre-douce);
+  font-size: 0.86rem;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--trait-fort);
+  background: var(--fond-creux);
+  color: var(--encre-douce);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.badge--type {
+  background: transparent;
+  color: var(--encre);
+  border-color: var(--encre-tres-douce);
+}
+
+.badge--poids-fort {
+  background: var(--temoin-doux);
+  color: var(--temoin);
+  border-color: var(--temoin);
+}
+
+.badge--poids-moyen {
+  background: var(--signal-doux);
+  color: var(--signal);
+  border-color: var(--signal);
+}
+
+.badge--poids-faible {
+  background: var(--fond-creux);
+}
+
+.badge--doute {
+  background: var(--signal-doux);
+  color: var(--signal);
+  border-color: var(--signal);
+}
+
+.entree__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.entree__actions .bouton {
+  flex: 1 1 auto;
+  min-width: 6.5rem;
+  min-height: 2.75rem;
+  font-size: 0.9rem;
+}
+
+.bouton--accepter {
+  border-color: var(--calme);
+  color: var(--calme);
+  background: var(--calme-doux);
+}
+
+.bouton--supprimer {
+  color: var(--encre-tres-douce);
+}
+
+.plan,
+.ajustement {
+  border-top: 1px dashed var(--trait-fort);
+  padding-top: 0.7rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.plan__question {
+  flex-basis: 100%;
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+}
+
+.bouton--plan {
+  min-height: 2.6rem;
+  font-size: 0.88rem;
+  border-color: var(--signal);
+  color: var(--signal);
+  background: var(--signal-doux);
+}
+
+.plan__libre {
+  display: flex;
+  gap: 0.4rem;
+  flex-basis: 100%;
+}
+
+.champ {
+  min-height: 2.75rem;
+  flex: 1;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  font-size: 0.95rem;
+}
+
+.ajustement__grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.champ__etiquette {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--encre-tres-douce);
+}
+
+.poids-choix {
+  display: flex;
+  gap: 0.3rem;
+}
+
+.bouton--poids {
+  flex: 1;
+  min-height: 2.75rem;
+  font-size: 0.85rem;
+  padding-inline: 0.4rem;
+}
+
+.bouton--poids[aria-pressed='true'] {
+  background: var(--encre);
+  color: var(--fond-carte);
+  border-color: var(--encre);
+}
+
+.ajustement__grille .bouton--plein {
+  grid-column: 1 / -1;
+}
+
+.annulation {
+  position: sticky;
+  bottom: 4.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon);
+  background: var(--fond-creux);
+  font-size: 0.9rem;
+}
+
+/* ----------------------------------------------------------- 3. Maintenant */
+
+.propositions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  counter-reset: proposition;
+}
+
+.proposition {
+  position: relative;
+  border: 1px solid var(--trait);
+  border-left: 4px solid var(--trait-fort);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  padding: 0.95rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  box-shadow: var(--ombre);
+}
+
+.proposition[data-poids='FORT'] {
+  border-left-color: var(--temoin);
+}
+
+.proposition[data-poids='MOYEN'] {
+  border-left-color: var(--signal);
+}
+
+.proposition[data-poids='FAIBLE'] {
+  border-left-color: var(--trait-fort);
+}
+
+.proposition__entete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.proposition__texte {
+  font-size: 1.12rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.proposition__raison {
+  color: var(--encre-douce);
+  font-size: 0.9rem;
+}
+
+.proposition__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.proposition__actions .bouton {
+  flex: 1 1 auto;
+  min-height: 2.75rem;
+}
+
+/* --- Relances -------------------------------------------------------------
+   Ce que le produit se rappelle à votre place. Placé avant la file, et distinct
+   d'elle : ce ne sont pas des éléments à trancher mais des silences à constater. */
+.relances {
+  margin-block: 0 1.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.relances__titre {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.relance + .relance {
+  margin-block-start: 0.85rem;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.relance__texte {
+  margin: 0;
+  font-weight: 600;
+  color: var(--encre);
+}
+
+.relance__motif {
+  margin: 0.2rem 0 0;
+  font-size: 0.86rem;
+  color: var(--encre-douce);
+}
+
+.relance__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block-start: 0.6rem;
+}
+
+.relance__actions .bouton {
+  min-height: var(--cible);
+}
+
+/* La réduction d'arriéré : un constat, jamais un compteur de retard. */
+.reduction {
+  margin-block: 0 1rem;
+  padding: 0.7rem 0.85rem;
+  border-inline-start: 3px solid var(--trait-fort);
+  border-radius: 0 var(--rayon) var(--rayon) 0;
+  background: var(--fond-creux);
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* --- Captures en souffrance ------------------------------------------------
+   Des dépôts dont il ne sortira rien tant que personne ne s'en occupe. Ils
+   passent avant tout le reste, et se distinguent par un liseré — pas par une
+   couleur d'alerte : il n'y a rien de grave, seulement quelque chose à reprendre. */
+.souffrance {
+  margin-block: 0 1.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--trait);
+  border-inline-start: 3px solid var(--encre-tres-douce);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.souffrance__titre {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.souffrance__explication {
+  margin: 0 0 0.85rem;
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+}
+
+.souffrance__ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.souffrance__ligne + .souffrance__ligne {
+  margin-block-start: 0.85rem;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.souffrance__quand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.souffrance__champ {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+}
+
+.souffrance__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Une capture en cours de transcription : une ligne d'état, rien à faire. */
+.transcription-en-cours {
+  margin-block: 0 1rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px dashed var(--trait);
+  border-radius: var(--rayon);
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+}
+
+/* --- Le coffre ------------------------------------------------------------
+   Un écran de verrou doit dire deux choses à la fois : ce qui est fermé, et ce
+   qui reste ouvert. La capture n'est jamais derrière lui, et c'est écrit dessus. */
+.ecran--verrou .verrou__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-block: 1.25rem;
+}
+
+.verrou__phrase {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.verrou__champ {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.verrou__message:empty {
+  display: none;
+}
+
+.verrou__message {
+  margin-block: 0.75rem;
+  color: var(--signal);
+  font-size: 0.9rem;
+}
+
+.verrou__message[data-ton='neutre'] {
+  color: var(--encre-douce);
+}
+
+.verrou__capture {
+  margin-block: 1.5rem 0.75rem;
+  padding-block-start: 1rem;
+  border-block-start: 1px solid var(--trait);
+  color: var(--encre-douce);
+  font-size: 0.9rem;
+}
+
+.journal__ligne[data-etat='verrouille'] .journal__texte {
+  color: var(--encre-tres-douce);
+  font-style: italic;
+}
+
+/* --- Rappels --------------------------------------------------------------
+   L'unique notification d'un point de rupture. Au-dessus des écrans, jamais
+   dedans, et refermable d'un geste : c'est une information qui passe, pas une
+   surface de plus à traverser. */
+.rappels {
+  margin: 0.75rem 1rem 0;
+  padding: 0.85rem;
+  border: 1px solid var(--trait);
+  border-inline-start: 3px solid var(--signal);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.rappels__titre {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.rappels__liste {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.rappels__ligne + .rappels__ligne {
+  padding-block-start: 0.6rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.rappels__texte {
+  margin: 0;
+  color: var(--encre);
+  font-size: 0.95rem;
+}
+
+.rappels__signal,
+.rappels__retard {
+  margin: 0.2rem 0 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.rappels__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.85rem;
+}
+
+/* --- Escalades ------------------------------------------------------------
+   Un rappel écarté trois fois. Ce n'est plus le moment qui cloche, c'est le
+   plan — d'où trois sorties, et pas un quatrième rappel. */
+.escalades {
+  margin-block: 0 1.25rem;
+  padding: 0.85rem;
+  border: 1px solid var(--trait);
+  border-inline-start: 3px solid var(--encre-tres-douce);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.escalades__titre {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.escalades__explication {
+  margin: 0 0 0.85rem;
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+}
+
+.escalades__ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.escalades__ligne + .escalades__ligne {
+  margin-block-start: 0.85rem;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.escalades__texte {
+  margin: 0;
+  color: var(--encre);
+  font-size: 0.95rem;
+}
+
+.escalades__motif {
+  margin: 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.escalades__champ {
+  width: 100%;
+}
+
+.escalades__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* La bascule entre la transcription lisible et ce qui a été dit. Discrète : on la
+   cherche quand on doute, on ne la voit pas quand on ne doute pas. */
+.source__transcription {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.source__bascule {
+  padding-block: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.source__texte[data-version='brute'] {
+  color: var(--encre-douce);
+  font-style: italic;
+}
+
+/* Un passage que le moteur a mal entendu. Souligné, pas barré : il est peut-être
+   juste, et le barrer suggérerait qu'il est faux. */
+.source__incertain {
+  background: none;
+  color: inherit;
+  text-decoration: underline wavy var(--accent-doute, #b8860b);
+  text-underline-offset: 0.2em;
+}
+
+.source__doute {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.8rem;
+}
+
+/* Corriger une transcription. Replié par défaut : proposer une zone de texte sous
+   chaque note suggérerait qu'il y a quelque chose à réparer alors qu'il n'y a rien. */
+.correction__bloc {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.correction__ouvrir {
+  padding-block: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.correction {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.correction__zone {
+  width: 100%;
+  resize: vertical;
+}
+
+.correction__note {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.78rem;
+}
+
+/* Un horizon, pas une date. Il ne doit pas ressembler à une échéance : ni chiffres,
+   ni couleur d'urgence — seulement un ordre de grandeur, dit en toutes lettres. */
+.badge--horizon {
+  border: 1px dashed var(--trait);
+  background: none;
+  color: var(--encre-douce);
+  font-style: italic;
+}
+
+/* Le choix de sphère. Un filtre d'affichage, jamais un rangement : rien n'est
+   déplacé, et ce qui est mis de côté est compté pour qu'on ne le croie pas perdu. */
+.spheres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-block-end: 0.85rem;
+}
+
+.spheres__choix {
+  padding-block: 0.25rem;
+  font-size: 0.82rem;
+}
+
+.spheres__choix--actif {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 650;
+}
+
+.spheres__masques {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.78rem;
+}
+
+/* La question posée quand deux personnes portent le même prénom. Elle n'empêche pas
+   de décider : une question qui bloque coûte plus cher que l'ambiguïté qu'elle lève. */
+.reference {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px dashed var(--trait);
+  border-radius: var(--rayon);
+}
+
+.reference__question {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.reference__candidat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.reference__appui {
+  color: var(--encre-douce);
+  font-size: 0.78rem;
+}
+
+/* Le renvoi à un échange passé. Proposé, jamais posé d'office : rattacher à la
+   mauvaise conversation fabrique un souvenir faux, que plus rien ne corrige. */
+.renvoi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.7rem;
+  border-inline-start: 2px solid var(--trait);
+}
+
+.renvoi__question {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--encre-douce);
+}
+
+.renvoi__piste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.renvoi__pourquoi {
+  color: var(--encre-tres-douce);
+  font-size: 0.75rem;
+}
+
+.renvoi--pose {
+  margin: 0;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--encre-douce);
+}
+
+/* Ce qui n'avance plus. Présenté comme un constat : le reproposer à l'identique
+   n'apprendrait rien, et le reprocher encore moins. */
+.arevoir {
+  margin-block-end: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+  box-shadow: var(--ombre);
+}
+
+.arevoir__titre {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.arevoir__explication {
+  margin: 0 0 0.85rem;
+  color: var(--encre-douce);
+  font-size: 0.88rem;
+}
+
+.arevoir__ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.arevoir__ligne + .arevoir__ligne {
+  margin-block-start: 0.85rem;
+  padding-block-start: 0.85rem;
+  border-block-start: 1px solid var(--trait);
+}
+
+.arevoir__texte {
+  margin: 0;
+  color: var(--encre);
+  font-size: 0.95rem;
+}
+
+.arevoir__motif {
+  margin: 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.arevoir__champ {
+  width: 100%;
+}
+
+.arevoir__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Le créneau protégé : ce qui compte, et qui n'a pas de date. Distinct des trois
+   propositions, parce qu'il ne répond pas à la même question. */
+.creneau {
+  margin-block-end: 1rem;
+  padding: 0.9rem 1rem;
+  border: 2px solid var(--accent);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+}
+
+.creneau__titre {
+  margin: 0 0 0.3rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--accent);
+}
+
+.creneau__explication {
+  margin: 0 0 0.7rem;
+  color: var(--encre-douce);
+  font-size: 0.82rem;
+}
+
+.creneau__texte {
+  margin: 0 0 0.8rem;
+  font-size: 1rem;
+  color: var(--encre);
+}
+
+.creneau__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Le constat quand le créneau passe sans être pris. Jamais un reproche. */
+.signal-creneau {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-block-end: 0.85rem;
+  color: var(--encre-douce);
+  font-size: 0.85rem;
+}
+
+/* L'import d'un compte rendu. Replié comme la capture écrite : ce n'est pas le
+   chemin ordinaire, et l'écran de capture doit rester un bouton. */
+.zone-import {
+  width: 100%;
+  min-height: 7rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  background: var(--fond-champ, var(--fond-carte));
+  color: var(--encre);
+  font: inherit;
+  resize: vertical;
+}
+
+.bloc-import {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-block-start: 0.6rem;
+}
+
+.import__retour {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.82rem;
+}
+
+/* Le voyant d'enregistrement. Dans la coquille, pas dans l'écran : un enregistrement
+   continue quand on change d'écran, et un voyant qui disparaît avec l'écran
+   laisserait le micro tourner sans que rien ne le dise. */
+.voyant-enregistrement {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 0.35rem 0.8rem;
+  background: #b3261e;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+.voyant-enregistrement::before {
+  content: '●';
+  margin-inline-end: 0.4rem;
+}
+
+.bouton--enregistre {
+  border-color: #b3261e;
+  color: #b3261e;
+  font-weight: 650;
+}
+
+/* Le rappel du passé. Discret, sans action, et il s'efface seul : une suggestion
+   qu'il faut fermer est une interruption, quel que soit son contenu. */
+.passe {
+  margin: 0.4rem 0 0;
+  padding: 0.4rem 0.6rem;
+  border-inline-start: 2px solid var(--trait);
+  color: var(--encre-douce);
+  font-size: 0.8rem;
+}
+
+/* Les fiches. Rien ne s'y renseigne : une fiche qu'il faut tenir n'est jamais
+   tenue, et c'est exactement pour cela qu'on ne les lit plus. */
+.fiche {
+  margin-block-end: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+}
+
+.fiche__nom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+
+.fiche__mentions {
+  color: var(--encre-tres-douce);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.fiche__titre {
+  margin: 0.7rem 0 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--encre-douce);
+}
+
+.fiche__liste,
+.fiche__echanges {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fiche__ligne {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding-block: 0.25rem;
+}
+
+.fiche__texte {
+  font-size: 0.9rem;
+}
+
+.fiche__rien {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.85rem;
+}
+
+.fiche__echange {
+  display: flex;
+  gap: 0.5rem;
+  padding-block: 0.2rem;
+  color: var(--encre-douce);
+  font-size: 0.82rem;
+}
+
+.fiche__quand {
+  flex: 0 0 auto;
+  color: var(--encre-tres-douce);
+}
+
+/* La bande d'annulation. Elle s'efface seule à la fermeture de la fenêtre : un
+   bouton « Annuler » qui ne fonctionne plus est pire que pas de bouton du tout. */
+.annulation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-block-end: 0.85rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  font-size: 0.85rem;
+}
+
+/* Une capture gardée sur l'appareil, analyse comprise. */
+.source__local {
+  padding: 0.05rem 0.45rem;
+  border-radius: var(--rayon);
+  background: var(--calme-doux);
+  color: var(--calme);
+}
+
+.source__transmission {
+  align-self: flex-start;
+}
+
+.source__transmission[aria-pressed='true']::before {
+  content: '✓ ';
+}
+
+/* L'analyse distante n'a pas répondu : un fait, pas une erreur. */
+.avis-repli {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--rayon);
+  background: var(--fond-creux);
+  color: var(--encre-douce);
+  font-size: 0.85rem;
+}
