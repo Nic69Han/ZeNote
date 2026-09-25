@@ -1805,6 +1805,20 @@ try {
   const minuteriesVivantes = await page.evaluate(
     () => document.querySelectorAll('.ecran').length,
   );
+  // Le badge que l'hébergeur injecte dans les pages publiées recouvrait un bouton
+  // sur téléphone. Le serveur de vérification ne l'injecte pas : on pose son cadre
+  // tel que le script de l'hébergeur le crée, et l'on vérifie qu'il reste caché.
+  const badgeVisible = await page.evaluate(() => {
+    const cadre = document.createElement('iframe');
+    cadre.id = 'nl-badge-frame';
+    cadre.style.cssText = 'position:fixed;bottom:0;right:0;border:0;z-index:2147483645;';
+    document.body.append(cadre);
+    const visible = getComputedStyle(cadre).display !== 'none';
+    cadre.remove();
+    return visible;
+  });
+  verifier('le badge de l’hébergeur ne recouvre pas l’application', !badgeVisible);
+
   verifier(
     'aucune donnée ne quitte l’appareil pendant tout le parcours',
     sorties.length === 0,
