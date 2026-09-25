@@ -28,4 +28,4 @@ Les groupes suivent le Migration Plan de `design.md`. Le groupe 1 touche le cœu
 ## 4. Promesse et clôture
 
 - [x] 4.1 Faire couvrir par la vérification réseau stricte du bout-en-bout tout le parcours avec agenda ; vérifier « Aucune sortie réseau » et « Sans agenda » (le parcours existant reste vert sans import) — *la dernière vérification réseau du parcours couvre toute la section agenda ; le parcours sans import reste vert (118/118)*
-- [ ] 4.2 Cocher dans `zenote-core/tasks.md` 5.4 (volet temps, écart « appareil » écrit), 5.5, 6.1 et 6.2, et noter 5.14 pour son seul volet dégradé, en renvoyant aux tests de cette change ; mettre à jour les lignes concernées de `zenote-core/verification.md` ; vérifier par `openspec validate zenote-core` et `openspec validate agenda-local --strict`
+- [x] 4.2 Cocher dans `zenote-core/tasks.md` 5.4 (volet temps, écart « appareil » écrit), 5.5, 6.1 et 6.2, et noter 5.14 pour son seul volet dégradé, en renvoyant aux tests de cette change ; mettre à jour les lignes concernées de `zenote-core/verification.md` ; vérifier par `openspec validate zenote-core` et `openspec validate agenda-local --strict`

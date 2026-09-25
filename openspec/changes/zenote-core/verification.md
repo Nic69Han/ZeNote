@@ -21,8 +21,9 @@ code depuis ici :
 
 - **surfaces natives** — Android et Windows ne sont pas construits ; la surface
   livrée est l'application web installable ;
-- **agenda** — aucune lecture d'agenda n'est branchée, donc aucun signal de réunion,
-  de créneau ou de charge de journée ;
+- **agenda** — levée depuis par la change `agenda-local` : un agenda `.ics` s'importe
+  et se lit sur l'appareil. Restent hors de portée d'une page web l'appareil courant
+  et la répétition avant chaque occurrence (voir les lignes « partiel ») ;
 - **analyse distante** — il n'y a pas de serveur ZeNote, donc ni transmission, ni
   interrupteur de transmission, ni synchronisation entre appareils.
 
@@ -99,7 +100,7 @@ code depuis ici :
 | Filtrage à la restitution | tenu | `spheres.test.ts` et `bout-en-bout` : rien n'est déplacé ni dupliqué. |
 | Fusion de doublons | partiel | `MemoireTest` couvre fusion, renommage, séparation et annulation dans le cœur. Aucun écran ne les propose. |
 
-## priorisation — 12 scénarios · 9 tenus, 3 non tenus
+## priorisation — 12 scénarios · 11 tenus, 1 partiel
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
@@ -109,25 +110,25 @@ code depuis ici :
 | Justification lisible | tenu | `bout-en-bout` : chaque proposition dit la conséquence retenue. |
 | Créneau tenu | tenu | `CreneauProtegeTest`, `creneau.test.ts`, `bout-en-bout`. |
 | Renoncement explicite | tenu | `bout-en-bout` : compté sans un mot de reproche. |
-| Créneau court | non tenu | Demande l'agenda (tâche 5.4). |
-| Contexte inadapté | non tenu | Demande l'agenda et l'appareil courant (tâche 5.4). |
-| Journée dense | non tenu | Demande la charge observée dans l'agenda (tâche 5.5). |
+| Créneau court | tenu | Change `agenda-local` : `AgendaMaintenantTest`, `regles-agenda.test.ts`, `bout-en-bout` sous horloge figée. |
+| Contexte inadapté | partiel | Le volet durée est tenu (`AgendaMaintenantTest` : un élément trop long ou de durée inconnue n'est pas proposé, et revient ensuite). Le volet appareil ne l'est pas : aucun élément ne dit de quel appareil il a besoin, et le deviner d'un mot serait inventer. |
+| Journée dense | tenu | Change `agenda-local` : `AgendaMaintenantTest`, `bout-en-bout`. |
 | Élément écarté | tenu | `arevoir.test.ts`, `bout-en-bout`. |
 | Rejets répétés | tenu | `ARevoirTest`, `bout-en-bout` : le compte survit au rechargement. |
 | Tâche dormante | tenu | `ARevoirTest` : seuil selon le poids. |
 
-## rappels — 11 scénarios · 5 tenus, 2 partiels, 4 non tenus
+## rappels — 11 scénarios · 8 tenus, 3 partiels
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
-| Rappel lié à une personne | non tenu | Demande l'agenda pour savoir que la réunion commence. |
+| Rappel lié à une personne | tenu | Change `agenda-local` : `SignauxAgendaTest` (homonymes compris), `RappelsAgendaTest`, `bout-en-bout`. |
 | Déclencheur de lieu ramené à un déclencheur disponible | tenu | `EcheancierTest`, `bout-en-bout` : le rappel dit à quel signal il était accroché et pourquoi il arrive autrement. |
-| Rappel lié à un événement récurrent | non tenu | Agenda. |
+| Rappel lié à un événement récurrent | partiel | `SignauxAgendaTest` : la prochaine occurrence après la pose du plan, jour de la semaine compris. Ensuite, le rappel reste dû à chaque point de rupture jusqu'à être traité ou escaladé, au lieu de revenir avant chaque occurrence. |
 | Signal préféré à l'heure | tenu | `EcheancierTest`. |
-| Report à la fin de la réunion | non tenu | Agenda. |
+| Report à la fin de la réunion | tenu | Change `agenda-local` : `RappelsAgendaTest`, `bout-en-bout` (retenu pendant, livré en retard après). |
 | Rappel critique immédiat | partiel | `FileOpportunite` traite le critique dans le cœur, et `RappelsTest` le couvre. La surface ne marque aucun rappel comme critique : rien ne court-circuite donc la file en pratique. |
 | Plusieurs rappels simultanés | tenu | `RappelsTest`, `bout-en-bout` : une bande unique, groupée. |
-| Briefing avant réunion | non tenu | Agenda. |
+| Briefing avant réunion | tenu | Change `agenda-local` : `MomentsReunionTest` ; le bandeau « avant » de Maintenant le présente, chaque ligne renvoyant à sa capture. |
 | Aucun élément à rappeler | tenu | `rappels.test.ts`. |
 | Rappel ignoré trois fois | tenu | `bout-en-bout` : escalade en Revue avec ses trois sorties. |
 | Plage de silence respectée | partiel | Le cœur retient les rappels non critiques pendant une plage de silence (`RappelsTest`). La surface n'en déclare aucune : aucune plage n'est donc appliquée. |
@@ -161,14 +162,14 @@ code depuis ici :
 | Élément passé pertinent proposé | tenu | `passe.test.ts`, `bout-en-bout`. |
 | Suggestion ignorable | tenu | `bout-en-bout` : rien à fermer, et la capture n'a pas attendu. |
 
-## reunions — 9 scénarios · 5 tenus, 4 non tenus
+## reunions — 9 scénarios · 9 tenus
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
-| Dépose proposée | non tenu | Demande de savoir qu'une réunion commence : agenda (tâche 6.1). |
-| Reprise après réunion | non tenu | Agenda (tâche 6.1). |
-| Capture post-réunion contextualisée | non tenu | Agenda (tâche 6.2). |
-| Proposition non intrusive | non tenu | Agenda (tâche 6.2). |
+| Dépose proposée | tenu | Change `agenda-local` : `MomentsReunionTest`, `bout-en-bout`. |
+| Reprise après réunion | tenu | Change `agenda-local` : `MomentsReunionTest`, `bout-en-bout`. |
+| Capture post-réunion contextualisée | tenu | Change `agenda-local` : `MomentsReunionTest`, `agenda-rattachement.test.ts`, `bout-en-bout`. |
+| Proposition non intrusive | tenu | Change `agenda-local` : `MomentsReunionTest`, `bout-en-bout`. |
 | Compte rendu importé | tenu | `reunion.test.ts`, `bout-en-bout` : engagements d'un côté, attentes de l'autre. |
 | Aucun élément inventé | tenu | `reunion.test.ts` : l'ancrage écarte ce qui ne se rattache pas. |
 | Engagement extrait à confirmer | tenu | `bout-en-bout` : marqué « à confirmer », aucun rappel possible avant. |
@@ -196,7 +197,7 @@ code depuis ici :
 
 | | Tenus | Partiels | Non tenus |
 | --- | --- | --- | --- |
-| **112 scénarios** | **88** | **7** | **17** |
+| **112 scénarios** | **97** | **9** | **6** |
 
 ## Ce que ce tableau dit, et ce qu'il ne dit pas
 
