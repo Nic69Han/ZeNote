@@ -31,13 +31,21 @@ export const NOM_BASE = 'zenote';
  * dossiers : les laisser en clair — même comme simples clés d'un magasin — ouvrirait
  * dans la base le trou que le chiffrement ferme partout ailleurs.
  */
-export const VERSION_BASE = 3;
+/**
+ * Version 4 : l'agenda importé (change `agenda-local`).
+ *
+ * Une ligne par occurrence, indexée par son début en heure locale. Le titre, le lieu
+ * et les participants sont scellés quand le coffre existe. La montée depuis la
+ * version 3 ne fait qu'ajouter ce magasin.
+ */
+export const VERSION_BASE = 4;
 
 export const MAGASIN_CAPTURES = 'captures';
 export const MAGASIN_ELEMENTS = 'elements';
 export const MAGASIN_REGLAGES = 'reglages';
 export const MAGASIN_MORCEAUX = 'morceaux';
 export const MAGASIN_LEXIQUE = 'lexique';
+export const MAGASIN_EVENEMENTS = 'evenements';
 
 let ouverture: Promise<IDBDatabase> | null = null;
 
@@ -64,6 +72,10 @@ export function ouvrir(): Promise<IDBDatabase> {
         if (!base.objectStoreNames.contains(MAGASIN_LEXIQUE)) {
           // Une seule ligne, dont la valeur est scellée : voir [VERSION_BASE].
           base.createObjectStore(MAGASIN_LEXIQUE, { keyPath: 'id' });
+        }
+        if (!base.objectStoreNames.contains(MAGASIN_EVENEMENTS)) {
+          const evenements = base.createObjectStore(MAGASIN_EVENEMENTS, { keyPath: 'id' });
+          evenements.createIndex('debut', 'debut');
         }
         if (!base.objectStoreNames.contains(MAGASIN_MORCEAUX)) {
           const morceaux = base.createObjectStore(MAGASIN_MORCEAUX, { keyPath: 'id' });

@@ -41,6 +41,7 @@ import {
 import {
   MAGASIN_CAPTURES,
   MAGASIN_ELEMENTS,
+  MAGASIN_EVENEMENTS,
   MAGASIN_LEXIQUE,
   MAGASIN_MORCEAUX,
   MAGASIN_REGLAGES,
@@ -800,14 +801,15 @@ export async function ecrireReglage<C extends keyof Reglages>(
 /** Efface toutes les données locales. Utilisé par les tests et par l'export/purge. */
 export async function toutEffacer(): Promise<void> {
   await transaction(
-    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES, MAGASIN_MORCEAUX, MAGASIN_LEXIQUE],
+    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES, MAGASIN_MORCEAUX, MAGASIN_LEXIQUE, MAGASIN_EVENEMENTS],
     'readwrite',
-    ([captures, elements, reglages, morceaux, lexique]) => {
+    ([captures, elements, reglages, morceaux, lexique, evenements]) => {
       captures.clear();
       elements.clear();
       reglages.clear();
       morceaux.clear();
       lexique.clear();
+      evenements.clear();
     },
   );
 }

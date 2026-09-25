@@ -106,6 +106,59 @@ export function typerPassageAvecConfiance(passage: string): {
   return { type: 'INFORMATION', confiance: CONFIANCE_DEFAUT };
 }
 
+/** Des verbes qui disent un geste de quelques minutes. */
+const RACINES_COURTES = ['envoy', 'envoi', 'repond', 'confirm', 'valid', 'transmet', 'reserv', 'appel', 'rappel', 'relanc'];
+/** Des verbes qui disent une heure ou plus de travail. */
+const RACINES_LONGUES = ['prepar', 'redig', 'analys', 'concev', 'concoi', 'relir', 'relis', 'ecrir', 'ecriv'];
+
+const NOMBRES: Record<string, number> = {
+  un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, dix: 10, quinze: 15, vingt: 20, trente: 30,
+  quarante: 40, cinquante: 50,
+};
+
+/** Confiance d'une durée dite en toutes lettres : elle a été énoncée, pas devinée. */
+const CONFIANCE_DUREE_DITE = 0.9;
+/** Confiance d'une durée déduite du verbe : un ordre de grandeur, suffisant pour trier. */
+const CONFIANCE_DUREE_VERBE = 0.8;
+
+/**
+ * Le temps qu'un passage demande, en trois paliers, avec l'indice qui le fonde.
+ *
+ * Change `agenda-local`, décision 4. Une durée dite (« dix minutes », « deux heures »)
+ * prime ; sinon le verbe, le plus long l'emportant quand il y en a deux ; sinon rien —
+ * une durée inconnue retire seulement l'élément des créneaux courts, alors qu'une
+ * durée devinée l'y mettrait à tort.
+ */
+export function estimerDuree(passage: string): {
+  duree: NonNullable<ElementJson['duree']>;
+  confiance: number;
+  indice: string;
+} | null {
+  const t = normaliser(passage);
+  // « à 15 heures », « vers 10 h » disent un moment, pas une durée : ils sont exclus,
+  // comme le « h » seul, qui sert surtout à l'heure du rendez-vous.
+  const dite =
+    /(?<!\b(?:a|vers|avant|apres|des|jusqu'a|jusqu’a)\s)\b(\d+|un|une|deux|trois|quatre|cinq|dix|quinze|vingt|trente|quarante|cinquante)\s*(minutes?|min|heures?)\b/.exec(
+      t,
+    );
+  if (dite) {
+    const nombre = /^\d+$/.test(dite[1]) ? Number(dite[1]) : NOMBRES[dite[1]];
+    const minutes = dite[2].startsWith('heure') ? nombre * 60 : nombre;
+    const duree = minutes <= 10 ? 'COURTE' : minutes <= 30 ? 'MOYENNE' : 'LONGUE';
+    return { duree, confiance: CONFIANCE_DUREE_DITE, indice: `« ${dite[0]} »` };
+  }
+
+  // Le mot d'origine est gardé pour l'indice : « répondre », pas « repondre ».
+  const mots = passage.split(/[^\p{L}'’-]+/u).filter(Boolean);
+  const trouve = (racines: string[]) =>
+    mots.find((mot) => racines.some((r) => normaliser(mot).startsWith(r)));
+  const long = trouve(RACINES_LONGUES);
+  if (long) return { duree: 'LONGUE', confiance: CONFIANCE_DUREE_VERBE, indice: `« ${long.toLowerCase()} »` };
+  const court = trouve(RACINES_COURTES);
+  if (court) return { duree: 'COURTE', confiance: CONFIANCE_DUREE_VERBE, indice: `« ${court.toLowerCase()} »` };
+  return null;
+}
+
 /** Le poids, avec l'indice qui le justifie — jamais un poids sans raison affichable. */
 export function evaluerPoids(passage: string): {
   poids: ElementJson['poids'];
@@ -196,6 +249,8 @@ function elementDe(
   const { type, confiance: typeConfiance } = typerPassageAvecConfiance(passage.texte);
   const echeance = repererEcheance(passage.texte, aujourdhui);
   const poids = evaluerPoids(passage.texte);
+  // Seul ce qui se fait a une durée : une information ou une idée n'occupe aucun créneau.
+  const duree = type === 'TACHE' || type === 'ENGAGEMENT' ? estimerDuree(passage.texte) : null;
   const interlocuteur = repererInterlocuteur(passage.texte);
 
   // Position temporelle approchée dans l'audio, au prorata du texte : c'est une
@@ -219,6 +274,9 @@ function elementDe(
     poids: poids.poids,
     poidsConfiance: poids.confiance,
     poidsIndice: poids.indice,
+    duree: duree?.duree ?? null,
+    dureeConfiance: duree?.confiance ?? null,
+    dureeIndice: duree?.indice ?? null,
     interlocuteur: interlocuteur?.nom ?? null,
     interlocuteurConfiance: interlocuteur?.confiance ?? null,
     sphere: repererSphere(passage.texte),

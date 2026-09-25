@@ -34,6 +34,7 @@ import {
   majCapture,
   reecrireLexique,
 } from '../stockage/depot.ts';
+import { reecrireAgenda } from '../stockage/agenda.ts';
 
 /** Ce qu'une reprise a réellement touché. */
 export interface Reprise {
@@ -67,6 +68,9 @@ async function reecrireTout(): Promise<Reprise> {
   // Le lexique aussi : il porte des noms de personnes et de dossiers, et le laisser
   // en clair rouvrirait dans la base le trou que tout le reste ferme.
   await reecrireLexique();
+
+  // L'agenda porte des noms et des lieux : il suit le même chemin (change `agenda-local`).
+  await reecrireAgenda();
 
   return { captures, elements: elements.length };
 }
@@ -108,6 +112,8 @@ export async function desactiverChiffrement(): Promise<Reprise> {
 
   const elements = await listerElements();
   for (const element of elements) await ecrireElementEnClair(element);
+  // En clair avant de supprimer le coffre : après, il ne s'ouvrirait plus.
+  await reecrireAgenda(true);
 
   await supprimerCoffre();
   return { captures, elements: elements.length };
