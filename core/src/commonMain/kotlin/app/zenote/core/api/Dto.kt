@@ -152,6 +152,56 @@ data class MaintenantJson(
     val creneauProtegeSuspendu: Boolean = false,
 )
 
+/**
+ * Une capture déjà rattachée à une réunion, telle que la surface la connaît.
+ *
+ * @param depose `true` pour une dépose faite juste avant la réunion.
+ * @param creeLe en heure locale `AAAA-MM-JJTHH:MM`.
+ */
+@Serializable
+data class RattacheJson(
+    val captureId: String,
+    val evenementId: String,
+    val depose: Boolean = false,
+    val texte: String = "",
+    val creeLe: String,
+)
+
+/** Ce qui est ouvert et décidé avec les participants d'une réunion. */
+@Serializable
+data class BriefingJson(
+    val ouverts: List<LigneFicheJson> = emptyList(),
+    val decide: List<LigneFicheJson> = emptyList(),
+)
+
+/**
+ * Un moment de réunion à proposer : `AVANT` (briefing, dépose) ou `APRES` (reprise de
+ * la dépose, vidage). Change `agenda-local`, décision 7.
+ */
+@Serializable
+data class MomentReunionJson(
+    /** AVANT ou APRES. */
+    val type: String,
+    val evenementId: String,
+    val titre: String,
+    /** Heure locale `AAAA-MM-JJTHH:MM`. */
+    val debut: String,
+    val fin: String,
+    val participants: List<String> = emptyList(),
+    /** Pour APRES : les titres des réunions enchaînées avant celle-ci. */
+    val precedentes: List<String> = emptyList(),
+    /** Minutes avant le début (AVANT) ou depuis la fin (APRES). */
+    val minutes: Int,
+    val proposerDepose: Boolean = false,
+    val briefing: BriefingJson? = null,
+    /** Pour APRES : la dépose faite avant, rendue telle quelle. */
+    val depose: RattacheJson? = null,
+    val proposerVidage: Boolean = false,
+)
+
+@Serializable
+data class MomentsJson(val moments: List<MomentReunionJson> = emptyList())
+
 @Serializable
 data class EntreeRevueJson(
     val element: ElementJson,
@@ -239,6 +289,17 @@ data class RappelsDuMomentJson(
     val titre: String = "",
     val rappels: List<RappelLivreJson> = emptyList(),
     val escalades: List<EscaladeJson> = emptyList(),
+    /**
+     * Le point de rupture qui livre : `REPRISE_APPAREIL`, ou `FIN_DE_REUNION` quand une
+     * réunion de l'agenda vient de se terminer. Vide quand rien n'est livré.
+     */
+    val point: String = "",
+    /**
+     * Le titre de la réunion en cours, quand l'agenda en connaît une : les rappels non
+     * critiques attendent alors sa fin, et [retenus] dit combien.
+     */
+    val reunionEnCours: String? = null,
+    val retenus: Int = 0,
 )
 
 @Serializable

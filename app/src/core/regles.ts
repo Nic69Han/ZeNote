@@ -35,6 +35,15 @@ export interface ElementJson {
   interlocuteur?: string | null;
   interlocuteurConfiance?: number | null;
   sphere?: 'PROFESSIONNEL' | 'PERSONNEL' | null;
+  /**
+   * Le temps que l'élément demande, en trois paliers, ou absent s'il est inconnu.
+   * Change `agenda-local` : c'est ce qui décide s'il tient avant la prochaine réunion.
+   */
+  duree?: Duree | null;
+  /** Confiance de la durée, de 0 à 1. 1 = fixée à la main. */
+  dureeConfiance?: number | null;
+  /** Ce qui a fait estimer cette durée, affichable tel quel. */
+  dureeIndice?: string | null;
   planDeclencheur?: string | null;
   planAction?: string | null;
   verdict: 'EN_ATTENTE' | 'ACCEPTE' | 'UN_JOUR' | 'REJETE';
@@ -91,6 +100,67 @@ export interface OrigineAnalyse {
  */
 /** L'ordre de grandeur d'une échéance qu'on n'a pas datée. */
 export type Horizon = 'JOURS' | 'SEMAINES' | 'MOIS';
+
+/** Environ 5, 20 ou 60 minutes : un ordre de grandeur, pas une promesse. */
+export type Duree = 'COURTE' | 'MOYENNE' | 'LONGUE';
+
+/**
+ * Un événement d'agenda tel que le cœur le lit : une occurrence déjà développée, en
+ * heure locale de l'appareil (`AAAA-MM-JJTHH:MM`). Change `agenda-local`.
+ */
+export interface EvenementJson {
+  id: string;
+  titre: string;
+  debut: string;
+  fin: string;
+  lieu?: string | null;
+  participants?: string[];
+  recurrent?: boolean;
+  journeeEntiere?: boolean;
+}
+
+/** La vue Maintenant selon l'agenda. */
+export interface MaintenantJson {
+  propositions: PropositionJson[];
+  /** La contrainte en vigueur, en une phrase, ou vide. */
+  raison: string;
+  /** Combien d'éléments ne tiennent pas : zéro proposition et des écartés, c'est « rien qui tienne ». */
+  ecartes: number;
+  minutesAvantReunion: number | null;
+  prochaineReunion: string | null;
+  creneauProtegeSuspendu: boolean;
+}
+
+/** Une capture déjà rattachée à une réunion. */
+export interface RattacheJson {
+  captureId: string;
+  evenementId: string;
+  depose?: boolean;
+  texte?: string;
+  /** Heure locale `AAAA-MM-JJTHH:MM`. */
+  creeLe: string;
+}
+
+export interface BriefingJson {
+  ouverts: LigneFicheJson[];
+  decide: LigneFicheJson[];
+}
+
+/** Un moment de réunion à proposer : avant (briefing, dépose) ou après (reprise, vidage). */
+export interface MomentReunionJson {
+  type: 'AVANT' | 'APRES';
+  evenementId: string;
+  titre: string;
+  debut: string;
+  fin: string;
+  participants: string[];
+  precedentes: string[];
+  minutes: number;
+  proposerDepose: boolean;
+  briefing: BriefingJson | null;
+  depose: RattacheJson | null;
+  proposerVidage: boolean;
+}
 
 /** Ce que la surface a retenu d'un élément entre deux Revues. */
 export interface SuiviElementJson {
@@ -292,6 +362,12 @@ export interface RappelsDuMomentJson {
   titre: string;
   rappels: RappelLivreJson[];
   escalades: EscaladeJson[];
+  /** `REPRISE_APPAREIL` ou `FIN_DE_REUNION` ; vide quand rien n'est livré. */
+  point?: string;
+  /** La réunion en cours : les rappels non critiques attendent sa fin. */
+  reunionEnCours?: string | null;
+  /** Combien de rappels attendent la fin de cette réunion. */
+  retenus?: number;
 }
 
 /** Ce dont une réponse de recherche se réclame. Jamais un score. */
@@ -362,6 +438,20 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
     reseau: boolean,
   ): string;
   rappels(elementsJson: string, maintenant: string, suivisJson: string): string;
+  rappelsAvecAgenda(
+    elementsJson: string,
+    maintenant: string,
+    suivisJson: string,
+    evenementsJson: string,
+  ): string;
+  maintenantAvecContexte(elementsJson: string, contexteJson: string): string;
+  momentsDeReunion(
+    evenementsJson: string,
+    maintenant: string,
+    capturesJson: string,
+    elementsJson: string,
+    rattachesJson: string,
+  ): string;
   rechercherParPersonne(personne: string, elementsJson: string, reseau: boolean): string;
   aRevoir(elementsJson: string, suivisJson: string, aujourdhui: string): string;
   creneauProtege(elementsJson: string, aujourdhui: string): string;
@@ -376,7 +466,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '13';
+export const VERSION_CONTRAT_ATTENDUE = '14';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -538,10 +628,58 @@ export function rappelsObjets(
   elements: ElementJson[],
   maintenant: string,
   suivis: SuiviRappelJson[],
+  evenements: EvenementJson[] = [],
 ): RappelsDuMomentJson {
+  // Sans agenda, l'appel d'avant, à l'identique : la reprise de l'appareil reste le
+  // seul point de rupture, et les signaux d'agenda restent substitués en le disant.
+  const brut =
+    evenements.length === 0
+      ? rappels(JSON.stringify(elements), maintenant, JSON.stringify(suivis))
+      : Regles.rappelsAvecAgenda(
+          JSON.stringify(elements),
+          maintenant,
+          JSON.stringify(suivis),
+          JSON.stringify(evenements),
+        );
+  return JSON.parse(brut) as RappelsDuMomentJson;
+}
+
+/**
+ * La vue Maintenant selon le temps que l'agenda laisse. Sans événement, mêmes
+ * propositions que `maintenantObjets`.
+ *
+ * @param instant heure locale `AAAA-MM-JJTHH:MM`
+ */
+export function maintenantAvecContexteObjets(
+  elements: ElementJson[],
+  instant: string,
+  evenements: EvenementJson[],
+): MaintenantJson {
   return JSON.parse(
-    rappels(JSON.stringify(elements), maintenant, JSON.stringify(suivis)),
-  ) as RappelsDuMomentJson;
+    Regles.maintenantAvecContexte(JSON.stringify(elements), JSON.stringify({ maintenant: instant, evenements })),
+  ) as MaintenantJson;
+}
+
+/**
+ * Les moments de réunion à proposer, l'après d'abord puis l'avant.
+ *
+ * @param instant heure locale `AAAA-MM-JJTHH:MM`
+ */
+export function momentsDeReunion(
+  evenements: EvenementJson[],
+  instant: string,
+  captures: CaptureJson[],
+  elements: ElementJson[],
+  rattaches: RattacheJson[],
+): MomentReunionJson[] {
+  const brut = Regles.momentsDeReunion(
+    JSON.stringify(evenements),
+    instant,
+    JSON.stringify(captures),
+    JSON.stringify(elements),
+    JSON.stringify(rattaches),
+  );
+  return (JSON.parse(brut) as { moments: MomentReunionJson[] }).moments;
 }
 
 export function rechercherParPersonneObjets(

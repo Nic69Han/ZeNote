@@ -107,7 +107,7 @@ Le déclencheur reste une phrase, sans migration de `planDeclencheur`. La Revue 
 
 ### 7. Moments de réunion : une fonction du cœur, un bandeau de surface
 
-Nouvelle entrée de l'API : `momentsDeReunion(evenementsJson, maintenant, deposesJson)`. Elle rend au plus un moment :
+Nouvelle entrée de l'API : `momentsDeReunion(evenementsJson, maintenant, capturesJson, elementsJson, rattachesJson)`. Les captures et les éléments servent à reconstruire la mémoire du briefing ; les rattachés portent les dépôts et les captures déjà faites pour une réunion. Elle rend au plus un moment de chaque sorte, l'après d'abord :
 - `AVANT` : une réunion commence dans 10 minutes ou moins. Le moment porte le briefing (`Briefings.avant`, rendu en JSON avec les fiches) et, à 2 minutes ou moins, la proposition de dépose.
 - `APRES` : une réunion s'est terminée il y a 60 minutes ou moins, et aucune autre ne commence dans les 5 minutes. Le moment porte la dépose faite avant, s'il y en a une, et la proposition de vidage rattachée.
 - Si une réunion suit immédiatement, le moment `APRES` est reporté à la fin de l'enchaînement (spec, « Proposition non intrusive »).

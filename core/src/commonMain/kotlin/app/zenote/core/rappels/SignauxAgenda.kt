@@ -67,11 +67,11 @@ object SignauxAgenda {
         val candidats = evenements.filter { it.debut > apres }.sortedWith(compareBy({ it.debut }, { it.id }))
 
         PERSONNE.find(plie)?.let { m ->
-            val nom = extrait(declencheur, m.groups[1]!!.range)
+            val nom = finDe(declencheur, m.groupValues[1])
             return personne(nom, candidats, evenements)
         }
         EVENEMENT.find(plie)?.let { m ->
-            val titre = extrait(declencheur, m.groups[1]!!.range)
+            val titre = finDe(declencheur, m.groupValues[1])
             return evenement(titre, candidats)
         }
         return null
@@ -157,6 +157,10 @@ object SignauxAgenda {
     /** « le comité de direction » se dit « comité de direction » entre guillemets. */
     private fun sansArticle(titre: String): String = titre.replaceFirst(ARTICLE, "").ifBlank { titre }
 
-    private fun extrait(texte: String, plage: IntRange): String =
-        texte.substring(plage).trim().trimEnd('.', ',', ';', '!', '?').trim()
+    /**
+     * Le passage d'origine qui correspond à la fin pliée [plie] : les deux motifs
+     * s'ancrent en fin de texte, et le pliage garde la longueur.
+     */
+    private fun finDe(texte: String, plie: String): String =
+        texte.substring(texte.length - plie.length).trim().trimEnd('.', ',', ';', '!', '?').trim()
 }

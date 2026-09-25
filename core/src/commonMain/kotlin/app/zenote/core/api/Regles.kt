@@ -29,9 +29,11 @@ import app.zenote.core.rappels.Echeancier
 import app.zenote.core.rappels.EvenementConnu
 import app.zenote.core.rappels.FileOpportunite
 import app.zenote.core.rappels.Livraison
+import app.zenote.core.rappels.MomentsReunion
 import app.zenote.core.rappels.PointDeRupture
 import app.zenote.core.rappels.Rappel
 import app.zenote.core.rappels.RappelId
+import app.zenote.core.rappels.Rattache
 import app.zenote.core.recherche.RechercheLocale
 import app.zenote.core.revue.ARevoir
 import app.zenote.core.revue.Arriere
@@ -47,10 +49,12 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Les règles du produit, exposées aux surfaces par un contrat JSON.
@@ -239,7 +243,12 @@ object Regles {
      * @param suivisJson tableau de [SuiviRappelJson]
      * @return un [RappelsDuMomentJson]
      */
-    fun rappels(elementsJson: String, maintenant: String, suivisJson: String): String {
+    fun rappels(
+        elementsJson: String,
+        maintenant: String,
+        suivisJson: String,
+        evenementsJson: String = "[]",
+    ): String {
         val instant = LocalDateTime.parse(maintenant)
         // La file raisonne en `Instant` ; elle ne fait que comparer les siens entre
         // eux. Les lire tous dans le même fuseau suffit donc, et évite de faire entrer
@@ -249,6 +258,16 @@ object Regles {
         val suivis = json
             .decodeFromString(ListSerializer(SuiviRappelJson.serializer()), suivisJson)
             .associateBy { it.elementId }
+
+        // Change `agenda-local`, décision 6 : l'agenda rend observables la fin d'une
+        // réunion et les signaux « je vois X », « avant tel événement ». Sans lui, rien
+        // ne change ci-dessous.
+        val evenements = evenementsConnus(
+            json.decodeFromString(ListSerializer(EvenementJson.serializer()), evenementsJson),
+        )
+        val reunions = Disponibilites.reunions(evenements)
+        val reunionEnCours = reunions.firstOrNull { it.debut <= a && a < it.fin }
+        val finRecente = reunions.lastOrNull { it.fin <= a && a - it.fin < FENETRE_FIN_DE_REUNION }
 
         // Seuls les éléments acceptés qui portent un plan sont des rappels : le plan
         // est ce qui transforme une note en quelque chose qui doit revenir.
@@ -280,17 +299,23 @@ object Regles {
             val echeance = Echeancier.quand(
                 declencheur = element.plan!!.declencheur,
                 poseLe = LocalDateTime.parse(suivi.planPoseLe),
+                evenements = evenements,
             )
             if (!Echeancier.estArrive(echeance, instant)) continue
 
             when (echeance) {
                 is Echeance.Substituee -> substitutions[element.id.value] = echeance.explication
-                is Echeance.Observable -> if (echeance.quand < instant) retards += element.id.value
+                is Echeance.Observable -> if (echeance.enRetardApres < instant) retards += element.id.value
             }
             file.deposer(rappel, a)
         }
 
-        val notification = file.vider(PointDeRupture.REPRISE_APPAREIL, a)
+        // Pendant une réunion, rien de non critique n'est livré : ce qui est devenu
+        // actionnable attend sa fin, où son retard sera dit (spec `rappels` — « Report à
+        // la fin de la réunion »).
+        val point = if (finRecente != null) PointDeRupture.FIN_DE_REUNION else PointDeRupture.REPRISE_APPAREIL
+        val retenus = if (reunionEnCours != null) file.enAttente().size else 0
+        val notification = if (reunionEnCours != null) null else file.vider(point, a)
         val parId = candidats.associateBy { it.id.value }
 
         return json.encodeToString(
@@ -314,9 +339,15 @@ object Regles {
                         options = e.options.map { it.name },
                     )
                 },
+                point = notification?.point?.name ?: "",
+                reunionEnCours = reunionEnCours?.titre,
+                retenus = retenus,
             ),
         )
     }
+
+    /** Après la fin d'une réunion, ce temps durant lequel on est encore à sa sortie. */
+    private val FENETRE_FIN_DE_REUNION = 30.minutes
 
     /**
      * L'ancrage : ne garde que les éléments dont le passage se relit vraiment dans le
@@ -613,24 +644,7 @@ object Regles {
             .associateBy { it.id }
         val dtos = decoder(elementsJson)
         val resolus = dtos.map { it.versResolu() }
-
-        val memoire = Memoire()
-        for (dto in dtos.sortedBy { it.id }) {
-            val qui = dto.interlocuteur?.takeIf { it.isNotBlank() } ?: continue
-            val capture = captures[dto.captureId] ?: continue
-            val entite = memoire.observer(
-                type = TypeEntite.PERSONNE,
-                nom = qui,
-                mention = Mention(
-                    captureId = CaptureId(dto.captureId),
-                    a = Instant.parse(capture.creeLe),
-                    extrait = dto.texte,
-                    elementId = ElementId(dto.id),
-                ),
-                sphere = dto.sphere?.let { Sphere.valueOf(it) },
-            )
-            memoire.rattacher(ElementId(dto.id), entite.id)
-        }
+        val memoire = memoireDe(captures, dtos)
 
         val fiches = memoire.entites()
             .sortedWith(
@@ -656,6 +670,102 @@ object Regles {
             }
 
         return json.encodeToString(ListSerializer(FicheJson.serializer()), fiches)
+    }
+
+    /**
+     * La mémoire des personnes, reconstruite depuis les captures et les éléments. Rien
+     * n'est stocké : elle ne peut pas contredire les notes dont elle sort.
+     */
+    private fun memoireDe(captures: Map<String, CaptureJson>, dtos: List<ElementJson>): Memoire {
+        val memoire = Memoire()
+        for (dto in dtos.sortedBy { it.id }) {
+            val qui = dto.interlocuteur?.takeIf { it.isNotBlank() } ?: continue
+            val capture = captures[dto.captureId] ?: continue
+            val entite = memoire.observer(
+                type = TypeEntite.PERSONNE,
+                nom = qui,
+                mention = Mention(
+                    captureId = CaptureId(dto.captureId),
+                    a = Instant.parse(capture.creeLe),
+                    extrait = dto.texte,
+                    elementId = ElementId(dto.id),
+                ),
+                sphere = dto.sphere?.let { Sphere.valueOf(it) },
+            )
+            memoire.rattacher(ElementId(dto.id), entite.id)
+        }
+        return memoire
+    }
+
+    /**
+     * Les moments de réunion à proposer : après la dernière réunion finie (reprise de
+     * la dépose, vidage), avant la prochaine (briefing, dépose).
+     *
+     * Change `agenda-local`, décision 7 ; spec `agenda` — « Moments de réunion ».
+     *
+     * @param evenementsJson tableau d'[EvenementJson]
+     * @param maintenant heure locale `AAAA-MM-JJTHH:MM`
+     * @param capturesJson tableau de [CaptureJson], pour la mémoire du briefing
+     * @param elementsJson tableau d'[ElementJson]
+     * @param rattachesJson tableau de [RattacheJson] — dépôts et captures déjà
+     *   rattachés à une réunion
+     * @return un [MomentsJson]
+     */
+    fun momentsDeReunion(
+        evenementsJson: String,
+        maintenant: String,
+        capturesJson: String,
+        elementsJson: String,
+        rattachesJson: String,
+    ): String {
+        val a = LocalDateTime.parse(maintenant).toInstant(TimeZone.UTC)
+        val captures = json
+            .decodeFromString(ListSerializer(CaptureJson.serializer()), capturesJson)
+            .associateBy { it.id }
+        val dtos = decoder(elementsJson)
+        val rattaches = json
+            .decodeFromString(ListSerializer(RattacheJson.serializer()), rattachesJson)
+            .mapNotNull { r ->
+                runCatching {
+                    Rattache(r.captureId, r.evenementId, r.depose, r.texte, LocalDateTime.parse(r.creeLe).toInstant(TimeZone.UTC))
+                }.getOrNull()
+            }
+
+        val moments = MomentsReunion.a(
+            maintenant = a,
+            evenements = evenementsConnus(
+                json.decodeFromString(ListSerializer(EvenementJson.serializer()), evenementsJson),
+            ),
+            memoire = memoireDe(captures, dtos),
+            elements = dtos.map { it.versResolu() },
+            rattaches = rattaches,
+        ).map { m ->
+            MomentReunionJson(
+                type = m.type.name,
+                evenementId = m.evenement.id,
+                titre = m.evenement.titre,
+                debut = m.evenement.debut.toLocalDateTime(TimeZone.UTC).toString(),
+                fin = m.evenement.fin.toLocalDateTime(TimeZone.UTC).toString(),
+                participants = m.evenement.participants,
+                precedentes = m.precedentes.map { it.titre },
+                minutes = m.minutes,
+                proposerDepose = m.proposerDepose,
+                briefing = m.briefing?.let { b ->
+                    BriefingJson(ouverts = b.ouverts.map { versLigne(it) }, decide = b.decide.map { versLigne(it) })
+                },
+                depose = m.depose?.let { d ->
+                    RattacheJson(
+                        captureId = d.captureId,
+                        evenementId = d.evenementId,
+                        depose = true,
+                        texte = d.texte,
+                        creeLe = d.creeLe.toLocalDateTime(TimeZone.UTC).toString(),
+                    )
+                },
+                proposerVidage = m.proposerVidage,
+            )
+        }
+        return json.encodeToString(MomentsJson.serializer(), MomentsJson(moments))
     }
 
     private fun versLigne(ligne: app.zenote.core.memoire.LigneFiche): LigneFicheJson =
