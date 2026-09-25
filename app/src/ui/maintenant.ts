@@ -54,6 +54,8 @@ const LIBELLE_POIDS: Record<string, string> = {
 export async function montrerMaintenant(racine: HTMLElement): Promise<() => void> {
   /** Les lecteurs audio posés par le rendu courant, à libérer avant le suivant. */
   const lecteurs: Lecteur[] = [];
+  /** Vrai une fois l'écran quitté : un rendu tardif n'écrit plus rien (voir la Revue). */
+  let demonte = false;
 
   function libererLecteurs(): void {
     for (const lecteur of lecteurs) lecteur.demonter();
@@ -115,6 +117,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
         }),
     );
 
+    if (demonte) return;
     vider(racine);
     const section = el(
       'section',
@@ -151,6 +154,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
       section.append(liste);
     }
 
+    if (demonte) return;
     racine.append(section);
   }
 
@@ -521,6 +525,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
   document.addEventListener('visibilitychange', auRetour);
 
   return () => {
+    demonte = true;
     window.clearInterval(minuterie);
     document.removeEventListener('visibilitychange', auRetour);
     libererLecteurs();

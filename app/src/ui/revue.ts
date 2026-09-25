@@ -130,6 +130,12 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
    * quitter la Revue sans les libérer laisserait les enregistrements en mémoire.
    */
   const lecteurs: Lecteur[] = [];
+  /**
+   * Vrai une fois l'écran quitté. Un rendu se fait en plusieurs lectures : s'il se
+   * termine après qu'on a changé d'écran, il ne doit rien écrire — sans quoi la
+   * Revue recouvrait l'écran suivant.
+   */
+  let demonte = false;
 
   /** Libère tous les lecteurs posés jusqu'ici. Idempotent. */
   function libererLecteurs(): void {
@@ -309,6 +315,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const enTranscription = await capturesATranscrire();
     const moment = await rappelsDuPointDeRupture();
 
+    if (demonte) return;
     vider(racine);
     const section = el(
       'section',
@@ -406,6 +413,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
           }),
         ),
       );
+      if (demonte) return;
       racine.append(section);
       return;
     }
@@ -449,6 +457,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       );
     }
 
+    if (demonte) return;
     racine.append(section);
   }
 
@@ -1732,7 +1741,10 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
 
   await rendre();
 
-  return libererLecteurs;
+  return () => {
+    demonte = true;
+    libererLecteurs();
+  };
 }
 
 /** Ce qu'un groupe de Revue offre à ses éléments : sa source, et de quoi la réécouter. */
