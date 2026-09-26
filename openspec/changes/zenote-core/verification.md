@@ -176,20 +176,20 @@ code depuis ici :
 | Enregistrement explicite | tenu | `bout-en-bout` : voyant visible, y compris après changement d'écran. |
 | Aucun enregistrement implicite | tenu | `bout-en-bout` : aucun voyant au repos ; aucun chemin n'ouvre le micro sans geste. |
 
-## donnees — 10 scénarios · 6 tenus, 1 partiel, 3 non tenus
+## donnees — 10 scénarios · 8 tenus, 2 non tenus
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
 | Utilisation complète hors ligne | tenu | `bout-en-bout` : tout le parcours sans une requête sortante. |
 | Appareil perdu | tenu | `coffre.test.ts`, `bout-en-bout` : après chiffrement, pas un mot des notes dans la base. |
-| Capture marquée privée | non tenu | Il n'y a pas d'analyse distante, donc rien à en exclure (tâche 7.1). L'interrupteur serait un bouton qui ne commande rien. |
-| Sphère personnelle exclue | non tenu | Même cause. |
+| Capture marquée privée | tenu | Change `analyse-typesafe` : une capture marquée « Ne pas envoyer à l'analyse » ne part pas, reste consultable, et se dit « analysée sur l'appareil » (`analyse-distante.test.ts`, `pipeline.test.ts`, `bout-en-bout`). |
+| Sphère personnelle exclue | tenu | Change `analyse-typesafe` : une sphère exclue ne part jamais, et le doute se tranche vers l'appareil (`analyse-distante.test.ts` « tranche le doute », `pipeline.test.ts` « garde sur l'appareil une capture de sphère exclue »). |
 | Export complet | tenu | `export.test.ts` : tout sort, et ce qui ne sort pas est dit. |
 | Suppression d'une capture | tenu | `suppression.test.ts` : la capture, son audio et ses éléments partent, et rien d'autre. |
 | Fenêtre d'annulation | tenu | `suppression.test.ts` et `bout-en-bout` : trente secondes pour se raviser, et la bande disparaît avec la fenêtre. Fermer l'application la ferme aussi — limite assumée. |
 | Modification concurrente | non tenu | Demande la synchronisation entre appareils (tâche 3.8). |
 | Capture prioritaire | non tenu | Même cause : il n'y a pas de synchronisation pendant laquelle capturer. |
-| Service d'analyse indisponible | partiel | Le moteur de transcription indisponible est traité et dit (`pipeline.test.ts`, écran de Revue). Un service **distant** d'analyse n'existe pas, donc son indisponibilité n'est pas un cas réel. |
+| Service d'analyse indisponible | tenu | Changes `analyse-typesafe` et `comptes-utilisateurs` : hors ligne, délai dépassé, service sans clé, sans compte, quota atteint ou réponse invalide, la capture est analysée sur l'appareil, et le repli est dit une fois en Revue (`analyse-distante-client.test.ts`, `pipeline.test.ts`, `analyse-distante.test.ts` « avisRepli »). La transcription indisponible est traitée à part (`pipeline.test.ts`). |
 
 ---
 
@@ -197,7 +197,7 @@ code depuis ici :
 
 | | Tenus | Partiels | Non tenus |
 | --- | --- | --- | --- |
-| **112 scénarios** | **97** | **9** | **6** |
+| **112 scénarios** | **103** | **4** | **5** |
 
 ## Ce que ce tableau dit, et ce qu'il ne dit pas
 
