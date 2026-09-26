@@ -117,13 +117,13 @@ code depuis ici :
 | Rejets répétés | tenu | `ARevoirTest`, `bout-en-bout` : le compte survit au rechargement. |
 | Tâche dormante | tenu | `ARevoirTest` : seuil selon le poids. |
 
-## rappels — 11 scénarios · 10 tenus, 1 partiel
+## rappels — 11 scénarios · 11 tenus
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
 | Rappel lié à une personne | tenu | Change `agenda-local` : `SignauxAgendaTest` (homonymes compris), `RappelsAgendaTest`, `bout-en-bout`. |
 | Déclencheur de lieu ramené à un déclencheur disponible | tenu | `EcheancierTest`, `bout-en-bout` : le rappel dit à quel signal il était accroché et pourquoi il arrive autrement. |
-| Rappel lié à un événement récurrent | partiel | `SignauxAgendaTest` : la prochaine occurrence après la pose du plan, jour de la semaine compris. Ensuite, le rappel reste dû à chaque point de rupture jusqu'à être traité ou escaladé, au lieu de revenir avant chaque occurrence. |
+| Rappel lié à un événement récurrent | tenu | Change `rappels-recurrents` : dû avant chaque occurrence connue (de 5 min avant à 30 min après la fin), retenu pendant, rien entre deux ; « au prochain » vise une fois (`RappelsRecurrentsTest`, `regles-agenda.test.ts`). |
 | Signal préféré à l'heure | tenu | `EcheancierTest`. |
 | Report à la fin de la réunion | tenu | Change `agenda-local` : `RappelsAgendaTest`, `bout-en-bout` (retenu pendant, livré en retard après). |
 | Rappel critique immédiat | tenu | Change `rappels-silence-critique`. Marqué dans « Ajuster », ou poids fort échu : présenté sans attendre, réunion et plage de silence comprises (`RappelsSilenceCritiqueTest`, `silence-critique.test.ts`, bout-en-bout « Critique pendant la plage de silence »). |

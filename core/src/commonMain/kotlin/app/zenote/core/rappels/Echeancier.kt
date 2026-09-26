@@ -51,6 +51,26 @@ sealed interface Echeance {
      * @param explication ce qui est montré à l'utilisateur, en toutes lettres.
      */
     data class Substituee(val explication: String) : Echeance
+
+    /**
+     * Le signal revient à chaque occurrence d'un événement récurrent : « avant le point
+     * du lundi ». Le rappel est dû pendant chaque fenêtre, de peu avant le début jusqu'à
+     * la fin, et attend la suivante entre deux. Change `rappels-recurrents`.
+     */
+    data class Recurrente(val fenetres: List<Fenetre>) : Echeance {
+        init { require(fenetres.isNotEmpty()) { "Un signal récurrent a au moins une occurrence." } }
+
+        /** La fenêtre qui contient [maintenant], ou `null` entre deux occurrences. */
+        fun enCours(maintenant: LocalDateTime): Fenetre? =
+            fenetres.firstOrNull { it.quand <= maintenant && maintenant < it.fin }
+    }
+
+    /** Une occurrence : dû dès [quand], en retard après [enRetardApres], passé à [fin]. */
+    data class Fenetre(
+        val quand: LocalDateTime,
+        val enRetardApres: LocalDateTime,
+        val fin: LocalDateTime,
+    )
 }
 
 object Echeancier {
@@ -116,6 +136,7 @@ object Echeancier {
     fun estArrive(echeance: Echeance, maintenant: LocalDateTime): Boolean = when (echeance) {
         is Echeance.Substituee -> true
         is Echeance.Observable -> echeance.quand <= maintenant
+        is Echeance.Recurrente -> echeance.enCours(maintenant) != null
     }
 
     private val DATE = Regex("""(\d{4})-(\d{2})-(\d{2})""")
