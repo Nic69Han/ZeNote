@@ -1579,6 +1579,55 @@ try {
     `${echanges} échange(s) cité(s)`,
   );
 
+  {
+  // --- Deux fiches pour une même personne ----------------------------------------
+  // Change `fusion-personnes` : « Zoé » dictée, « Zoé Martin » écrite. Les réunir, puis
+  // se raviser, depuis l'écran.
+  const capturesZoe = await page.evaluate(async () => {
+    const z = window.__zenote;
+    const ids = [];
+    for (const [texte, qui] of [
+      ['Envoyer le planning à Zoé.', 'Zoé'],
+      ['Rappeler Zoé Martin pour le contrat.', 'Zoé Martin'],
+    ]) {
+      const c = await z.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', agenda: null });
+      ids.push(c.id);
+      await z.traiterFileAnalyse();
+      for (const e of await z.elementsDeCapture(c.id)) await z.majElement(e.id, { interlocuteur: qui, verdict: 'ACCEPTE' });
+    }
+    return ids;
+  });
+  const nomsDeFiches = () => page.locator('.fiche').evaluateAll((l) => l.map((f) => f.getAttribute('data-nom')));
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.retrait__lien[data-ecran="personnes"]').click();
+  await page.waitForTimeout(1200);
+  const ficheZoe = page.locator('.fiche[data-nom="Zoé"]');
+  await ficheZoe.locator('.fusion__resume').click();
+  await ficheZoe.locator('select').selectOption('Zoé Martin');
+  await ficheZoe.getByRole('button', { name: /réunir les deux fiches/i }).click();
+  await page.waitForTimeout(900);
+  const apresFusion = await nomsDeFiches();
+  const reunie = await page.locator('.fiche[data-nom="Zoé Martin"] .fiche__ouvert .fiche__texte').allInnerTexts();
+  verifier(
+    'scénario « Deux fiches réunies » — une seule fiche, avec ce qui traîne des deux',
+    !apresFusion.includes('Zoé') && apresFusion.includes('Zoé Martin') &&
+      reunie.some((t) => /planning/.test(t)) && reunie.some((t) => /contrat/.test(t)),
+    `${apresFusion.join(', ')} — ${reunie.join(' · ')}`,
+  );
+  await page.locator('.fusion__avis').getByRole('button', { name: /annuler/i }).click();
+  await page.waitForTimeout(900);
+  const apresAnnulation = await nomsDeFiches();
+  verifier(
+    'scénario « Fusion annulée » — les deux fiches reviennent',
+    apresAnnulation.includes('Zoé') && apresAnnulation.includes('Zoé Martin') && (await page.locator('.fusion__separer').count()) === 0,
+    apresAnnulation.join(', '),
+  );
+  await page.evaluate(async (ids) => {
+    for (const id of ids) await window.__zenote.supprimerCapture(id);
+  }, capturesZoe);
+  }
+
   // --- Supprimer, et se raviser ---------------------------------------------------
   // Spec `donnees` — « Suppression d'une capture » et « Fenêtre d'annulation ». Un
   // geste irréversible à un doigt d'un bouton ordinaire finit toujours par être fait

@@ -13,8 +13,9 @@
  */
 
 import { fiches, type FicheJson, type LigneFicheJson } from '../core/regles.ts';
+import { fusionner, nomsFusionnes, separer } from '../services/personnes.ts';
 import { listerCaptures, listerElements } from '../stockage/depot.ts';
-import { el, vider } from './dom.ts';
+import { annoncer, el, vider } from './dom.ts';
 
 const LIBELLE_TYPE: Record<string, string> = {
   TACHE: 'tâche',
@@ -34,6 +35,9 @@ function quand(iso: string): string {
 }
 
 export async function montrerPersonnes(racine: HTMLElement): Promise<() => void> {
+  /** La dernière fusion, que l'on peut encore annuler d'un geste. */
+  let derniere: { gardee: string; absorbee: string } | null = null;
+
   async function rendre(): Promise<void> {
     const captures = await listerCaptures();
     const toutes = fiches(
@@ -68,11 +72,75 @@ export async function montrerPersonnes(racine: HTMLElement): Promise<() => void>
       return;
     }
 
-    for (const fiche of toutes) section.append(carte(fiche));
+    if (derniere) {
+      const { gardee, absorbee } = derniere;
+      section.append(
+        el(
+          'p',
+          { class: 'fusion__avis', role: 'status' },
+          `« ${absorbee} » et « ${gardee} » ne font plus qu’un. `,
+          el('button', {
+            class: 'bouton bouton--discret',
+            type: 'button',
+            texte: 'Annuler',
+            onclick: () => void defaire(gardee, absorbee),
+          }),
+        ),
+      );
+    }
+
+    const noms = toutes.map((f) => f.nom);
+    for (const fiche of toutes) section.append(await carte(fiche, noms));
     racine.append(section);
   }
 
-  function carte(fiche: FicheJson): HTMLElement {
+  async function reunir(absorbee: string, gardee: string): Promise<void> {
+    await fusionner(absorbee, gardee);
+    derniere = { gardee, absorbee };
+    annoncer(`« ${absorbee} » réunie à « ${gardee} ».`);
+    await rendre();
+  }
+
+  async function defaire(gardee: string, absorbee: string): Promise<void> {
+    await separer(gardee, absorbee);
+    if (derniere?.gardee === gardee && derniere.absorbee === absorbee) derniere = null;
+    annoncer(`« ${absorbee} » séparée de « ${gardee} ».`);
+    await rendre();
+  }
+
+  /**
+   * « Même personne que… » : les autres fiches, puis une confirmation qui dit ce qui
+   * va se passer. Change `fusion-personnes`.
+   */
+  function blocFusion(fiche: FicheJson, noms: string[]): HTMLElement | null {
+    const autres = noms.filter((n) => n !== fiche.nom);
+    if (autres.length === 0) return null;
+    const choix = el('select', { class: 'champ', 'aria-label': `Fiche à garder pour ${fiche.nom}` }) as HTMLSelectElement;
+    for (const nom of autres) choix.append(el('option', { value: nom, texte: nom }));
+    const confirmation = el('p', { class: 'fusion__detail' });
+    const mettreAJour = () => {
+      confirmation.textContent =
+        `Tout ce qui concerne « ${fiche.nom} » rejoindra la fiche « ${choix.value} ». ` +
+        'Vous pourrez séparer de nouveau.';
+    };
+    choix.addEventListener('change', mettreAJour);
+    mettreAJour();
+    return el(
+      'details',
+      { class: 'fusion' },
+      el('summary', { class: 'fusion__resume', texte: 'Même personne que…' }),
+      choix,
+      confirmation,
+      el('button', {
+        class: 'bouton',
+        type: 'button',
+        texte: 'Réunir les deux fiches',
+        onclick: () => void reunir(fiche.nom, choix.value),
+      }),
+    );
+  }
+
+  async function carte(fiche: FicheJson, noms: string[]): Promise<HTMLElement> {
     const bloc = el(
       'article',
       { class: 'fiche', 'data-nom': fiche.nom },
@@ -120,6 +188,20 @@ export async function montrerPersonnes(racine: HTMLElement): Promise<() => void>
       }
       bloc.append(el('h3', { class: 'fiche__titre', texte: 'Derniers échanges' }), echanges);
     }
+
+    // Ce qui a été réuni ici se sépare encore, nom par nom.
+    for (const ancien of await nomsFusionnes(fiche.nom)) {
+      bloc.append(
+        el('button', {
+          class: 'bouton bouton--discret fusion__separer',
+          type: 'button',
+          texte: `Séparer « ${ancien} »`,
+          onclick: () => void defaire(fiche.nom, ancien),
+        }),
+      );
+    }
+    const fusion = blocFusion(fiche, noms);
+    if (fusion) bloc.append(fusion);
 
     return bloc;
   }

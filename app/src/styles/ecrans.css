@@ -1290,6 +1290,33 @@
   font-size: 0.85rem;
 }
 
+/* Change `fusion-personnes` : réunir deux fiches, et les séparer. */
+.fusion {
+  margin-block-start: 0.75rem;
+}
+
+.fusion__resume {
+  cursor: pointer;
+  color: var(--encre-douce);
+  font-size: 0.85rem;
+}
+
+.fusion__detail {
+  margin: 0.4rem 0;
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.fusion__avis {
+  margin: 0 0 1rem;
+  color: var(--encre-douce);
+  font-size: 0.9rem;
+}
+
+.fusion__separer {
+  margin-block-start: 0.5rem;
+}
+
 .fiche__echange {
   display: flex;
   gap: 0.5rem;
