@@ -49,6 +49,11 @@ export interface ElementJson {
   verdict: 'EN_ATTENTE' | 'ACCEPTE' | 'UN_JOUR' | 'REJETE';
   corrigeParHumain: boolean;
   /**
+   * Marqué critique par l'utilisateur : son rappel passe sans attendre, plage de
+   * silence et réunion comprises. Change `rappels-silence-critique`.
+   */
+  critique?: boolean;
+  /**
    * `true` quand cet élément ne vient que d'un passage mal entendu.
    *
    * Posé par le cœur, jamais par l'analyse : c'est un fait sur la transcription, pas
@@ -342,6 +347,14 @@ export interface RappelLivreJson {
   substitution: string;
   /** `true` si le signal s'était produit avant ce point de rupture. Un constat. */
   enRetard: boolean;
+  /** `true` pour un rappel critique : présenté sans attendre, silence et réunion comprises. */
+  critique?: boolean;
+}
+
+/** Une plage de silence concrète, en heure locale `AAAA-MM-JJTHH:MM`. */
+export interface PlageSilenceJson {
+  debut: string;
+  fin: string;
 }
 
 /** Un rappel qui ne se représente plus à l'identique, et que la Revue reprend. */
@@ -366,8 +379,10 @@ export interface RappelsDuMomentJson {
   point?: string;
   /** La réunion en cours : les rappels non critiques attendent sa fin. */
   reunionEnCours?: string | null;
-  /** Combien de rappels attendent la fin de cette réunion. */
+  /** Combien de rappels attendent la fin de cette réunion, ou de la plage de silence. */
   retenus?: number;
+  /** La fin de la plage de silence qui retient les rappels non critiques. */
+  silenceJusqua?: string | null;
 }
 
 /** Ce dont une réponse de recherche se réclame. Jamais un score. */
@@ -443,6 +458,13 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
     maintenant: string,
     suivisJson: string,
     evenementsJson: string,
+  ): string;
+  rappelsAvecContexte(
+    elementsJson: string,
+    maintenant: string,
+    suivisJson: string,
+    evenementsJson: string,
+    silencesJson: string,
   ): string;
   maintenantAvecContexte(elementsJson: string, contexteJson: string): string;
   momentsDeReunion(
@@ -629,17 +651,20 @@ export function rappelsObjets(
   maintenant: string,
   suivis: SuiviRappelJson[],
   evenements: EvenementJson[] = [],
+  silences: PlageSilenceJson[] = [],
 ): RappelsDuMomentJson {
-  // Sans agenda, l'appel d'avant, à l'identique : la reprise de l'appareil reste le
-  // seul point de rupture, et les signaux d'agenda restent substitués en le disant.
+  // Sans agenda ni plage de silence, l'appel d'avant, à l'identique : la reprise de
+  // l'appareil reste le seul point de rupture, et les signaux d'agenda restent
+  // substitués en le disant.
   const brut =
-    evenements.length === 0
+    evenements.length === 0 && silences.length === 0
       ? rappels(JSON.stringify(elements), maintenant, JSON.stringify(suivis))
-      : Regles.rappelsAvecAgenda(
+      : Regles.rappelsAvecContexte(
           JSON.stringify(elements),
           maintenant,
           JSON.stringify(suivis),
           JSON.stringify(evenements),
+          JSON.stringify(silences),
         );
   return JSON.parse(brut) as RappelsDuMomentJson;
 }

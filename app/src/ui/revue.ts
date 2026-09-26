@@ -1672,6 +1672,15 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       groupePoids.append(b);
     }
 
+    // Change `rappels-silence-critique` : un rappel critique passe sans attendre,
+    // plage de silence et réunion comprises.
+    const critique = el('input', {
+      type: 'checkbox',
+      class: 'case',
+      name: 'critique',
+      checked: e.critique === true,
+    }) as HTMLInputElement;
+
     const enregistrer = el('button', {
       class: 'bouton bouton--plein',
       type: 'button',
@@ -1693,6 +1702,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
             duree: (dureeChoisie.value || null) as ElementJson['duree'],
             dureeConfiance: dureeChoisie.value ? 1 : null,
             dureeIndice: dureeChoisie.value ? 'fixée à la main' : null,
+            critique: critique.checked,
             corrigeParHumain: true,
           },
           'Correction enregistrée.',
@@ -1708,6 +1718,12 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       el('label', { class: 'champ__etiquette' }, 'Interlocuteur', interlocuteur),
       el('label', { class: 'champ__etiquette' }, 'Durée', dureeChoisie),
       el('div', { class: 'champ__etiquette' }, 'Poids', groupePoids),
+      el(
+        'label',
+        { class: 'champ__etiquette champ__etiquette--case' },
+        critique,
+        'Critique : me le rappeler sans attendre',
+      ),
       enregistrer,
     );
   }

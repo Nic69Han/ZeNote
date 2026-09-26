@@ -117,7 +117,7 @@ code depuis ici :
 | Rejets répétés | tenu | `ARevoirTest`, `bout-en-bout` : le compte survit au rechargement. |
 | Tâche dormante | tenu | `ARevoirTest` : seuil selon le poids. |
 
-## rappels — 11 scénarios · 8 tenus, 3 partiels
+## rappels — 11 scénarios · 10 tenus, 1 partiel
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
@@ -126,12 +126,12 @@ code depuis ici :
 | Rappel lié à un événement récurrent | partiel | `SignauxAgendaTest` : la prochaine occurrence après la pose du plan, jour de la semaine compris. Ensuite, le rappel reste dû à chaque point de rupture jusqu'à être traité ou escaladé, au lieu de revenir avant chaque occurrence. |
 | Signal préféré à l'heure | tenu | `EcheancierTest`. |
 | Report à la fin de la réunion | tenu | Change `agenda-local` : `RappelsAgendaTest`, `bout-en-bout` (retenu pendant, livré en retard après). |
-| Rappel critique immédiat | partiel | `FileOpportunite` traite le critique dans le cœur, et `RappelsTest` le couvre. La surface ne marque aucun rappel comme critique : rien ne court-circuite donc la file en pratique. |
+| Rappel critique immédiat | tenu | Change `rappels-silence-critique`. Marqué dans « Ajuster », ou poids fort échu : présenté sans attendre, réunion et plage de silence comprises (`RappelsSilenceCritiqueTest`, `silence-critique.test.ts`, bout-en-bout « Critique pendant la plage de silence »). |
 | Plusieurs rappels simultanés | tenu | `RappelsTest`, `bout-en-bout` : une bande unique, groupée. |
 | Briefing avant réunion | tenu | Change `agenda-local` : `MomentsReunionTest` ; le bandeau « avant » de Maintenant le présente, chaque ligne renvoyant à sa capture. |
 | Aucun élément à rappeler | tenu | `rappels.test.ts`. |
 | Rappel ignoré trois fois | tenu | `bout-en-bout` : escalade en Revue avec ses trois sorties. |
-| Plage de silence respectée | partiel | Le cœur retient les rappels non critiques pendant une plage de silence (`RappelsTest`). La surface n'en déclare aucune : aucune plage n'est donc appliquée. |
+| Plage de silence respectée | tenu | Change `rappels-silence-critique`. Plage quotidienne déclarée dans « Vos données » ; le non critique est retenu puis présenté à sa fin, ou à la reprise suivante (`RappelsSilenceCritiqueTest`, bout-en-bout « Rappel retenu pendant la nuit », « Rappel présenté à la fin de la plage »). Application fermée, rien ne sonne : c'est déjà le cas hors plage. |
 
 ## revue — 12 scénarios · 12 tenus
 

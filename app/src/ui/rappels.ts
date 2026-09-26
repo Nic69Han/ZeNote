@@ -46,6 +46,9 @@ export function montrerRappels(
       el(
         'li',
         { class: 'rappels__ligne', 'data-element': rappel.elementId },
+        // Change `rappels-silence-critique` : un critique passe même quand tout le
+        // reste attend ; il doit se reconnaître d'un coup d'œil.
+        rappel.critique ? el('p', { class: 'rappels__critique', texte: 'Critique' }) : null,
         el('p', { class: 'rappels__texte', texte: rappel.texte }),
         el('p', {
           class: 'rappels__signal',

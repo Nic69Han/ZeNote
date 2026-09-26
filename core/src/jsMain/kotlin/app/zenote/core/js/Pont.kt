@@ -92,6 +92,18 @@ object ZeNoteRegles {
     ): String = Regles.rappels(elementsJson, maintenant, suivisJson, evenementsJson)
 
     /**
+     * Rappels avec l'agenda et les plages de silence : comme [rappelsAvecAgenda], plus
+     * `[PlageSilenceJson]`. Les critiques passent sans attendre, silence compris.
+     */
+    fun rappelsAvecContexte(
+        elementsJson: String,
+        maintenant: String,
+        suivisJson: String,
+        evenementsJson: String,
+        silencesJson: String,
+    ): String = Regles.rappels(elementsJson, maintenant, suivisJson, evenementsJson, silencesJson)
+
+    /**
      * Moments de réunion : `[EvenementJson]` + heure locale + `[CaptureJson]` +
      * `[ElementJson]` + `[RattacheJson]` → `MomentsJson`. Briefing et dépose avant,
      * reprise et vidage après.
