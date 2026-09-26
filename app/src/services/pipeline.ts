@@ -9,7 +9,7 @@
 import { ancrer, candidats, identifiant } from '../analyse/index.ts';
 import { analyserADistance, reecrire, type IssueAnalyseDistante } from '../analyse/distante.ts';
 import { peutTransmettre } from '../analyse/transmission.ts';
-import { compteConnecte } from '../compte/compte.ts';
+import { compteConnecte, marquerDeconnecte } from '../compte/compte.ts';
 import { transcrireAudio, type Transcription } from '../audio/transcripteurLocal.ts';
 import { assurerCoffreCharge } from '../securite/coffre.ts';
 import { consommerRattachement, rattacherDOffice } from '../agenda/rattachement.ts';
@@ -123,6 +123,8 @@ export async function analyserCapture(
     const issue = await distant(proposes.map((e) => capture.texte.slice(e.debutCar, e.finCar)));
     proposes = reecrire(proposes, issue);
     repliAnalyse = issue.issue !== 'OK';
+    // Le serveur ne reconnaît plus la session : l'appareil se montre déconnecté.
+    if (issue.issue === 'COMPTE_REQUIS') await marquerDeconnecte();
   }
 
   const { elements } = ancrer(capture.texte, proposes, capture.passagesIncertains ?? []);

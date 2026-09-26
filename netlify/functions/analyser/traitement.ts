@@ -167,8 +167,15 @@ export type Journal = (evenement: Record<string, string | number>) => void;
  */
 export type Identification = (requete: Request) => string | null | Promise<string | null>;
 
+/**
+ * La limite d'appels du compte : `null` pour accepter (et compter), sinon le refus.
+ * Change `comptes-utilisateurs`, décision 8.
+ */
+export type ControleQuota = (compteId: string) => Promise<{ portee: 'jour' | 'mois'; reessayerDans: number } | null>;
+
 export interface Dependances {
   identifier: Identification;
+  quota: ControleQuota;
   /** `null` quand aucune clé n'est configurée. */
   creerClient: () => ClientTypeSafe | null;
   choix: FabriqueChoix;
@@ -263,6 +270,18 @@ export async function traiter(requete: Request, dependances: Dependances): Promi
   if (!client) {
     journal({ evenement: 'analyse-refusee', motif: 'non-configure' });
     return repondre(503, { motif: 'non-configure' });
+  }
+
+  // Compté avant l'appel, qui est facturé même quand sa réponse est rejetée. Le corps
+  // n'est toujours pas lu : un refus pour quota ne coûte rien.
+  const refusQuota = await dependances.quota(utilisateur);
+  if (refusQuota) {
+    journal({ evenement: 'analyse-refusee', motif: 'quota-atteint', portee: refusQuota.portee });
+    return repondre(
+      429,
+      { motif: 'quota-atteint', portee: refusQuota.portee },
+      { 'Retry-After': String(refusQuota.reessayerDans) },
+    );
   }
 
   let corps: unknown;

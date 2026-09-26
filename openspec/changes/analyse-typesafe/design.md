@@ -108,6 +108,8 @@ L'application est publique, et `/api/analyser` peut être appelé hors de ZeNote
 
 ZeNote n'a pas encore de comptes : `identifierUtilisateur` rend toujours `null`, et `compteConnecte()` côté appareil rend toujours `false`. Tant qu'il en est ainsi, aucune requête ne part, et le réglage ne se propose pas. Un réglage allumé par une version précédente reste enregistré mais sans effet : sans compte, analyser sur l'appareil est la règle, pas un repli.
 
+*Mise à jour* : la change `comptes-utilisateurs` réalise ce que ce paragraphe annonçait — voir ses décisions 4 (session), 8 (quota) et 10 (consentement redemandé).
+
 La garde côté appareil n'est qu'une commodité — elle évite d'envoyer un texte qui serait refusé. La protection est celle du serveur. La change qui créera les comptes devra vérifier la session côté serveur dans `compte.ts` (jamais un simple en-tête posé par le client), limiter les appels par compte, et redemander le consentement de l'analyse distante au premier allumage.
 
 ## Risks / Trade-offs
