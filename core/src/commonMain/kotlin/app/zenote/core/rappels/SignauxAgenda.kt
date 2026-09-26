@@ -72,7 +72,8 @@ object SignauxAgenda {
         }
         EVENEMENT.find(plie)?.let { m ->
             val titre = finDe(declencheur, m.groupValues[1])
-            return evenement(titre, candidats)
+            // « au prochain point » vise une fois ; « avant le point du lundi », chaque fois.
+            return evenement(titre, candidats, unique = plie.contains("prochain"))
         }
         return null
     }
@@ -108,20 +109,41 @@ object SignauxAgenda {
         return avant(trouve)
     }
 
-    private fun evenement(titre: String, candidats: List<EvenementConnu>): Echeance? {
+    private fun evenement(titre: String, candidats: List<EvenementConnu>, unique: Boolean): Echeance? {
         val mots = Texte.mots(titre)
         if (mots.isEmpty() || mots.any { it in PAS_UN_EVENEMENT }) return null
 
         val jour = mots.firstNotNullOfOrNull { JOURS[it] }
         val cherche = mots.filter { it !in JOURS }
-        val trouve = candidats.firstOrNull { e ->
+        val correspondants = candidats.filter { e ->
             (cherche.isEmpty() || Texte.mots(e.titre).containsAll(cherche)) &&
                 (jour == null || e.debut.toLocalDateTime(TimeZone.UTC).dayOfWeek == jour)
-        } ?: return Echeance.Substituee(
+        }
+        val trouve = correspondants.firstOrNull() ?: return Echeance.Substituee(
             "Aucun événement « ${sansArticle(titre)} » dans l'agenda connu : ramené à la reprise de l'appareil.",
         )
+        // Change `rappels-recurrents` : un événement récurrent ramène le rappel avant
+        // chacune de ses occurrences connues, tant que le plan n'est pas clos.
+        if (trouve.recurrent && !unique) {
+            val occurrences = correspondants.filter { it.recurrent && Texte.memeNom(it.titre, trouve.titre) }
+            return Echeance.Recurrente(occurrences.map { fenetre(it) })
+        }
         return avant(trouve)
     }
+
+    /**
+     * La fenêtre d'une occurrence : dès [AVANCE_MINUTES] avant le début, et jusqu'à
+     * [SORTIE_MINUTES] après la fin — pendant la réunion le rappel est retenu, et c'est à
+     * sa sortie qu'il est livré, en retard. Au-delà, il attend l'occurrence suivante.
+     */
+    private fun fenetre(e: EvenementConnu): Echeance.Fenetre = Echeance.Fenetre(
+        quand = (e.debut - AVANCE_MINUTES.minutes).toLocalDateTime(TimeZone.UTC),
+        enRetardApres = e.debut.toLocalDateTime(TimeZone.UTC),
+        fin = (e.fin + SORTIE_MINUTES.minutes).toLocalDateTime(TimeZone.UTC),
+    )
+
+    /** Le temps, après la fin d'une occurrence, pendant lequel on en sort encore. */
+    const val SORTIE_MINUTES: Int = 30
 
     /**
      * Le rappel se présente [AVANCE_MINUTES] avant le début. Il n'est en retard qu'une

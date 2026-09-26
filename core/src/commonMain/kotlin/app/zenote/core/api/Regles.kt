@@ -321,6 +321,8 @@ object Regles {
             when (echeance) {
                 is Echeance.Substituee -> substitutions[element.id.value] = echeance.explication
                 is Echeance.Observable -> if (echeance.enRetardApres < instant) retards += element.id.value
+                is Echeance.Recurrente ->
+                    if (echeance.enCours(instant)!!.enRetardApres < instant) retards += element.id.value
             }
             // Décision 3 : un critique n'entre pas dans la file, il est livré tel quel.
             val livraison = file.deposer(rappel, a)

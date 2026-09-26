@@ -87,6 +87,22 @@ describe('contrat d’agenda du cœur', () => {
     expect(apres.rappels[0]).toMatchObject({ elementId: 'courte', enRetard: true });
   });
 
+  it('rappels récurrents (change `rappels-recurrents`) : chaque lundi, rien entre deux', () => {
+    const plan: ElementJson = { ...courte, poids: 'MOYEN', planDeclencheur: 'avant le point du lundi', planAction: 'Préparer les chiffres' };
+    const suivis = [{ elementId: 'courte', planPoseLe: '2026-09-21T09:30', foisIgnore: 0 }];
+    const points: EvenementJson[] = ['2026-09-28', '2026-10-05'].map((j, i) => ({
+      id: `p${i}`,
+      titre: 'Point équipe',
+      debut: `${j}T09:00`,
+      fin: `${j}T09:30`,
+      recurrent: true,
+    }));
+    const a = (instant: string) => rappelsObjets([plan], instant, suivis, points).rappels.map((r) => r.elementId);
+    expect(a('2026-09-28T08:56')).toEqual(['courte']);
+    expect(a('2026-09-30T12:00')).toEqual([]);
+    expect(a('2026-10-05T08:57')).toEqual(['courte']);
+  });
+
   it('momentsDeReunion : à deux minutes, une dépose proposée', () => {
     const moments = momentsDeReunion([comite], '2026-09-21T10:58', [], [], []);
     expect(moments).toHaveLength(1);
