@@ -9,6 +9,7 @@
 import { ancrer, candidats, identifiant } from '../analyse/index.ts';
 import { analyserADistance, reecrire, type IssueAnalyseDistante } from '../analyse/distante.ts';
 import { peutTransmettre } from '../analyse/transmission.ts';
+import { compteConnecte } from '../compte/compte.ts';
 import { transcrireAudio, type Transcription } from '../audio/transcripteurLocal.ts';
 import { assurerCoffreCharge } from '../securite/coffre.ts';
 import { consommerRattachement, rattacherDOffice } from '../agenda/rattachement.ts';
@@ -102,7 +103,8 @@ export type AnalyseDistante = (passages: string[]) => Promise<IssueAnalyseDistan
  * ni aux décisions déjà prises par l'utilisateur.
  *
  * Chemin hybride (change `analyse-typesafe`, décision 1) : l'analyse locale produit
- * toujours l'élément entier. Si la capture peut sortir, le service distant rejuge le
+ * toujours l'élément entier. Si la capture peut sortir — compte connecté, réglage
+ * allumé, capture et sphère permises —, le service distant rejuge le
  * type et la sphère de chaque passage — et rien d'autre — **avant** l'ancrage. Sur
  * toute autre issue qu'un succès, le résultat est celui de l'analyse locale seule.
  */
@@ -110,11 +112,12 @@ export async function analyserCapture(
   capture: Capture,
   jour = aujourdhui(),
   distant: AnalyseDistante = analyserADistance,
+  connecte: () => boolean = compteConnecte,
 ): Promise<number> {
   let proposes = candidats(capture.texte, capture.id, jour, capture.dureeMs);
   let repliAnalyse: boolean | undefined;
 
-  if (proposes.length > 0 && peutTransmettre(capture, await lireReglages()).transmettre) {
+  if (proposes.length > 0 && peutTransmettre(capture, await lireReglages(), connecte()).transmettre) {
     // Le passage exact de la source, pas le texte présenté : c'est lui que l'ancrage
     // vérifie, et rien d'autre de la capture ne part.
     const issue = await distant(proposes.map((e) => capture.texte.slice(e.debutCar, e.finCar)));

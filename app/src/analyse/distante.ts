@@ -31,6 +31,8 @@ export type IssueAnalyseDistante =
   | { issue: 'HORS_LIGNE' }
   /** Le délai imparti est dépassé : la requête est abandonnée. */
   | { issue: 'DELAI_DEPASSE' }
+  /** Le service refuse un appelant sans compte connecté (401 ou 403). */
+  | { issue: 'COMPTE_REQUIS' }
   /** Le service répond qu'il n'a pas de clé. */
   | { issue: 'NON_CONFIGURE' }
   /** Toute autre réponse d'échec du service. */
@@ -101,6 +103,7 @@ export async function analyserADistance(
       referrerPolicy: 'no-referrer',
       signal: abandon.signal,
     });
+    if (reponse.status === 401 || reponse.status === 403) return { issue: 'COMPTE_REQUIS' };
     if (reponse.status === 503) return { issue: 'NON_CONFIGURE' };
     if (!reponse.ok) return { issue: 'INDISPONIBLE', statut: reponse.status };
 

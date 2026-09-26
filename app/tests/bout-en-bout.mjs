@@ -25,13 +25,14 @@ function verifier(intitule, condition, detail = '') {
   console.log(`${condition ? '  ok  ' : ' ÉCHEC'} ${intitule}${detail ? ` — ${detail}` : ''}`);
 }
 
-// Le point d'analyse distante, simulé : il répond comme la fonction sans clé tant
-// qu'on ne lui demande pas de juger. Contre un site publié (CIBLE), c'est la vraie
-// fonction qui répond, et seuls les contrôles qui n'en dépendent pas s'appliquent.
+// Le point d'analyse distante, simulé : il refuse comme la vraie fonction refuse tout
+// appelant sans compte. En mode « repondre », il jugerait : une requête qui partirait
+// quand même aurait alors un effet visible, que les contrôles verraient. Contre un
+// site publié (CIBLE), c'est la vraie fonction qui répond.
 const simulation = {
-  mode: 'non-configure',
+  mode: 'refuser',
   analyser(corps) {
-    if (this.mode !== 'repondre') return { statut: 503, corps: { motif: 'non-configure' } };
+    if (this.mode !== 'repondre') return { statut: 401, corps: { motif: 'authentification-requise' } };
     return {
       statut: 200,
       corps: {
@@ -806,45 +807,26 @@ try {
   await page.getByRole('checkbox', { name: /notes personnelles/i }).uncheck();
   await page.waitForTimeout(300);
 
-  // Change `analyse-typesafe`, tâche 4.1 : allumer sans confirmer laisse éteint.
-  await page.getByRole('button', { name: /allumer l’analyse distante/i }).click();
-  const explication = await page.locator('.analyse-distante__confirmation').innerText();
+  // L'analyse distante est réservée à un utilisateur connecté avec un compte, et
+  // ZeNote n'a pas encore de comptes : ni interrupteur, ni confirmation, et le bloc
+  // dit pourquoi.
+  const blocDistant = await page.locator('.bloc--analyse-distante').innerText();
   verifier(
-    'allumer l’analyse distante dit d’abord ce qui part, vers qui, et ce qui ne part jamais',
-    /Ce qui part/.test(explication) && /TypeSafe/.test(explication) && /Ce qui ne part jamais/.test(explication),
-  );
-  await page.locator('.nav__lien[data-onglet="revue"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
-  await page.waitForTimeout(600);
-  verifier(
-    'sans confirmation, l’analyse distante reste éteinte',
-    /éteinte/.test(await page.locator('.analyse-distante__etat').innerText()) &&
-      /L’analyse se fait sur cet appareil/.test(await page.locator('.faits').innerText()),
-  );
-  await page.getByRole('button', { name: /allumer l’analyse distante/i }).click();
-  await page.getByRole('button', { name: /^allumer$/i }).click();
-  await page.waitForTimeout(600);
-  verifier(
-    'confirmée, elle s’allume, et « Ce qui quitte l’appareil » le dit en tête',
-    /allumée/.test(await page.locator('.analyse-distante__etat').innerText()) &&
-      /Le texte de vos notes part/.test(await page.locator('.faits .fait__titre').first().innerText()),
-  );
-  await page.getByRole('button', { name: /éteindre l’analyse distante/i }).click();
-  await page.waitForTimeout(600);
-  verifier(
-    'et s’éteint d’un geste',
-    /éteinte/.test(await page.locator('.analyse-distante__etat').innerText()),
+    'sans compte, l’analyse distante ne se propose pas, et le bloc dit qu’elle demande un compte',
+    /réservée aux comptes/.test(blocDistant) &&
+      /connecté avec un compte ZeNote/.test(blocDistant) &&
+      (await page.getByRole('button', { name: /allumer l’analyse distante/i }).count()) === 0,
+    blocDistant,
   );
   await page.locator('.nav__lien[data-onglet="revue"]').click();
   await page.waitForTimeout(600);
 
-  // --- L'analyse distante ------------------------------------------------------
-  // Change `analyse-typesafe`, tâche 4.2. Réglage éteint, rien ne part. Allumé, rien
-  // ne part pour une capture gardée ; pour les autres, un seul `POST /api/analyser`
-  // de l'origine, qui ne porte que des passages.
+  // --- L'analyse distante, sans compte ------------------------------------------
+  // Même un réglage allumé par une version précédente ne fait rien partir : sans
+  // compte connecté, aucune requête vers `/api/analyser`, l'analyse se fait ici, et
+  // ce n'est pas un repli à signaler.
   verifier(
-    'réglage éteint, aucune requête d’analyse n’est partie',
+    'aucune requête d’analyse n’est partie',
     analyses.length === 0,
     analyses.map((a) => a.methode).join(' | ') || 'aucune',
   );
@@ -852,75 +834,12 @@ try {
   // Ces captures ne servent qu'ici : elles sont retirées à la fin de la section,
   // pour ne pas allonger la file que les vérifications suivantes comptent.
   const capturesDistantes = [];
-  const gardeeId = await page.evaluate(async () => {
-    await window.__zenote.ecrireReglage('analyseDistante', true);
-    const capture = await window.__zenote.capturer({
-      texte: 'Rendez-vous chez l’ophtalmologue pour Léa.',
-      source: 'ECRITE',
-      etatTranscription: 'OK',
-    });
-    await window.__zenote.majCapture(capture.id, { transmissible: false });
-    await window.__zenote.traiterFileAnalyse();
-    return capture.id;
-  });
-  capturesDistantes.push(gardeeId);
-  verifier('réglage allumé, une capture gardée ne part pas', analyses.length === 0);
-
   simulation.mode = 'repondre';
-  const phraseDistante = 'Préparer le budget du client pour le comité. Appeler Marc demain matin.';
-  capturesDistantes.push(
-    await page.evaluate(async (texte) => {
-      const capture = await window.__zenote.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK' });
-      await window.__zenote.traiterFileAnalyse();
-      return capture.id;
-    }, phraseDistante),
-  );
-  const envoi = analyses[0];
-  let corpsEnvoye = null;
-  try {
-    corpsEnvoye = JSON.parse(envoi?.corps ?? '');
-  } catch {
-    corpsEnvoye = null;
-  }
-  verifier(
-    'réglage allumé, une seule requête part, vers POST /api/analyser de l’origine',
-    analyses.length === 1 && envoi.methode === 'POST',
-    `${analyses.length} requête(s)`,
-  );
-  verifier(
-    'et elle ne porte que des passages de la note — ni audio, ni date, ni identifiant',
-    corpsEnvoye !== null &&
-      Object.keys(corpsEnvoye).join() === 'passages' &&
-      corpsEnvoye.passages.length > 0 &&
-      corpsEnvoye.passages.every((p) => typeof p === 'string' && phraseDistante.includes(p)) &&
-      !/\d{4}-\d{2}-\d{2}|cap-|el-|audio/i.test(envoi.corps),
-    envoi?.corps ?? 'rien',
-  );
-  if (!CIBLE) {
-    await page.locator('.nav__lien[data-onglet="maintenant"]').click();
-    await page.waitForTimeout(300);
-    await page.locator('.nav__lien[data-onglet="revue"]').click();
-    await page.waitForTimeout(900);
-    const origineDistante = await page
-      .locator('.entree', { hasText: /budget du client pour le comité/i })
-      .locator('.entree__indice')
-      .first()
-      .innerText()
-      .catch(() => '');
-    verifier(
-      'l’élément jugé à distance le dit',
-      /Origine : service d’analyse distant \(simulation\)/.test(origineDistante),
-      origineDistante || 'origine absente',
-    );
-  }
-
-  // Le repli : le service ne répond pas, la note est analysée ici, la Revue le dit
-  // une fois, et chaque élément garde son origine.
-  simulation.mode = 'non-configure';
   capturesDistantes.push(
     await page.evaluate(async () => {
+      await window.__zenote.ecrireReglage('analyseDistante', true);
       const capture = await window.__zenote.capturer({
-        texte: 'Relire le contrat du fournisseur avant la réunion.',
+        texte: 'Préparer le budget du client pour le comité. Appeler Marc demain matin.',
         source: 'ECRITE',
         etatTranscription: 'OK',
       });
@@ -928,37 +847,40 @@ try {
       return capture.id;
     }),
   );
+  verifier(
+    'réglage allumé mais sans compte, aucune note ne part',
+    analyses.length === 0,
+    `${analyses.length} requête(s)`,
+  );
   await page.locator('.nav__lien[data-onglet="maintenant"]').click();
   await page.waitForTimeout(300);
   await page.locator('.nav__lien[data-onglet="revue"]').click();
   await page.waitForTimeout(900);
-  const avis = await page.locator('.avis-repli').allInnerTexts();
-  verifier(
-    'un repli de l’analyse distante est dit une seule fois en Revue',
-    avis.length === 1 && /1 note a été analysée sur l’appareil/.test(avis[0]),
-    avis.join(' | ') || 'aucun avis',
-  );
   const origine = await page
-    .locator('.entree', { hasText: /contrat du fournisseur/i })
+    .locator('.entree', { hasText: /budget du client pour le comité/i })
     .locator('.entree__indice')
     .first()
     .innerText()
     .catch(() => '');
   verifier(
-    'et l’élément dit d’où vient son analyse',
+    'l’élément est analysé sur l’appareil',
     /Origine : analyse sur l’appareil/.test(origine),
     origine || 'origine absente',
   );
-  await page.evaluate(() => window.__zenote.ecrireReglage('analyseDistante', false));
-  const avantExtinction = analyses.length;
-  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('.nav__lien[data-onglet="revue"]').click();
-  await page.waitForTimeout(600);
   verifier(
-    'réglage éteint, analyser sur l’appareil n’est plus un repli à signaler',
+    'et ce n’est pas un repli à signaler',
     (await page.locator('.avis-repli').count()) === 0,
   );
+  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await page.waitForTimeout(600);
+  verifier(
+    '« Ce qui quitte l’appareil » dit toujours que l’analyse se fait ici',
+    /L’analyse se fait sur cet appareil/.test(await page.locator('.faits').innerText()),
+  );
+  simulation.mode = 'refuser';
+  await page.evaluate(() => window.__zenote.ecrireReglage('analyseDistante', false));
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(600);
   await page.evaluate(async (ids) => {
     for (const id of ids) await window.__zenote.supprimerCapture(id);
   }, capturesDistantes);
@@ -2098,9 +2020,9 @@ try {
     sorties.slice(0, 3).join(' | ') || 'aucune requête sortante',
   );
   verifier(
-    'et, réglage éteint, plus aucune requête d’analyse n’est partie',
-    analyses.length === avantExtinction,
-    `${analyses.length - avantExtinction} de plus`,
+    'et, sans compte, aucune requête d’analyse n’est partie de tout le parcours',
+    analyses.length === 0,
+    `${analyses.length} requête(s)`,
   );
 
   verifier(

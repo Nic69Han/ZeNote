@@ -82,6 +82,11 @@ describe('chaque issue de l’appel', () => {
     expect(Date.now() - debut).toBeLessThan(1000);
   });
 
+  it.each([401, 403])('%i : compte requis', async (statut) => {
+    const { f } = reseau(async () => json(statut, { motif: 'authentification-requise' }));
+    expect(await analyserADistance(PASSAGES, { fetch: f, enLigne })).toEqual({ issue: 'COMPTE_REQUIS' });
+  });
+
   it('503 : service non configuré', async () => {
     const { f } = reseau(async () => json(503, { motif: 'non-configure' }));
     expect(await analyserADistance(PASSAGES, { fetch: f, enLigne })).toEqual({ issue: 'NON_CONFIGURE' });
@@ -141,6 +146,7 @@ describe('seul un succès réécrit', () => {
   it.each<IssueAnalyseDistante>([
     { issue: 'HORS_LIGNE' },
     { issue: 'DELAI_DEPASSE' },
+    { issue: 'COMPTE_REQUIS' },
     { issue: 'NON_CONFIGURE' },
     { issue: 'INDISPONIBLE', statut: 502 },
     { issue: 'REPONSE_INVALIDE' },

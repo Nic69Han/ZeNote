@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { identifierUtilisateur } from '../../netlify/functions/analyser/compte.ts';
 import {
   CRITERES_SPHERE,
   CRITERES_TYPE,
@@ -62,7 +63,12 @@ function dependances(client: ClientTypeSafe | null) {
   const lignes: Record<string, string | number>[] = [];
   return {
     lignes,
-    deps: { creerClient: () => client, choix, journal: (l: Record<string, string | number>) => lignes.push(l) },
+    deps: {
+      identifier: () => 'utilisateur-connecte',
+      creerClient: () => client,
+      choix,
+      journal: (l: Record<string, string | number>) => lignes.push(l),
+    },
   };
 }
 
@@ -109,10 +115,61 @@ describe('une capture, une requête', () => {
   });
 });
 
+describe('sans compte connecté', () => {
+  it('répond 401 sans créer de client, sans lire le corps, et le journal ne dit que le motif', async () => {
+    const { client, appels } = fournisseur(toutRepondre);
+    const creerClient = vi.fn(() => client);
+    const lignes: Record<string, string | number>[] = [];
+    const envoyee = requete({ passages: PASSAGES });
+
+    const reponse = await traiter(envoyee, {
+      identifier: () => null,
+      creerClient,
+      choix,
+      journal: (l) => lignes.push(l),
+    });
+
+    expect(reponse.status).toBe(401);
+    expect(reponse.headers.get('WWW-Authenticate')).toMatch(/^Bearer/);
+    expect(await reponse.json()).toEqual({ motif: 'authentification-requise' });
+    expect(creerClient).not.toHaveBeenCalled();
+    expect(appels).toHaveLength(0);
+    expect(envoyee.bodyUsed).toBe(false);
+    expect(lignes).toEqual([{ evenement: 'analyse-refusee', motif: 'authentification-requise' }]);
+  });
+
+  it('une identification qui échoue vaut un refus', async () => {
+    const creerClient = vi.fn(() => fournisseur(toutRepondre).client);
+    const reponse = await traiter(requete({ passages: PASSAGES }), {
+      identifier: () => Promise.reject(new Error('session illisible')),
+      creerClient,
+      choix,
+      journal: () => {},
+    });
+    expect(reponse.status).toBe(401);
+    expect(creerClient).not.toHaveBeenCalled();
+  });
+
+  it('en production, personne n’est identifié tant que ZeNote n’a pas de comptes', async () => {
+    const avecJeton = new Request('https://zenote.example/api/analyser', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer un-jeton-quelconque', Cookie: 'session=abc' },
+      body: JSON.stringify({ passages: PASSAGES }),
+    });
+    expect(await identifierUtilisateur(avecJeton)).toBeNull();
+
+    const creerClient = vi.fn(() => fournisseur(toutRepondre).client);
+    const reponse = await traiter(avecJeton, { identifier: identifierUtilisateur, creerClient, choix, journal: () => {} });
+    expect(reponse.status).toBe(401);
+    expect(creerClient).not.toHaveBeenCalled();
+  });
+});
+
 describe('sans clé', () => {
   it('répond 503 non-configure, sans rien demander à personne', async () => {
     const creerClient = vi.fn(() => null);
     const reponse = await traiter(requete({ passages: PASSAGES }), {
+      identifier: () => 'utilisateur-connecte',
       creerClient,
       choix,
       journal: () => {},

@@ -40,6 +40,7 @@ import {
   type TypeGardien,
 } from '../securite/coffre.ts';
 import { annoncer, el, vider } from './dom.ts';
+import { compteConnecte } from '../compte/compte.ts';
 import { AgendaIllisible, lireAgenda } from '../agenda/ics.ts';
 import { effacerAgenda, etatAgenda, importerAgenda, type EtatAgenda } from '../stockage/agenda.ts';
 
@@ -187,7 +188,8 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
         class: 'ecran__sous-titre',
         texte: 'Ce qui reste ici, ce qui sort, et comment tout reprendre.',
       }),
-      blocPerimetre(coffre, reglages.analyseDistante),
+      // Sans compte, rien ne part, quel que soit le réglage enregistré : le bloc le dit.
+      blocPerimetre(coffre, reglages.analyseDistante && compteConnecte()),
       blocAgenda(agenda),
       blocAnalyseDistante(reglages),
       blocChiffrement(coffre, appareilPossible, donnees),
@@ -764,6 +766,8 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
    * exclusion est posée (voir `peutTransmettre`), et le texte le dit.
    */
   function blocAnalyseDistante(reglages: Reglages): HTMLElement {
+    // Réservée à un utilisateur connecté : sans compte, ni interrupteur ni confirmation.
+    const connecte = compteConnecte();
     const exclues = new Set(reglages.spheresExclues);
     const choix = (sphere: 'PROFESSIONNEL' | 'PERSONNEL', libelle: string): HTMLElement => {
       const case_ = el('input', {
@@ -788,10 +792,24 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       'section',
       { class: 'bloc bloc--analyse-distante', 'aria-labelledby': 'titre-analyse-distante' },
       el('h2', { id: 'titre-analyse-distante', class: 'bloc__titre', texte: 'Analyse distante' }),
-      interrupteurAnalyseDistante(reglages.analyseDistante),
+      connecte
+        ? interrupteurAnalyseDistante(reglages.analyseDistante)
+        : el(
+            'div',
+            { class: 'analyse-distante' },
+            el('p', {
+              class: 'analyse-distante__etat',
+              texte: 'Analyse sur un service distant : réservée aux comptes.',
+            }),
+          ),
       el('p', {
         class: 'bloc__texte',
-        texte: reglages.analyseDistante
+        texte: !connecte
+          ? 'L’analyse distante demande d’être connecté avec un compte ZeNote, et les comptes ' +
+            'n’existent pas encore : aucune note ne sort de l’appareil. Ces choix vaudront le jour ' +
+            'où elle sera possible — une note dont la sphère ne se reconnaît pas restera alors ' +
+            'ici, elle aussi, dès qu’une case est cochée.'
+          : reglages.analyseDistante
           ? 'L’analyse distante est allumée. Les notes cochées ci-dessous ne partent jamais ; ' +
             'une note dont la sphère ne se reconnaît pas non plus, dès qu’une case est cochée.'
           : 'L’analyse distante est éteinte : aucune note ne sort de l’appareil. Ces choix ' +

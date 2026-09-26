@@ -303,10 +303,27 @@ describe('analyse hybride : locale d’abord, distante pour le type et la sphèr
     return capturer({ texte, source: 'ECRITE', etatTranscription: 'OK' });
   }
 
+  /** Un utilisateur connecté : les comptes n'existent pas encore, il est simulé ici. */
+  const connecte = () => true;
+
+  it('n’appelle rien sans compte connecté, réglage allumé compris, et n’y voit pas un repli', async () => {
+    await ecrireReglage('analyseDistante', true);
+    const { appel, recus } = service(jugeTout);
+    const c = await capture();
+
+    await analyserCapture(c, JOUR_ANALYSE, appel);
+
+    expect(recus).toHaveLength(0);
+    const elements = await elementsDeCapture(c.id);
+    expect(elements.length).toBeGreaterThan(0);
+    expect(elements.every((e) => e.origineAnalyse?.moteur === 'LOCAL')).toBe(true);
+    expect((await lireCapture(c.id))?.repliAnalyse).toBeUndefined();
+  });
+
   it('n’appelle rien quand le réglage est éteint', async () => {
     const { appel, recus } = service(jugeTout);
     const c = await capture();
-    await analyserCapture(c, JOUR_ANALYSE, appel);
+    await analyserCapture(c, JOUR_ANALYSE, appel, connecte);
     expect(recus).toHaveLength(0);
     expect((await lireCapture(c.id))?.repliAnalyse).toBeUndefined();
   });
@@ -317,7 +334,7 @@ describe('analyse hybride : locale d’abord, distante pour le type et la sphèr
     const c = await capture();
     await majCapture(c.id, { transmissible: false });
 
-    await analyserCapture({ ...c, transmissible: false }, JOUR_ANALYSE, appel);
+    await analyserCapture({ ...c, transmissible: false }, JOUR_ANALYSE, appel, connecte);
 
     expect(recus).toHaveLength(0);
     const elements = await elementsDeCapture(c.id);
@@ -330,7 +347,7 @@ describe('analyse hybride : locale d’abord, distante pour le type et la sphèr
     const { appel, recus } = service(jugeTout);
     const c = await capture();
 
-    await analyserCapture(c, JOUR_ANALYSE, appel);
+    await analyserCapture(c, JOUR_ANALYSE, appel, connecte);
 
     expect(recus).toHaveLength(1);
     for (const p of recus[0]) expect(TEXTE).toContain(p);
@@ -348,7 +365,7 @@ describe('analyse hybride : locale d’abord, distante pour le type et la sphèr
   it('laisse texte et bornes de chaque élément tels que l’analyse locale les a posés', async () => {
     await ecrireReglage('analyseDistante', true);
     const c = await capture();
-    await analyserCapture(c, JOUR_ANALYSE, service(jugeTout).appel);
+    await analyserCapture(c, JOUR_ANALYSE, service(jugeTout).appel, connecte);
 
     const locaux = analyser(TEXTE, c.id, JOUR_ANALYSE).elements;
     const distants = await elementsDeCapture(c.id);
@@ -362,12 +379,13 @@ describe('analyse hybride : locale d’abord, distante pour le type et la sphèr
   it.each<IssueAnalyseDistante>([
     { issue: 'HORS_LIGNE' },
     { issue: 'DELAI_DEPASSE' },
+    { issue: 'COMPTE_REQUIS' },
     { issue: 'NON_CONFIGURE' },
     { issue: 'REPONSE_INVALIDE' },
   ])('repli ($issue) : résultat identique à l’analyse locale seule, et repli noté', async (issue) => {
     await ecrireReglage('analyseDistante', true);
     const c = await capture();
-    await analyserCapture(c, JOUR_ANALYSE, service(() => issue).appel);
+    await analyserCapture(c, JOUR_ANALYSE, service(() => issue).appel, connecte);
 
     const locaux = analyser(TEXTE, c.id, JOUR_ANALYSE).elements;
     const stockes = await elementsDeCapture(c.id);
@@ -379,7 +397,7 @@ describe('analyse hybride : locale d’abord, distante pour le type et la sphèr
     await ecrireReglage('analyseDistante', true);
     await ecrireReglage('spheresExclues', ['PERSONNEL']);
     const { appel, recus } = service(jugeTout);
-    await analyserCapture(await capture('Prendre rendez-vous chez le dentiste pour les enfants.'), JOUR_ANALYSE, appel);
+    await analyserCapture(await capture('Prendre rendez-vous chez le dentiste pour les enfants.'), JOUR_ANALYSE, appel, connecte);
     expect(recus).toHaveLength(0);
   });
 });

@@ -14,6 +14,8 @@ import type { Capture, Reglages } from '../stockage/depot.ts';
 import { repererSphere } from './index.ts';
 
 export type RaisonNonTransmise =
+  /** Personne n'est connecté avec un compte : l'analyse distante est interdite. */
+  | 'COMPTE_REQUIS'
   /** Le réglage d'analyse distante est éteint : rien ne sort, pour aucune capture. */
   | 'ANALYSE_DISTANTE_ETEINTE'
   /** L'utilisateur a marqué cette capture comme à garder sur l'appareil. */
@@ -30,13 +32,19 @@ export type DecisionTransmission =
 /**
  * Dit si une capture peut partir à l'analyse distante.
  *
- * L'ordre compte seulement pour la raison rendue : chacune des quatre suffit à
+ * L'ordre compte seulement pour la raison rendue : chacune des cinq suffit à
  * garder la capture sur l'appareil.
+ *
+ * @param connecte un utilisateur est connecté avec un compte (`compteConnecte`)
  */
 export function peutTransmettre(
   capture: Pick<Capture, 'texte' | 'transmissible'>,
   reglages: Pick<Reglages, 'analyseDistante' | 'spheresExclues'>,
+  connecte: boolean,
 ): DecisionTransmission {
+  if (!connecte) {
+    return { transmettre: false, raison: 'COMPTE_REQUIS' };
+  }
   if (!reglages.analyseDistante) {
     return { transmettre: false, raison: 'ANALYSE_DISTANTE_ETEINTE' };
   }

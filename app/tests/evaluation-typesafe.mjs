@@ -241,7 +241,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     for (const langue of ['fr', 'en']) {
       const predictions = await predireDistant(
         etiquettes,
-        { creerClient: () => client, choix, journal: () => {}, langue },
+        // Lancée à la main, avec sa propre clé : l'opérateur tient lieu de compte.
+        { identifier: () => 'evaluation-locale', creerClient: () => client, choix, journal: () => {}, langue },
         delais,
       );
       modele ||= predictions.find((p) => p.modele)?.modele ?? '';

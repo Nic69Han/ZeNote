@@ -1,6 +1,9 @@
 /**
  * `POST /api/analyser` — le point d'analyse distante de ZeNote.
  *
+ * Réservé à un utilisateur connecté (`compte.ts`) : sans compte, la requête est
+ * refusée en 401 avant tout appel au fournisseur.
+ *
  * La clé `TYPESAFE_API_KEY` ne vit qu'ici, dans l'environnement de l'hébergeur :
  * l'application ne la voit jamais, et le fournisseur ne voit jamais l'appareil. Le
  * modèle se fixe par `TYPESAFE_DEFAULT_MODEL`, lu par le SDK ; sans lui, c'est
@@ -11,6 +14,7 @@
  */
 
 import { choice, TypeSafeClient, type Logger } from '@typesafe-ai/sdk';
+import { identifierUtilisateur } from './compte.ts';
 import { traiter, type ClientTypeSafe, type FabriqueChoix } from './traitement.ts';
 
 /**
@@ -39,6 +43,7 @@ function creerClient(): ClientTypeSafe | null {
 
 export default (requete: Request): Promise<Response> =>
   traiter(requete, {
+    identifier: identifierUtilisateur,
     creerClient,
     choix: choice as unknown as FabriqueChoix,
     journal: (evenement) => console.info(JSON.stringify(evenement)),
