@@ -194,6 +194,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       blocAnalyseDistante(reglages),
       blocChiffrement(coffre, appareilPossible, donnees),
       blocCreneau(reglages),
+      blocSilence(reglages),
       blocExport(donnees, texte),
       blocEffacement(donnees),
       blocDictee(),
@@ -252,6 +253,63 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
             await ecrireReglage('creneauProtegeDebut', null);
             await ecrireReglage('creneauRenoncements', 0);
             annoncer('Créneau protégé éteint.');
+          })();
+        },
+      }),
+    );
+  }
+
+  // ------------------------------------------------------ la plage de silence
+
+  /**
+   * Les heures où seuls les rappels critiques passent.
+   *
+   * Change `rappels-silence-critique`. Éteinte par défaut : une plage que personne
+   * n'a choisie retiendrait des rappels sans qu'on sache pourquoi. Elle peut passer
+   * minuit ; ce qu'elle retient est présenté à sa fin, ou à la reprise suivante.
+   */
+  function blocSilence(reglages: Reglages): HTMLElement {
+    const champ = (valeur: string, etiquette: string): HTMLInputElement =>
+      el('input', { class: 'champ', type: 'time', value: valeur, 'aria-label': etiquette }) as HTMLInputElement;
+    const debut = champ(reglages.silence?.debut ?? '', 'Début de la plage de silence');
+    const fin = champ(reglages.silence?.fin ?? '', 'Fin de la plage de silence');
+
+    const enregistrer = (): void => {
+      void (async () => {
+        if (!debut.value || !fin.value || debut.value === fin.value) {
+          await ecrireReglage('silence', null);
+          annoncer(debut.value && fin.value ? 'Début et fin identiques : plage éteinte.' : 'Plage de silence éteinte.');
+          return;
+        }
+        await ecrireReglage('silence', { debut: debut.value, fin: fin.value });
+        annoncer(`Plage de silence de ${debut.value} à ${fin.value}.`);
+      })();
+    };
+    debut.addEventListener('change', enregistrer);
+    fin.addEventListener('change', enregistrer);
+
+    return el(
+      'section',
+      { class: 'bloc bloc--silence' },
+      el('h2', { class: 'bloc__titre', texte: 'Plage de silence' }),
+      el('p', {
+        class: 'bloc__texte',
+        texte:
+          'Des heures où aucun rappel ne vous interrompt, sauf ceux marqués critiques. Ce ' +
+          'qui arrive pendant attend la fin de la plage.',
+      }),
+      el('label', { class: 'champ__etiquette' }, 'De', debut),
+      el('label', { class: 'champ__etiquette' }, 'À', fin),
+      el('button', {
+        class: 'bouton bouton--discret',
+        type: 'button',
+        texte: 'Éteindre la plage',
+        onclick: () => {
+          void (async () => {
+            debut.value = '';
+            fin.value = '';
+            await ecrireReglage('silence', null);
+            annoncer('Plage de silence éteinte.');
           })();
         },
       }),

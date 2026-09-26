@@ -279,6 +279,13 @@ export interface Reglages {
    * le doute se tranche du côté de la vie privée.
    */
   spheresExclues: ('PROFESSIONNEL' | 'PERSONNEL')[];
+  /**
+   * La plage de silence quotidienne, en `HH:MM`, ou `null` pour l'éteindre.
+   *
+   * Change `rappels-silence-critique`. Elle peut passer minuit (22:00–07:00). Pendant
+   * elle, seuls les rappels critiques sont présentés.
+   */
+  silence: { debut: string; fin: string } | null;
 }
 
 export const REGLAGES_PAR_DEFAUT: Reglages = {
@@ -291,6 +298,7 @@ export const REGLAGES_PAR_DEFAUT: Reglages = {
   monNom: '',
   analyseDistante: false,
   spheresExclues: [],
+  silence: null,
 };
 
 // ------------------------------------------------- scellement et ouverture

@@ -24,13 +24,16 @@
 
 import {
   rappelsObjets,
+  type PlageSilenceJson,
   type RappelsDuMomentJson,
 } from '../core/regles.ts';
 import {
   listerElements,
+  lireReglages,
   majElement,
   suivisRappelDe,
   type ElementStocke,
+  type Reglages,
 } from '../stockage/depot.ts';
 import { maintenantLocal } from './pipeline.ts';
 import { lireEvenements } from '../stockage/agenda.ts';
@@ -70,7 +73,40 @@ export async function rappelsDuPointDeRupture(
   // Tout l'agenda connu : « quand je vois Marc » cherche la première réunion avec Marc
   // après la pose du plan, qui peut dater de plusieurs jours.
   const evenements = await lireEvenements();
-  return rappelsObjets(enJeu, instant, suivisRappelDe(enJeu), evenements);
+  const silences = plagesSilence((await lireReglages()).silence, instant);
+  return rappelsObjets(enJeu, instant, suivisRappelDe(enJeu), evenements, silences);
+}
+
+/** Le jour local `AAAA-MM-JJ` décalé de `jours`, sans passer par un fuseau. */
+function jourDecale(jour: string, jours: number): string {
+  const d = new Date(`${jour}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + jours);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Les plages de silence concrètes autour d'un instant local `AAAA-MM-JJTHH:MM`.
+ *
+ * Change `rappels-silence-critique`, décision 1. Une plage qui passe minuit
+ * (22:00–07:00) a deux occurrences qui peuvent contenir l'instant : celle commencée
+ * la veille, et celle qui commence le jour même. Une plage de début égal à sa fin ne
+ * dit rien : elle est ignorée.
+ */
+export function plagesSilence(silence: Reglages['silence'], instant: string): PlageSilenceJson[] {
+  if (!silence || silence.debut === silence.fin) return [];
+  const jour = instant.slice(0, 10);
+  if (silence.debut < silence.fin) {
+    return [{ debut: `${jour}T${silence.debut}`, fin: `${jour}T${silence.fin}` }];
+  }
+  return [
+    { debut: `${jourDecale(jour, -1)}T${silence.debut}`, fin: `${jour}T${silence.fin}` },
+    { debut: `${jour}T${silence.debut}`, fin: `${jourDecale(jour, 1)}T${silence.fin}` },
+  ];
+}
+
+/** L'instant local tombe-t-il dans la plage de silence ? */
+export function enSilence(silence: Reglages['silence'], instant: string): boolean {
+  return plagesSilence(silence, instant).some((p) => p.debut <= instant && instant < p.fin);
 }
 
 /**

@@ -30,6 +30,7 @@ import app.zenote.core.rappels.EvenementConnu
 import app.zenote.core.rappels.FileOpportunite
 import app.zenote.core.rappels.Livraison
 import app.zenote.core.rappels.MomentsReunion
+import app.zenote.core.rappels.PlageSilence
 import app.zenote.core.rappels.PointDeRupture
 import app.zenote.core.rappels.Rappel
 import app.zenote.core.rappels.RappelId
@@ -248,6 +249,7 @@ object Regles {
         maintenant: String,
         suivisJson: String,
         evenementsJson: String = "[]",
+        silencesJson: String = "[]",
     ): String {
         val instant = LocalDateTime.parse(maintenant)
         // La file raisonne en `Instant` ; elle ne fait que comparer les siens entre
@@ -271,18 +273,30 @@ object Regles {
 
         // Seuls les éléments acceptés qui portent un plan sont des rappels : le plan
         // est ce qui transforme une note en quelque chose qui doit revenir.
-        val candidats = decoder(elementsJson)
+        val bruts = decoder(elementsJson).associateBy { it.id }
+        val candidats = bruts.values
             .map { it.versResolu() }
             .filter { it.verdict == Verdict.ACCEPTE && it.plan != null }
             .sortedBy { it.id.value }
 
-        val file = FileOpportunite()
+        // Change `rappels-silence-critique`, décision 1 : les plages arrivent déjà
+        // concrètes, en heure locale ; le cœur ne connaît pas le réglage.
+        val silences = json
+            .decodeFromString(ListSerializer(PlageSilenceJson.serializer()), silencesJson)
+            .map { LocalDateTime.parse(it.debut) to LocalDateTime.parse(it.fin) }
+            .filter { (debut, fin) -> fin > debut }
+        val silenceEnCours = silences.firstOrNull { (debut, fin) -> debut <= instant && instant < fin }
+
+        val file = FileOpportunite(
+            silences.map { (debut, fin) -> PlageSilence(debut.toInstant(TimeZone.UTC), fin.toInstant(TimeZone.UTC)) },
+        )
         val rappels = candidats.map { element ->
             element to Rappel(
                 id = RappelId(element.id.value),
                 elementId = element.id,
                 texte = element.plan!!.action.ifBlank { element.texte },
                 declencheur = Declencheur.Transition(PointDeRupture.REPRISE_APPAREIL),
+                critique = estCritique(bruts.getValue(element.id.value), instant.date.toString()),
             )
         }
 
@@ -294,6 +308,7 @@ object Regles {
 
         val substitutions = mutableMapOf<String, String>()
         val retards = mutableSetOf<String>()
+        val immediats = mutableListOf<Rappel>()
         for ((element, rappel) in rappels) {
             val suivi = suivis[element.id.value] ?: continue
             val echeance = Echeancier.quand(
@@ -307,28 +322,39 @@ object Regles {
                 is Echeance.Substituee -> substitutions[element.id.value] = echeance.explication
                 is Echeance.Observable -> if (echeance.enRetardApres < instant) retards += element.id.value
             }
-            file.deposer(rappel, a)
+            // Décision 3 : un critique n'entre pas dans la file, il est livré tel quel.
+            val livraison = file.deposer(rappel, a)
+            if (livraison is Livraison.Immediate) immediats += livraison.rappel
         }
 
         // Pendant une réunion, rien de non critique n'est livré : ce qui est devenu
         // actionnable attend sa fin, où son retard sera dit (spec `rappels` — « Report à
-        // la fin de la réunion »).
+        // la fin de la réunion »). Une plage de silence retient de même, dans `vider`.
         val point = if (finRecente != null) PointDeRupture.FIN_DE_REUNION else PointDeRupture.REPRISE_APPAREIL
-        val retenus = if (reunionEnCours != null) file.enAttente().size else 0
+        val retenusParSilence = silenceEnCours != null && reunionEnCours == null
+        val retenus = if (reunionEnCours != null || retenusParSilence) file.enAttente().size else 0
         val notification = if (reunionEnCours != null) null else file.vider(point, a)
         val parId = candidats.associateBy { it.id.value }
+        // Une seule notification : les critiques d'abord, puis la file vidée.
+        val livres = immediats + notification?.rappels.orEmpty()
+        val titre = when (livres.size) {
+            0 -> ""
+            1 -> livres.single().texte
+            else -> "${livres.size} choses à voir maintenant"
+        }
 
         return json.encodeToString(
             RappelsDuMomentJson.serializer(),
             RappelsDuMomentJson(
-                titre = notification?.titre ?: "",
-                rappels = notification?.rappels.orEmpty().map { r ->
+                titre = titre,
+                rappels = livres.map { r ->
                     RappelLivreJson(
                         elementId = r.elementId.value,
                         texte = r.texte,
                         declencheur = parId[r.elementId.value]?.plan?.declencheur ?: "",
                         substitution = substitutions[r.elementId.value] ?: "",
                         enRetard = r.elementId.value in retards,
+                        critique = r.critique,
                     )
                 },
                 escalades = file.escalades().map { e ->
@@ -339,12 +365,27 @@ object Regles {
                         options = e.options.map { it.name },
                     )
                 },
-                point = notification?.point?.name ?: "",
+                point = when {
+                    notification != null -> notification.point.name
+                    immediats.isNotEmpty() -> point.name
+                    else -> ""
+                },
                 reunionEnCours = reunionEnCours?.titre,
                 retenus = retenus,
+                silenceJusqua = if (retenusParSilence) silenceEnCours!!.second.toString() else null,
             ),
         )
     }
+
+    /**
+     * Change `rappels-silence-critique`, décision 2 : critique quand l'utilisateur l'a
+     * marqué, ou quand un poids fort arrive à échéance — la « conséquence immédiate »
+     * de la spec, sans rien deviner de plus.
+     *
+     * @param jour date locale `AAAA-MM-JJ` de l'instant
+     */
+    private fun estCritique(element: ElementJson, jour: String): Boolean =
+        element.critique || (element.poids == "FORT" && element.echeance != null && element.echeance <= jour)
 
     /** Après la fin d'une réunion, ce temps durant lequel on est encore à sa sortie. */
     private val FENETRE_FIN_DE_REUNION = 30.minutes

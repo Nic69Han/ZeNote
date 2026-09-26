@@ -41,9 +41,11 @@ import { montrerRappels } from './ui/rappels.ts';
 import {
   ABSENCE_AVANT_REPRISE_MS,
   aQuelqueChose,
+  enSilence,
   rappelsDuPointDeRupture,
   reunionQuiSeTermine,
 } from './services/rappels.ts';
+import { maintenantLocal } from './services/pipeline.ts';
 
 type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'personnes' | 'reglages';
 
@@ -219,12 +221,20 @@ async function demarrer(): Promise<void> {
   // rupture. On le guette chaque minute, application ouverte et visible — une page
   // fermée ne se réveille pas —, et on ne le présente qu'une fois par réunion.
   const finsPresentees = new Set<string>();
+  // Change `rappels-silence-critique`, décision 4 : la fin de la plage de silence se
+  // guette de même. Ce qu'elle a retenu est présenté à sa sortie, application ouverte.
+  let etaitEnSilence = enSilence((await lireReglages()).silence, maintenantLocal());
   window.setInterval(() => {
     if (document.visibilityState !== 'visible') return;
     void reunionQuiSeTermine().then((id) => {
       if (!id || finsPresentees.has(id)) return;
       finsPresentees.add(id);
       void presenterRappels();
+    });
+    void lireReglages().then((r) => {
+      const maintenant = enSilence(r.silence, maintenantLocal());
+      if (etaitEnSilence && !maintenant) void presenterRappels();
+      etaitEnSilence = maintenant;
     });
   }, 60_000);
 

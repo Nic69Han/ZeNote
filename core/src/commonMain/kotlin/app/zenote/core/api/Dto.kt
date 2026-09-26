@@ -82,6 +82,12 @@ data class ElementJson(
      * comme ferme reviendrait à se faire engager par un document.
      */
     val issuDeReunion: Boolean = false,
+    /**
+     * `true` quand l'utilisateur a marqué l'élément critique. Change
+     * `rappels-silence-critique` : son rappel passe alors sans attendre un point de
+     * rupture, plage de silence et réunion comprises.
+     */
+    val critique: Boolean = false,
 )
 
 /**
@@ -266,6 +272,18 @@ data class RappelLivreJson(
     val substitution: String = "",
     /** `true` si le signal s'était produit avant ce point de rupture. Un constat. */
     val enRetard: Boolean = false,
+    /** `true` pour un rappel critique : présenté sans attendre, silence et réunion comprises. */
+    val critique: Boolean = false,
+)
+
+/**
+ * Une plage de silence, en heure locale `AAAA-MM-JJTHH:MM`. La surface la tire de son
+ * réglage quotidien ; le cœur n'en connaît que les bornes.
+ */
+@Serializable
+data class PlageSilenceJson(
+    val debut: String,
+    val fin: String,
 )
 
 /** Un rappel qui ne se représente plus à l'identique, et que la Revue reprend. */
@@ -300,6 +318,11 @@ data class RappelsDuMomentJson(
      */
     val reunionEnCours: String? = null,
     val retenus: Int = 0,
+    /**
+     * La fin de la plage de silence en cours, en heure locale `AAAA-MM-JJTHH:MM`,
+     * quand elle retient les rappels non critiques ; [retenus] dit alors combien.
+     */
+    val silenceJusqua: String? = null,
 )
 
 @Serializable

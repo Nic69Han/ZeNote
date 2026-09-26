@@ -1997,6 +1997,136 @@ try {
   await page.clock.setFixedTime(new Date());
   }
 
+  // --- Plage de silence et rappel critique -------------------------------------
+  // Change `rappels-silence-critique`. Le réglage se pose dans « Vos données », le
+  // critique dans « Ajuster » ; la nuit retient le reste, pas le critique.
+  {
+    const S = new Date();
+    S.setHours(20, 0, 0, 0);
+    const aS = (minutes) => new Date(S.getTime() + minutes * 60_000);
+    const repriseS = async (depuis, jusqua) => {
+      await page.clock.setFixedTime(depuis);
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await page.clock.setFixedTime(jusqua);
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await page.waitForTimeout(900);
+    };
+    const refermerBande = async () => {
+      if ((await page.locator('#rappels .rappels').count()) > 0) {
+        await page.locator('#rappels .rappels').getByRole('button', { name: /plus tard/i }).click().catch(() => {});
+      }
+    };
+    await page.clock.setFixedTime(S);
+    await refermerBande();
+
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    await page.getByLabel('Début de la plage de silence').fill('22:00');
+    await page.getByLabel('Fin de la plage de silence').fill('07:00');
+    await page.waitForTimeout(400);
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(400);
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    verifier(
+      'la plage de silence se déclare dans « Vos données » et survit à un changement d’écran',
+      (await page.getByLabel('Début de la plage de silence').inputValue()) === '22:00' &&
+        (await page.getByLabel('Fin de la plage de silence').inputValue()) === '07:00',
+    );
+
+    const poseLe = `${S.getFullYear()}-${String(S.getMonth() + 1).padStart(2, '0')}-${String(S.getDate()).padStart(2, '0')}T08:00`;
+    const [livreId, fourId] = await page.evaluate(async () => {
+      const z = window.__zenote;
+      const ids = [];
+      for (const texte of ['Rendre le livre à Paul.', 'Couper le four chez maman.']) {
+        const c = await z.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', agenda: null });
+        ids.push(c.id);
+      }
+      await z.traiterFileAnalyse();
+      return ids;
+    });
+
+    // La case « Critique » d'« Ajuster », puis le four marqué critique.
+    await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+    await page.waitForTimeout(300);
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(900);
+    // La case se vérifie sur la première entrée de la file, quelle qu'elle soit : la
+    // file peut être réduite, et ce qui se vérifie ici est le formulaire.
+    const entree = page.locator('.entree').first();
+    const [idEntree, captureEntree] = await Promise.all([
+      entree.getAttribute('data-element'),
+      entree.getAttribute('data-capture'),
+    ]);
+    await entree.getByRole('button', { name: /^ajuster$/i }).click();
+    await entree.getByLabel(/critique : me le rappeler sans attendre/i).check();
+    await entree.getByRole('button', { name: /enregistrer la correction/i }).click();
+    await page.waitForTimeout(800);
+    const marque = await page.evaluate(
+      async ([capture, element]) => {
+        const e = (await window.__zenote.elementsDeCapture(capture)).find((x) => x.id === element);
+        // Rendu tel quel ensuite : ce parcours ne doit rien laisser de critique derrière lui.
+        await window.__zenote.majElement(element, { critique: false });
+        return e?.critique === true && e?.corrigeParHumain === true;
+      },
+      [captureEntree, idEntree],
+    );
+    verifier('un élément marqué critique dans « Ajuster » se relit critique, protégé de la ré-analyse', marque);
+
+    await page.evaluate(
+      async ([livre, four, pose]) => {
+        const z = window.__zenote;
+        for (const [id, critique] of [[livre, false], [four, true]]) {
+          for (const e of await z.elementsDeCapture(id)) {
+            await z.majElement(e.id, {
+              verdict: 'ACCEPTE',
+              planDeclencheur: 'quand je reprends',
+              planAction: e.texte,
+              planPoseLe: pose,
+              critique,
+            });
+          }
+        }
+      },
+      [livreId, fourId, poseLe],
+    );
+
+    await repriseS(aS(60), aS(210));
+    const nuitLignes = await page.locator('#rappels .rappels__ligne').allInnerTexts();
+    verifier(
+      'scénarios « Critique pendant la plage de silence » et « Rappel retenu pendant la nuit »',
+      nuitLignes.length === 1 && /critique/i.test(nuitLignes[0]) && /four/i.test(nuitLignes[0]),
+      nuitLignes.join(' | ').replace(/\s+/g, ' ') || 'aucune bande',
+    );
+    await refermerBande();
+
+    await repriseS(aS(220), aS(11 * 60 + 5));
+    const matin = await page.locator('#rappels .rappels__ligne').allInnerTexts();
+    verifier(
+      'scénario « Rappel présenté à la fin de la plage » — à la reprise d’après 07:00',
+      matin.some((l) => /livre à Paul/i.test(l)),
+      matin.join(' | ') || 'aucune bande',
+    );
+    await refermerBande();
+
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    await page.getByRole('button', { name: /éteindre la plage/i }).click();
+    await page.waitForTimeout(300);
+    await page.evaluate(async (ids) => {
+      for (const id of ids) await window.__zenote.supprimerCapture(id);
+    }, [livreId, fourId]);
+    await page.clock.setFixedTime(new Date());
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(500);
+  }
+
   const minuteriesVivantes = await page.evaluate(
     () => document.querySelectorAll('.ecran').length,
   );
