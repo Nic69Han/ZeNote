@@ -27,7 +27,7 @@ Les groupes suivent le Migration Plan de `design.md`. Prérequis : la change `an
 - [x] 2.3 Écrire la connexion (`connexion/options`, `connexion`) : clé découvrable, défi à usage unique supprimé dès sa présentation, compteur de la clé mis à jour, session ouverte en cookie `HttpOnly; Secure; SameSite=Strict; Path=/api`. Vérifier par des tests « Connexion sur un nouvel appareil », « Clé d'accès inconnue », « Défi rejoué », et les attributs exacts du cookie.
 - [x] 2.4 Écrire `session`, `deconnexion` et `suppression`. `session` rend `{ connecte, role }` et rien d'autre. La déconnexion révoque la session. La suppression efface le compte, ses clés, ses sessions et ses compteurs. Vérifier par des tests « Déconnexion » (le cookie est effacé et la session ne vaut plus) et « Suppression confirmée » (plus rien du compte dans aucun magasin, et la clé ne connecte plus).
 - [x] 2.5 Écrire `invitation`, réservée à un administrateur : code de 16 octets, valable 7 jours, stocké en empreinte, rendu une fois sous forme de lien à fragment. Vérifier par des tests « Invitation créée » et « Invitation refusée à un compte ordinaire ».
-- [ ] 2.6 Brancher `compte.mts` sur les vrais magasins et `@simplewebauthn/server`, et ajouter la route `/api/compte/*` dans `netlify.toml` avant le repli de la page unique. Vérifier avec `netlify dev` que `GET /api/compte/session` rend `{ "connecte": false }` et qu'un `POST` sans `Origin` est refusé. — *vérifié sur l'aperçu de déploiement plutôt qu'avec `netlify dev`, absent de l'environnement ; consigné en 6.3*
+- [x] 2.6 Brancher `compte.mts` sur les vrais magasins et `@simplewebauthn/server`, et ajouter la route `/api/compte/*` dans `netlify.toml` avant le repli de la page unique. Vérifier avec `netlify dev` que `GET /api/compte/session` rend `{ "connecte": false }` et qu'un `POST` sans `Origin` est refusé. — *vérifié sur l'aperçu de déploiement plutôt qu'avec `netlify dev`, absent de l'environnement ; consigné en 6.3*
 
 ## 3. Analyse distante : compte réel et quota
 
@@ -60,4 +60,10 @@ Les groupes suivent le Migration Plan de `design.md`. Prérequis : la change `an
 
 - [x] 6.1 Réécrire le commentaire des en-têtes de `netlify.toml` et la section concernée du `README.md` (variables `ZENOTE_CODE_FONDATEUR`, `ZENOTE_QUOTA_JOUR`, `ZENOTE_PLAFOND_MOIS` ; création du premier compte ; retrait du code fondateur après usage). Vérifier que `openspec validate comptes-utilisateurs --strict` passe et que le README décrit les étapes 2 à 4 du Migration Plan.
 - [x] 6.2 Mettre à jour `analyse-typesafe` : la note de la tâche 5.3 renvoie à cette change comme levée de la condition bloquante, et la décision 9 renvoie à celle-ci. Vérifier par `openspec validate analyse-typesafe --strict`.
-- [ ] 6.3 Après déploiement, sur le site publié, vérifier à la main que `GET /api/compte/session` rend `{ "connecte": false }`, qu'un `POST /api/analyser` sans session rend 401, et, une fois le compte administrateur créé, que l'analyse distante reste éteinte jusqu'à sa confirmation. Consigner le résultat dans cette tâche.
+- [ ] 6.3 Après déploiement, sur le site publié, vérifier à la main que `GET /api/compte/session` rend `{ "connecte": false }`, qu'un `POST /api/analyser` sans session rend 401, et, une fois le compte administrateur créé, que l'analyse distante reste éteinte jusqu'à sa confirmation. Consigner le résultat dans cette tâche. — *sur l'aperçu de déploiement (2026-09-26) :*
+  - `GET /api/compte/session` rend `{"connecte":false}` ;
+  - `connexion/options` écrit son défi dans Netlify Blobs, avec le bon `rpId` ;
+  - une invitation inconnue est refusée ;
+  - un `POST` d'une autre origine rend 403 ;
+  - `POST /api/analyser` sans session rend 401.
+  *Reste, sur la production : créer le compte administrateur avec `ZENOTE_CODE_FONDATEUR` (à poser par le propriétaire du site), puis vérifier que l'analyse distante reste éteinte jusqu'à sa confirmation.*
