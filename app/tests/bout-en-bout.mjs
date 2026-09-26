@@ -125,6 +125,20 @@ await contexte.addInitScript(() => {
   });
 });
 
+// Spec `donnees` et tâche 7.1 de `zenote-core` : aucune permission de localisation
+// n'est demandée. Chaque appel à la géolocalisation est compté, dès avant la page.
+await contexte.addInitScript(() => {
+  window.__appelsGeolocalisation = 0;
+  const geo = navigator.geolocation;
+  if (!geo) return;
+  for (const methode of ['getCurrentPosition', 'watchPosition']) {
+    const origine = geo[methode].bind(geo);
+    geo[methode] = (...args) => {
+      window.__appelsGeolocalisation++;
+      return origine(...args);
+    };
+  }
+});
 const page = await contexte.newPage();
 
 // Un authentificateur virtuel : l'équivalent d'une empreinte digitale, piloté par le
@@ -2376,6 +2390,10 @@ try {
   });
   verifier('le badge de l’hébergeur ne recouvre pas l’application', !badgeVisible);
 
+  verifier(
+    'aucune permission de localisation n’est demandée de tout le parcours',
+    (await page.evaluate(() => window.__appelsGeolocalisation ?? 0)) === 0,
+  );
   verifier(
     'aucune donnée ne quitte l’appareil pendant tout le parcours',
     sorties.length === 0,
