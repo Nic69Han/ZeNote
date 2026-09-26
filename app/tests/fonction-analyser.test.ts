@@ -7,7 +7,12 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { identifierUtilisateur } from '../../netlify/functions/analyser/compte.ts';
+import { creerIdentification } from '../../netlify/functions/analyser/compte.ts';
+import { creerQuota } from '../../netlify/functions/analyser/quota.ts';
+import { magasinsEnMemoire } from '../../netlify/functions/partage/magasin.ts';
+import { COOKIE_SESSION, ouvrirSession } from '../../netlify/functions/partage/session.ts';
+
+const sansQuota = async () => null;
 import {
   CRITERES_SPHERE,
   CRITERES_TYPE,
@@ -65,6 +70,7 @@ function dependances(client: ClientTypeSafe | null) {
     lignes,
     deps: {
       identifier: () => 'utilisateur-connecte',
+      quota: sansQuota,
       creerClient: () => client,
       choix,
       journal: (l: Record<string, string | number>) => lignes.push(l),
@@ -124,6 +130,7 @@ describe('sans compte connecté', () => {
 
     const reponse = await traiter(envoyee, {
       identifier: () => null,
+      quota: sansQuota,
       creerClient,
       choix,
       journal: (l) => lignes.push(l),
@@ -142,6 +149,7 @@ describe('sans compte connecté', () => {
     const creerClient = vi.fn(() => fournisseur(toutRepondre).client);
     const reponse = await traiter(requete({ passages: PASSAGES }), {
       identifier: () => Promise.reject(new Error('session illisible')),
+      quota: sansQuota,
       creerClient,
       choix,
       journal: () => {},
@@ -150,18 +158,94 @@ describe('sans compte connecté', () => {
     expect(creerClient).not.toHaveBeenCalled();
   });
 
-  it('en production, personne n’est identifié tant que ZeNote n’a pas de comptes', async () => {
-    const avecJeton = new Request('https://zenote.example/api/analyser', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer un-jeton-quelconque', Cookie: 'session=abc' },
-      body: JSON.stringify({ passages: PASSAGES }),
-    });
-    expect(await identifierUtilisateur(avecJeton)).toBeNull();
+  it('en production, un jeton quelconque n’identifie personne : seule une session émise le fait', async () => {
+    const magasins = magasinsEnMemoire();
+    const identifier = creerIdentification(() => magasins);
+    const avecJeton = (cookie: string) =>
+      new Request('https://zenote.example/api/analyser', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer un-jeton-quelconque', Cookie: cookie },
+        body: JSON.stringify({ passages: PASSAGES }),
+      });
+    expect(await identifier(avecJeton(`session=abc; ${COOKIE_SESSION}=${'x'.repeat(43)}`))).toBeNull();
 
     const creerClient = vi.fn(() => fournisseur(toutRepondre).client);
-    const reponse = await traiter(avecJeton, { identifier: identifierUtilisateur, creerClient, choix, journal: () => {} });
+    const reponse = await traiter(avecJeton('session=abc'), { identifier, quota: sansQuota, creerClient, choix, journal: () => {} });
     expect(reponse.status).toBe(401);
     expect(creerClient).not.toHaveBeenCalled();
+
+    // Une session émise par le serveur, d'un compte qui existe : identifié.
+    await magasins.comptes.ecrire('compte-1', { id: 'compte-1', role: 'MEMBRE', creeLe: '', cles: [] });
+    const cookie = (await ouvrirSession('compte-1', magasins)).split(';')[0];
+    expect(await identifier(avecJeton(cookie))).toBe('compte-1');
+  });
+});
+
+describe('limite d’appels', () => {
+  const T = Date.UTC(2026, 8, 26, 22, 0);
+
+  function banc(env: Record<string, string> = {}) {
+    const usage = magasinsEnMemoire().usage;
+    const quota = creerQuota(() => usage, env, () => T);
+    const { client, appels } = fournisseur(toutRepondre);
+    const journal: Record<string, string | number>[] = [];
+    const appeler = (compte: string) =>
+      traiter(requete({ passages: PASSAGES.slice(0, 1) }), {
+        identifier: () => compte,
+        quota,
+        creerClient: () => client,
+        choix,
+        journal: (l) => journal.push(l),
+      });
+    return { usage, appels, appeler, journal };
+  }
+
+  it('scénario « Quota quotidien atteint » — refusé jusqu’au lendemain, sans appeler le fournisseur', async () => {
+    const b = banc({ ZENOTE_QUOTA_JOUR: '2' });
+    expect((await b.appeler('a')).status).toBe(200);
+    expect((await b.appeler('a')).status).toBe(200);
+    const refus = await b.appeler('a');
+    expect(refus.status).toBe(429);
+    expect(await refus.json()).toEqual({ motif: 'quota-atteint', portee: 'jour' });
+    expect(refus.headers.get('Retry-After')).toBe(String(2 * 3600));
+    expect(b.appels).toHaveLength(2);
+    // Un autre compte n'est pas touché.
+    expect((await b.appeler('b')).status).toBe(200);
+  });
+
+  it('scénario « Plafond mensuel atteint » — refusé pour tous', async () => {
+    const b = banc({ ZENOTE_PLAFOND_MOIS: '3' });
+    for (const c of ['a', 'b', 'c']) expect((await b.appeler(c)).status).toBe(200);
+    const refus = await b.appeler('d');
+    expect(refus.status).toBe(429);
+    expect(await refus.json()).toEqual({ motif: 'quota-atteint', portee: 'mois' });
+    expect(Number(refus.headers.get('Retry-After'))).toBe((Date.UTC(2026, 9, 1) - T) / 1000);
+  });
+
+  it('`0` suspend toute analyse sans redéploiement', async () => {
+    const b = banc({ ZENOTE_QUOTA_JOUR: '0' });
+    expect((await b.appeler('a')).status).toBe(429);
+    expect(b.appels).toHaveLength(0);
+  });
+
+  it('scénario « Compteurs sans contenu » — des nombres, par compte et par date', async () => {
+    const b = banc();
+    await b.appeler('a');
+    expect(Object.fromEntries([...b.usage.brut.entries()])).toEqual({ 'jour/a/2026-09-26': '1', 'mois/2026-09': '1' });
+    expect(JSON.stringify(b.journal)).not.toContain(PASSAGES[0]);
+  });
+
+  it('un appel échoué du fournisseur compte quand même : il est facturé', async () => {
+    const usage = magasinsEnMemoire().usage;
+    const reponse = await traiter(requete({ passages: PASSAGES.slice(0, 1) }), {
+      identifier: () => 'a',
+      quota: creerQuota(() => usage, {}, () => T),
+      creerClient: () => ({ systemOne: async () => { throw new Error('panne'); } }),
+      choix,
+      journal: () => {},
+    });
+    expect(reponse.status).toBe(502);
+    expect(usage.brut.get('jour/a/2026-09-26')).toBe('1');
   });
 });
 
@@ -170,6 +254,7 @@ describe('sans clé', () => {
     const creerClient = vi.fn(() => null);
     const reponse = await traiter(requete({ passages: PASSAGES }), {
       identifier: () => 'utilisateur-connecte',
+      quota: sansQuota,
       creerClient,
       choix,
       journal: () => {},

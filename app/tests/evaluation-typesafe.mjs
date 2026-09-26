@@ -242,7 +242,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       const predictions = await predireDistant(
         etiquettes,
         // Lancée à la main, avec sa propre clé : l'opérateur tient lieu de compte.
-        { identifier: () => 'evaluation-locale', creerClient: () => client, choix, journal: () => {}, langue },
+        { identifier: () => 'evaluation-locale', quota: async () => null, creerClient: () => client, choix, journal: () => {}, langue },
         delais,
       );
       modele ||= predictions.find((p) => p.modele)?.modele ?? '';

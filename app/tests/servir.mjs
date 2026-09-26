@@ -37,16 +37,53 @@ async function lireJson(requete) {
   }
 }
 
+/** Passe une requête Node à une fonction au format des fonctions Netlify, et rend sa réponse. */
+async function repondreAvec(fonction, requete, reponse, port) {
+  const morceaux = [];
+  for await (const morceau of requete) morceaux.push(morceau);
+  const entetes = new Headers();
+  for (const [nom, valeur] of Object.entries(requete.headers)) {
+    if (valeur !== undefined) entetes.set(nom, Array.isArray(valeur) ? valeur.join(', ') : valeur);
+  }
+  const corps = morceaux.length > 0 ? Buffer.concat(morceaux) : undefined;
+  const r = await fonction(
+    new Request(`http://localhost:${port}${requete.url}`, {
+      method: requete.method,
+      headers: entetes,
+      body: requete.method === 'GET' || requete.method === 'HEAD' ? undefined : corps,
+    }),
+  );
+  const sortie = {};
+  r.headers.forEach((valeur, nom) => {
+    sortie[nom] = valeur;
+  });
+  reponse.writeHead(r.status, sortie);
+  reponse.end(Buffer.from(await r.arrayBuffer()));
+}
+
 /**
  * Ouvre le paquet construit sur ce port, et rend le serveur pour le refermer.
  *
  * @param simulation facultative : `analyser(corps)` rend `{ statut, corps }` et tient
  *   lieu de `POST /api/analyser`, la fonction Netlify (change `analyse-typesafe`).
  *   Sans elle, ce point répond comme la vraie fonction à un appelant sans compte : 401.
+ *   `fonctions.compte` et `fonctions.analyser`, quand ils sont donnés, sont les vraies
+ *   fonctions (change `comptes-utilisateurs`) : elles répondent à leur place.
  */
 export function servir(port, simulation = {}) {
   const serveur = createServer(async (requete, reponse) => {
     const chemin = decodeURIComponent(new URL(requete.url, 'http://x').pathname);
+    // Change `comptes-utilisateurs` : les vraies fonctions, quand on les fournit — une
+    // `Request` en entrée, une `Response` en sortie, comme chez l'hébergeur.
+    const fonction = chemin.startsWith('/api/compte/')
+      ? simulation.fonctions?.compte
+      : chemin === '/api/analyser'
+        ? simulation.fonctions?.analyser
+        : undefined;
+    if (fonction) {
+      await repondreAvec(fonction, requete, reponse, port);
+      return;
+    }
     if (chemin === '/api/analyser') {
       const { statut, corps } =
         requete.method !== 'POST'

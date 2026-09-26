@@ -33,6 +33,8 @@ export type IssueAnalyseDistante =
   | { issue: 'DELAI_DEPASSE' }
   /** Le service refuse un appelant sans compte connecté (401 ou 403). */
   | { issue: 'COMPTE_REQUIS' }
+  /** Le quota du compte, ou le plafond du mois, est atteint : repli local. */
+  | { issue: 'QUOTA_ATTEINT' }
   /** Le service répond qu'il n'a pas de clé. */
   | { issue: 'NON_CONFIGURE' }
   /** Toute autre réponse d'échec du service. */
@@ -95,15 +97,17 @@ export async function analyserADistance(
     const reponse = await envoyer(POINT_ANALYSE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // Rien d'autre que les passages : ni identifiant, ni date, ni cookie, ni page
-      // d'origine.
+      // Rien d'autre que les passages : ni identifiant, ni date, ni page d'origine. Le
+      // seul cookie qui part est celui de la session du compte, que le serveur exige
+      // (change `comptes-utilisateurs`) et que la page ne sait pas lire.
       body: JSON.stringify({ passages }),
-      credentials: 'omit',
+      credentials: 'same-origin',
       cache: 'no-store',
       referrerPolicy: 'no-referrer',
       signal: abandon.signal,
     });
     if (reponse.status === 401 || reponse.status === 403) return { issue: 'COMPTE_REQUIS' };
+    if (reponse.status === 429) return { issue: 'QUOTA_ATTEINT' };
     if (reponse.status === 503) return { issue: 'NON_CONFIGURE' };
     if (!reponse.ok) return { issue: 'INDISPONIBLE', statut: reponse.status };
 

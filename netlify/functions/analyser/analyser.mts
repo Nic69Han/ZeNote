@@ -1,8 +1,9 @@
 /**
  * `POST /api/analyser` — le point d'analyse distante de ZeNote.
  *
- * Réservé à un utilisateur connecté (`compte.ts`) : sans compte, la requête est
- * refusée en 401 avant tout appel au fournisseur.
+ * Réservé à un utilisateur connecté (`compte.ts`) : sans session, la requête est
+ * refusée en 401 avant tout appel au fournisseur ; au-delà du quota (`quota.ts`), en
+ * 429.
  *
  * La clé `TYPESAFE_API_KEY` ne vit qu'ici, dans l'environnement de l'hébergeur :
  * l'application ne la voit jamais, et le fournisseur ne voit jamais l'appareil. Le
@@ -14,7 +15,9 @@
  */
 
 import { choice, TypeSafeClient, type Logger } from '@typesafe-ai/sdk';
-import { identifierUtilisateur } from './compte.ts';
+import { magasinsBlobs } from '../partage/magasin-blobs.ts';
+import { creerIdentification } from './compte.ts';
+import { creerQuota } from './quota.ts';
 import { traiter, type ClientTypeSafe, type FabriqueChoix } from './traitement.ts';
 
 /**
@@ -43,7 +46,8 @@ function creerClient(): ClientTypeSafe | null {
 
 export default (requete: Request): Promise<Response> =>
   traiter(requete, {
-    identifier: identifierUtilisateur,
+    identifier: creerIdentification(magasinsBlobs),
+    quota: creerQuota(() => magasinsBlobs().usage),
     creerClient,
     choix: choice as unknown as FabriqueChoix,
     journal: (evenement) => console.info(JSON.stringify(evenement)),

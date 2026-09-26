@@ -11,6 +11,7 @@
 import { chromium } from 'playwright';
 import { cheminNavigateur } from './navigateur.mjs';
 import { servir } from './servir.mjs';
+import { fonctionsLocales } from './fonctions-locales.mjs';
 
 const PORT = 4178;
 
@@ -25,28 +26,35 @@ function verifier(intitule, condition, detail = '') {
   console.log(`${condition ? '  ok  ' : ' ÉCHEC'} ${intitule}${detail ? ` — ${detail}` : ''}`);
 }
 
-// Le point d'analyse distante, simulé : il refuse comme la vraie fonction refuse tout
-// appelant sans compte. En mode « repondre », il jugerait : une requête qui partirait
-// quand même aurait alors un effet visible, que les contrôles verraient. Contre un
-// site publié (CIBLE), c'est la vraie fonction qui répond.
-const simulation = {
-  mode: 'refuser',
-  analyser(corps) {
-    if (this.mode !== 'repondre') return { statut: 401, corps: { motif: 'authentification-requise' } };
+// Les vraies fonctions `compte` et `analyser`, avec des magasins en mémoire (change
+// `comptes-utilisateurs`). Seul le fournisseur TypeSafe est simulé : en mode
+// « repondre », il juge ; sinon il n'existe pas, et la fonction répond comme sans clé.
+// Sans session, elle refuse de toute façon, avant de le consulter. Contre un site
+// publié (CIBLE), ce sont les fonctions de l'hébergeur qui répondent.
+const CODE_FONDATEUR = 'fondateur-verification-bout-en-bout';
+const simulation = { mode: 'refuser' };
+const fournisseurSimule = {
+  async systemOne({ questions }) {
     return {
-      statut: 200,
-      corps: {
-        modele: 'simulation',
-        reponses: corps.passages.map(() => ({
-          type: 'TACHE',
-          typeConfiance: 0.9,
-          sphere: 'PROFESSIONNEL',
-          sphereConfiance: 0.9,
-        })),
-      },
+      model: 'simulation',
+      usage: { input_tokens: 1, output_tokens: 1 },
+      answers: Object.fromEntries(
+        Object.keys(questions).map((q) => [
+          q,
+          q.startsWith('type_') ? { choice: 'TACHE', confidence: 0.9 } : { choice: 'PROFESSIONNEL', confidence: 0.9 },
+        ]),
+      ),
     };
   },
 };
+const fonctions = CIBLE
+  ? null
+  : await fonctionsLocales({
+      origine: `http://localhost:${PORT}`,
+      codeFondateur: CODE_FONDATEUR,
+      fournisseur: () => (simulation.mode === 'repondre' ? fournisseurSimule : null),
+    });
+if (fonctions) simulation.fonctions = fonctions;
 const serveur = CIBLE ? null : await servir(PORT, simulation);
 const adresse = CIBLE ?? `http://localhost:${PORT}`;
 console.log(`Vérification sur ${adresse}`);
@@ -124,7 +132,7 @@ const page = await contexte.newPage();
 // vérifiable sur aucune machine sans doigt.
 const cdp = await contexte.newCDPSession(page);
 await cdp.send('WebAuthn.enable');
-await cdp.send('WebAuthn.addVirtualAuthenticator', {
+const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
   options: {
     protocol: 'ctap2',
     ctap2Version: 'ctap2_1',
@@ -147,6 +155,14 @@ const analyses = [];
 page.on('request', (r) => {
   if (new URL(r.url()).pathname === '/api/analyser') {
     analyses.push({ methode: r.method(), corps: r.postData() ?? '' });
+  }
+});
+// Change `comptes-utilisateurs` : les requêtes de compte partent vers la même origine,
+// et aucune ne doit porter de contenu de note.
+const requetesCompte = [];
+page.on('request', (r) => {
+  if (new URL(r.url()).pathname.startsWith('/api/compte/')) {
+    requetesCompte.push({ methode: r.method(), chemin: new URL(r.url()).pathname, corps: r.postData() ?? '' });
   }
 });
 page.on('request', (r) => {
@@ -2127,6 +2143,173 @@ try {
     await page.waitForTimeout(500);
   }
 
+  // --- Le compte ZeNote -----------------------------------------------------------
+  // Change `comptes-utilisateurs`. Les vraies fonctions `compte` et `analyser`, et le
+  // vrai `@simplewebauthn/server`, face à l'authentificateur virtuel qui porte déjà la
+  // clé du coffre. Le coffre est actif, protégé par l'appareil.
+  const analysesSansCompte = analyses.length;
+  if (!CIBLE) {
+    const ouvrirReglages = async () => {
+      await page.locator('.nav__lien[data-onglet="revue"]').click();
+      await page.waitForTimeout(300);
+      await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+      await page.waitForTimeout(900);
+    };
+    const etatCompte = () => page.locator('.compte__etat').innerText().catch(() => '');
+    const retourCompte = () => page.locator('.compte__retour').innerText().catch(() => '');
+    const cles = async () => (await cdp.send('WebAuthn.getCredentials', { authenticatorId })).credentials;
+    const USER_COFFRE = Buffer.from('zenote').toString('base64');
+
+    await ouvrirReglages();
+    const blocAvant = await page.locator('.bloc--compte').innerText();
+    verifier(
+      'scénario « Aucune identité demandée » — ni e-mail, ni nom, ni mot de passe',
+      /Aucun compte sur cet appareil/.test(blocAvant) &&
+        (await page.locator('.bloc--compte input[type="email"], .bloc--compte input[type="password"]').count()) === 0 &&
+        !/e-mail|mot de passe|votre nom/i.test(blocAvant.replace(/Aucune adresse/, '')),
+      blocAvant.replace(/\s+/g, ' ').slice(0, 120),
+    );
+
+    // Premier compte : le code fondateur.
+    await page.getByLabel('Code d’invitation').fill(CODE_FONDATEUR);
+    await page.getByRole('button', { name: /créer mon compte/i }).click();
+    await page.waitForTimeout(2500);
+    const apresCreation = await etatCompte();
+    const faitsCompte = await page.locator('.faits').innerText();
+    verifier(
+      'scénario « Premier compte avec le code fondateur » — administrateur connecté',
+      /Connecté, administrateur/.test(apresCreation),
+      apresCreation || (await retourCompte()),
+    );
+    verifier(
+      'scénario « Ce que le serveur sait, dit à l’écran »',
+      /Un compte ZeNote existe\. Vos notes, elles, restent ici/.test(faitsCompte) &&
+        /identifiant tiré au hasard/.test(faitsCompte),
+    );
+    verifier(
+      'se connecter n’allume pas l’analyse distante',
+      /éteinte/.test(await page.locator('.analyse-distante__etat').innerText()),
+    );
+    const apresCompte = await cles();
+    verifier(
+      'la clé du compte s’ajoute à celle du coffre, sans la remplacer',
+      apresCompte.length === 2 && apresCompte.some((c) => c.userHandle === USER_COFFRE),
+      `${apresCompte.length} clé(s)`,
+    );
+
+    // Scénario « Compte créé sur un appareil au coffre protégé par l'appareil ».
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(800);
+    await page.locator('.ecran--verrou .bouton--plein').first().click();
+    await page.waitForTimeout(2000);
+    verifier(
+      'scénario « Compte créé sur un appareil au coffre protégé par l’appareil » — le coffre se rouvre',
+      (await page.locator('.ecran--revue').count()) === 1,
+    );
+
+    // Scénario « Allumage après connexion » : la session survit au rechargement.
+    await ouvrirReglages();
+    await page.getByRole('button', { name: /allumer l’analyse distante/i }).click();
+    await page.getByRole('button', { name: /^allumer$/i }).click();
+    await page.waitForTimeout(700);
+    simulation.mode = 'repondre';
+    const phraseCompte = 'Préparer le budget du client pour le comité de rentrée.';
+    const captureCompte = await page.evaluate(async (texte) => {
+      const c = await window.__zenote.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', agenda: null });
+      await window.__zenote.traiterFileAnalyse();
+      return c.id;
+    }, phraseCompte);
+    const envoi = analyses.at(-1);
+    const origineCompte = await page.evaluate(
+      async (id) => (await window.__zenote.elementsDeCapture(id)).map((e) => e.origineAnalyse?.moteur).join(),
+      captureCompte,
+    );
+    verifier(
+      'scénario « Allumage après connexion » — une requête, avec la session, que des passages',
+      analyses.length === analysesSansCompte + 1 &&
+        Object.keys(JSON.parse(envoi?.corps || '{}')).join() === 'passages' &&
+        /TYPESAFE/.test(origineCompte),
+      `${analyses.length - analysesSansCompte} requête(s), origine ${origineCompte}`,
+    );
+    simulation.mode = 'refuser';
+
+    // Une invitation, créée par l'administrateur.
+    await ouvrirReglages();
+    await page.getByRole('button', { name: /inviter quelqu’un/i }).click();
+    await page.waitForTimeout(800);
+    const texteInvitation = await page.locator('.compte__invitation').innerText();
+    const lienInvitation = texteInvitation.match(/https?:\/\/\S+#invitation=[A-Za-z0-9_-]+/)?.[0] ?? '';
+    verifier('scénario « Invitation créée » — un lien à usage unique, montré une fois', lienInvitation !== '', texteInvitation.slice(0, 80));
+
+    // Déconnexion : l'analyse distante s'éteint avec.
+    await page.getByRole('button', { name: /se déconnecter/i }).click();
+    await page.waitForTimeout(1000);
+    verifier(
+      'scénario « Déconnexion » — déconnecté, analyse distante éteinte',
+      /Aucun compte sur cet appareil/.test(await etatCompte()) &&
+        /réservée aux comptes/.test(await page.locator('.analyse-distante__etat').innerText()),
+    );
+
+    // Connexion : avec la seule clé du coffre, refusée ; avec celle du compte, acceptée.
+    const toutes = await cles();
+    const cleCoffre = toutes.find((c) => c.userHandle === USER_COFFRE);
+    const cleCompte = toutes.find((c) => c.userHandle !== USER_COFFRE);
+    await cdp.send('WebAuthn.removeCredential', { authenticatorId, credentialId: cleCompte.credentialId });
+    await page.getByRole('button', { name: /^se connecter$/i }).click();
+    await page.waitForTimeout(1500);
+    verifier(
+      'scénario « Clé d’accès inconnue » — la clé du coffre ne connecte pas',
+      /n’est pas celle d’un compte ZeNote/.test(await retourCompte()),
+      await retourCompte(),
+    );
+    await cdp.send('WebAuthn.addCredential', { authenticatorId, credential: cleCompte });
+    await cdp.send('WebAuthn.removeCredential', { authenticatorId, credentialId: cleCoffre.credentialId });
+    await page.getByRole('button', { name: /^se connecter$/i }).click();
+    await page.waitForTimeout(1500);
+    verifier('scénario « Connexion sur un nouvel appareil »', /Connecté, administrateur/.test(await etatCompte()), await etatCompte());
+    await cdp.send('WebAuthn.addCredential', { authenticatorId, credential: cleCoffre });
+
+    // Suppression : le coffre et les notes restent.
+    await page.getByRole('button', { name: /supprimer mon compte/i }).click();
+    await page.getByRole('button', { name: /supprimer définitivement/i }).click();
+    await page.waitForTimeout(1000);
+    const restes = Object.values(fonctions.magasins).reduce((n, m) => n + [...m.brut.keys()].filter((k) => !k.startsWith('mois/')).length, 0);
+    const noteEncore = await page.evaluate(async (id) => (await window.__zenote.lireCapture(id))?.texte, captureCompte);
+    verifier(
+      'scénario « Compte supprimé » — le serveur n’en garde rien, les notes restent',
+      /Aucun compte sur cet appareil/.test(await etatCompte()) && noteEncore === phraseCompte &&
+        [...fonctions.magasins.comptes.brut.keys()].length === 0 && [...fonctions.magasins.sessions.brut.keys()].length === 0,
+      `${restes} entrée(s) restante(s) hors compteur du mois (invitations comprises)`,
+    );
+
+    // Le lien d'invitation : il ouvre « Vos données », code déjà saisi, et crée un membre.
+    await page.goto(lienInvitation, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(1200);
+    const adresseApres = page.url();
+    verifier(
+      'le lien d’invitation ouvre « Vos données », et son code quitte l’adresse',
+      /Vous avez reçu une invitation/.test(await etatCompte()) && !adresseApres.includes('invitation='),
+      adresseApres,
+    );
+    await page.getByRole('button', { name: /créer mon compte/i }).click();
+    await page.waitForTimeout(2500);
+    verifier('scénario « Compte créé avec une invitation » — membre connecté', /^Connecté\.$/.test((await etatCompte()).trim()), await etatCompte());
+    await page.getByRole('button', { name: /supprimer mon compte/i }).click();
+    await page.getByRole('button', { name: /supprimer définitivement/i }).click();
+    await page.waitForTimeout(1000);
+    await page.evaluate(async (id) => window.__zenote.supprimerCapture(id), captureCompte);
+
+    const notesDansCompte = requetesCompte.filter((r) => /budget|couvreur|notaire|planning|rentrée|four|livre/i.test(r.corps));
+    verifier(
+      'scénario « Requêtes de compte inspectées » — même origine, aucun contenu de note',
+      requetesCompte.length >= 8 && notesDansCompte.length === 0,
+      `${requetesCompte.length} requête(s) de compte, ${notesDansCompte.length} avec du texte de note`,
+    );
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(500);
+  }
+
   const minuteriesVivantes = await page.evaluate(
     () => document.querySelectorAll('.ecran').length,
   );
@@ -2151,8 +2334,8 @@ try {
   );
   verifier(
     'et, sans compte, aucune requête d’analyse n’est partie de tout le parcours',
-    analyses.length === 0,
-    `${analyses.length} requête(s)`,
+    analysesSansCompte === 0,
+    `${analysesSansCompte} requête(s)`,
   );
 
   verifier(

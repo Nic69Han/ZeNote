@@ -113,7 +113,7 @@ Au-delà, la réponse est `429 { motif: 'quota-atteint', portee: 'jour' | 'mois'
 
 Les deux compteurs sont incrémentés avant l'appel au fournisseur, qui est facturé même quand sa réponse est rejetée. Une valeur `0` suspend l'analyse pour tous sans redéploiement ; c'est l'interrupteur d'urgence.
 
-Blobs n'a pas d'incrément atomique. Deux requêtes simultanées du même compte peuvent donc dépasser le quota d'une ou deux unités. C'est accepté (voir Risques) : le plafond reste de l'ordre de ce qui est fixé.
+Chaque incrément est une écriture conditionnelle à la version lue (ETag de Netlify Blobs, `onlyIfMatch`), rejouée quelques fois en cas de conflit, puis refusée : deux requêtes simultanées ne comptent pas pour une, et le quota ne se dépasse pas. Le compteur du mois, pris avant celui du jour, est rendu si c'est le jour qui refuse. Le même mécanisme (`onlyIfNew`) rend sûrs la consommation d'une invitation et la création du premier administrateur.
 
 Côté appareil, le client traduit 429 en `QUOTA_ATTEINT`, un repli comme les autres. La Revue dit une fois que le service n'était pas disponible.
 
@@ -184,7 +184,7 @@ La vérification réseau stricte reste en place :
 
 - **[Toutes les clés d'accès d'un compte perdues]** → Le compte est perdu. On en crée un autre sur une nouvelle invitation, et aucune note n'est perdue. L'écran le dit à la création. Les clés synchronisées par le système couvrent la plupart des changements d'appareil.
 - **[Écraser la clé du coffre]** → Identifiant utilisateur distinct et aléatoire (décision 2). Un test unitaire vérifie les options d'inscription, un scénario bout-en-bout vérifie que le coffre se rouvre.
-- **[Dépassement du quota sous concurrence]** → Borné à quelques unités par la lecture-écriture en cohérence forte. Le plafond mensuel et l'interrupteur `0` bornent le reste.
+- **[Forte concurrence sur un compteur]** → Les écritures conditionnelles échouent au-delà de quelques essais, et la requête est refusée plutôt que comptée deux fois. Le plafond mensuel et l'interrupteur `0` bornent le reste.
 - **[Code fondateur connu d'un tiers avant usage]** → Il ne sert qu'une fois et seulement avant le premier administrateur. Il est à poser juste avant usage, à tirer au hasard, et à retirer ensuite (tâche de mise en service).
 - **[Quotas du plan gratuit de Netlify (Blobs, invocations)]** → Quelques lectures par appel d'analyse et une poignée d'utilisateurs, très en deçà. Le plafond mensuel borne aussi le nombre d'appels.
 - **[Aperçus de déploiement et vrais magasins]** → Un compte d'aperçu est un vrai compte, sous le même quota. C'est documenté ; pas de magasin par déploiement, qui rendrait la production et les aperçus incohérents.

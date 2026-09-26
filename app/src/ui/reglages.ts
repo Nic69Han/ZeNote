@@ -40,7 +40,19 @@ import {
   type TypeGardien,
 } from '../securite/coffre.ts';
 import { annoncer, el, vider } from './dom.ts';
-import { compteConnecte } from '../compte/compte.ts';
+import {
+  RefusCompte,
+  compteConnecte,
+  creerCompte,
+  invitationEnAttente,
+  inviter,
+  oublierInvitation,
+  rafraichirCompte,
+  seConnecter,
+  seDeconnecter,
+  supprimerCompte,
+  type EtatCompte,
+} from '../compte/compte.ts';
 import { AgendaIllisible, lireAgenda } from '../agenda/ics.ts';
 import { effacerAgenda, etatAgenda, importerAgenda, type EtatAgenda } from '../stockage/agenda.ts';
 
@@ -64,7 +76,7 @@ interface Fait {
  * déléguée au navigateur, et l'application ne peut, depuis son propre code, ni
  * observer ni empêcher ce que celui-ci envoie.
  */
-function faits(coffre: EtatCoffre, analyseDistante: boolean): Fait[] {
+function faits(coffre: EtatCoffre, analyseDistante: boolean, connecte = false): Fait[] {
   return [
   // Change `analyse-typesafe` — tâche 4.1 : ce bloc dit vrai dans les deux états du
   // réglage. Allumé, la sortie du texte vient en tête, parce que c'est d'abord ce
@@ -88,14 +100,26 @@ function faits(coffre: EtatCoffre, analyseDistante: boolean): Fait[] {
           'compare des mots, ici, dans cet onglet. L’analyse distante, qui enverrait le texte ' +
           'des passages à un modèle, est éteinte : aucun texte ne sort.',
       },
-  {
-    rassurant: true,
-    titre: 'Aucun compte, aucun stockage distant, aucune mesure d’audience.',
-    detail:
-      'Tout vit dans IndexedDB, la base de données du navigateur, sur cet appareil. Rien ' +
-      'n’est déposé sur un serveur ZeNote : le service d’analyse distante, quand il est ' +
-      'allumé, juge des passages et n’en garde rien.',
-  },
+  // Change `comptes-utilisateurs` : connecté, le serveur sait qu'un compte existe, et
+  // l'écran dit exactement ce qu'il en garde.
+  connecte
+    ? {
+        rassurant: true,
+        titre: 'Un compte ZeNote existe. Vos notes, elles, restent ici.',
+        detail:
+          'Le serveur de ZeNote garde de votre compte un identifiant tiré au hasard, la clé ' +
+          'publique de votre clé d’accès, sa date de création, vos sessions et un compteur ' +
+          'd’analyses par jour. Aucune adresse, aucun nom, aucune note : tout le reste vit ' +
+          'dans la base du navigateur, sur cet appareil.',
+      }
+    : {
+        rassurant: true,
+        titre: 'Aucun compte, aucun stockage distant, aucune mesure d’audience.',
+        detail:
+          'Tout vit dans IndexedDB, la base de données du navigateur, sur cet appareil. Rien ' +
+          'n’est déposé sur un serveur ZeNote : le service d’analyse distante, quand il est ' +
+          'allumé, juge des passages et n’en garde rien.',
+      },
   coffre === 'ABSENT'
     ? {
         rassurant: false,
@@ -178,6 +202,8 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
     const appareilPossible = await gardienAppareilPossible();
     const reglages = await lireReglages();
     const agenda = await etatAgenda();
+    // Relu ici plutôt qu'au démarrage : cet écran n'est pas sur le chemin de la capture.
+    const compte = await rafraichirCompte();
 
     vider(vue);
     const section = el(
@@ -189,8 +215,9 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
         texte: 'Ce qui reste ici, ce qui sort, et comment tout reprendre.',
       }),
       // Sans compte, rien ne part, quel que soit le réglage enregistré : le bloc le dit.
-      blocPerimetre(coffre, reglages.analyseDistante && compteConnecte()),
+      blocPerimetre(coffre, reglages.analyseDistante && compte.connecte, compte.connecte),
       blocAgenda(agenda),
+      blocCompte(compte),
       blocAnalyseDistante(reglages),
       blocChiffrement(coffre, appareilPossible, donnees),
       blocCreneau(reglages),
@@ -669,9 +696,9 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
 
   // ------------------------------------------------ ce qui quitte l'appareil
 
-  function blocPerimetre(coffre: EtatCoffre, analyseDistante: boolean): HTMLElement {
+  function blocPerimetre(coffre: EtatCoffre, analyseDistante: boolean, connecte: boolean): HTMLElement {
     const liste = el('ul', { class: 'faits' });
-    for (const fait of faits(coffre, analyseDistante)) {
+    for (const fait of faits(coffre, analyseDistante, connecte)) {
       liste.append(
         el(
           'li',
@@ -812,6 +839,142 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
     return new Date(`${local.slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
   }
 
+  // ---------------------------------------------------------------- le compte
+
+  /**
+   * Le compte ZeNote : le créer sur invitation, s'y connecter, en sortir, le supprimer,
+   * inviter quelqu'un.
+   *
+   * Change `comptes-utilisateurs`, décision 10. Aucune identité n'est demandée : une clé
+   * d'accès de l'appareil suffit, distincte de celle du coffre. Le compte ne sert qu'à
+   * l'analyse distante ; les notes restent ici quoi qu'on en fasse.
+   */
+  function blocCompte(compte: EtatCompte): HTMLElement {
+    const retour = el('p', { class: 'bloc__texte compte__retour', role: 'status' });
+    const agir = (geste: () => Promise<unknown>, reussi: string) => {
+      void (async () => {
+        try {
+          await geste();
+          oublierInvitation();
+          annoncer(reussi);
+          await rendre();
+        } catch (e) {
+          retour.textContent = e instanceof RefusCompte ? e.message : 'Le geste n’a pas abouti.';
+          annoncer(retour.textContent);
+        }
+      })();
+    };
+    const avertissement = el('p', {
+      class: 'fait__detail',
+      texte:
+        'Sans ses clés d’accès, un compte ne se récupère pas : on en crée un autre sur une ' +
+        'nouvelle invitation. Vos notes, elles, restent ici.',
+    });
+
+    if (!compte.connecte) {
+      const code = el('input', {
+        class: 'champ',
+        type: 'text',
+        autocomplete: 'off',
+        'aria-label': 'Code d’invitation',
+        placeholder: 'Code d’invitation',
+        value: invitationEnAttente() ?? '',
+      }) as HTMLInputElement;
+      return el(
+        'section',
+        { class: 'bloc bloc--compte', 'aria-labelledby': 'titre-compte' },
+        el('h2', { id: 'titre-compte', class: 'bloc__titre', texte: 'Compte' }),
+        el('p', {
+          class: 'bloc__texte compte__etat',
+          texte: invitationEnAttente()
+            ? 'Vous avez reçu une invitation. Créez votre compte avec la clé d’accès de cet appareil.'
+            : 'Aucun compte sur cet appareil. Un compte ne sert qu’à l’analyse distante, et ne se crée que sur invitation.',
+        }),
+        el('button', {
+          class: 'bouton',
+          type: 'button',
+          texte: 'Se connecter',
+          onclick: () => agir(seConnecter, 'Connecté.'),
+        }),
+        el('label', { class: 'champ__etiquette' }, 'J’ai une invitation', code),
+        el('button', {
+          class: invitationEnAttente() ? 'bouton bouton--plein' : 'bouton',
+          type: 'button',
+          texte: 'Créer mon compte',
+          onclick: () => agir(() => creerCompte(code.value.trim()), 'Compte créé. Vous êtes connecté.'),
+        }),
+        avertissement,
+        retour,
+      );
+    }
+
+    const confirmation = el(
+      'div',
+      { class: 'compte__confirmation', hidden: true, role: 'group', 'aria-label': 'Supprimer le compte' },
+      el('p', {
+        class: 'fait__detail',
+        texte:
+          'Le serveur oubliera ce compte, ses clés et ses sessions. Vos notes, sur cet ' +
+          'appareil, ne sont pas touchées. Cela ne s’annule pas.',
+      }),
+      el('button', {
+        class: 'bouton bouton--danger',
+        type: 'button',
+        texte: 'Supprimer définitivement',
+        onclick: () => agir(supprimerCompte, 'Compte supprimé.'),
+      }),
+    );
+    const lien = el('p', { class: 'bloc__texte compte__invitation', hidden: true });
+    return el(
+      'section',
+      { class: 'bloc bloc--compte', 'aria-labelledby': 'titre-compte' },
+      el('h2', { id: 'titre-compte', class: 'bloc__titre', texte: 'Compte' }),
+      el('p', {
+        class: 'bloc__texte compte__etat',
+        texte: compte.role === 'ADMINISTRATEUR' ? 'Connecté, administrateur.' : 'Connecté.',
+      }),
+      compte.role === 'ADMINISTRATEUR'
+        ? el('button', {
+            class: 'bouton',
+            type: 'button',
+            texte: 'Inviter quelqu’un',
+            onclick: () => {
+              void (async () => {
+                try {
+                  const { lien: adresse, expire } = await inviter();
+                  lien.hidden = false;
+                  lien.textContent =
+                    `Lien à usage unique, valable jusqu’au ${new Date(expire).toLocaleDateString('fr-FR')} ` +
+                    `— il ne sera plus montré : ${adresse}`;
+                  annoncer('Invitation créée.');
+                } catch (e) {
+                  retour.textContent = e instanceof RefusCompte ? e.message : 'L’invitation n’a pas pu être créée.';
+                }
+              })();
+            },
+          })
+        : null,
+      lien,
+      el('button', {
+        class: 'bouton',
+        type: 'button',
+        texte: 'Se déconnecter',
+        onclick: () => agir(seDeconnecter, 'Déconnecté. L’analyse distante est éteinte.'),
+      }),
+      el('button', {
+        class: 'bouton bouton--discret',
+        type: 'button',
+        texte: 'Supprimer mon compte…',
+        onclick: () => {
+          confirmation.hidden = false;
+        },
+      }),
+      confirmation,
+      avertissement,
+      retour,
+    );
+  }
+
   // ------------------------------------------------------ l'analyse distante
 
   /**
@@ -863,10 +1026,10 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       el('p', {
         class: 'bloc__texte',
         texte: !connecte
-          ? 'L’analyse distante demande d’être connecté avec un compte ZeNote, et les comptes ' +
-            'n’existent pas encore : aucune note ne sort de l’appareil. Ces choix vaudront le jour ' +
-            'où elle sera possible — une note dont la sphère ne se reconnaît pas restera alors ' +
-            'ici, elle aussi, dès qu’une case est cochée.'
+          ? 'L’analyse distante demande d’être connecté avec un compte ZeNote (bloc « Compte » ' +
+            'ci-dessus) : sans compte, aucune note ne sort de l’appareil. Ces choix vaudront une ' +
+            'fois connecté — une note dont la sphère ne se reconnaît pas restera alors ici, elle ' +
+            'aussi, dès qu’une case est cochée.'
           : reglages.analyseDistante
           ? 'L’analyse distante est allumée. Les notes cochées ci-dessous ne partent jamais ; ' +
             'une note dont la sphère ne se reconnaît pas non plus, dès qu’une case est cochée.'

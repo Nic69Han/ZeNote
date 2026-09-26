@@ -46,6 +46,7 @@ import {
   reunionQuiSeTermine,
 } from './services/rappels.ts';
 import { maintenantLocal } from './services/pipeline.ts';
+import { lireInvitationDeLAdresse, rafraichirCompte } from './compte/compte.ts';
 
 type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'personnes' | 'reglages';
 
@@ -68,6 +69,9 @@ const TOUS = [...ONGLETS, ...ECRANS_RETRAIT];
 const THEMES: Reglages['theme'][] = ['auto', 'clair', 'sombre'];
 
 async function demarrer(): Promise<void> {
+  // Change `comptes-utilisateurs` : un lien d'invitation s'ouvre sur « Vos données »,
+  // et son code quitte l'adresse avant tout rendu.
+  lireInvitationDeLAdresse();
   const reglages = await lireReglages();
   appliquerTheme(reglages.theme);
 
@@ -195,13 +199,20 @@ async function demarrer(): Promise<void> {
     }
   }
 
-  window.addEventListener('hashchange', () => void afficher());
+  window.addEventListener('hashchange', () => {
+    // Un lien d'invitation ouvert dans un onglet déjà ouvert ne recharge pas la page.
+    lireInvitationDeLAdresse();
+    void afficher();
+  });
 
   // Fermeture de l'onglet ou passage en arrière-plan : on tente la même sortie propre.
   // L'écriture est asynchrone et rien ne garantit qu'elle aboutisse ici — mais tenter
   // vaut mieux que laisser le micro ouvert et l'enregistrement par terre.
   window.addEventListener('pagehide', () => demonterEcran?.());
 
+  // L'état du compte se lit sans retarder le premier écran : la capture n'attend
+  // jamais le réseau. D'ici là, l'appareil se tient pour déconnecté, et rien ne part.
+  void rafraichirCompte();
   await afficher();
 
   // Ce qu'un arrêt brutal a laissé en chemin devient une capture, avant tout le
@@ -254,6 +265,7 @@ async function demarrer(): Promise<void> {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+      void rafraichirCompte();
       window.clearTimeout(verrouEnAttente);
       verrouEnAttente = undefined;
       const absence = quitteeA === undefined ? 0 : Date.now() - quitteeA;
