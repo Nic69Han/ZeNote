@@ -148,9 +148,23 @@ describe('éléments', () => {
       elementDe({ id: 'a' }),
       elementDe({ id: 'b', verdict: 'ACCEPTE' }),
     ]);
-    await remplacerElements('cap-1', [elementDe({ id: 'c' })]);
+    await remplacerElements('cap-1', [elementDe({ id: 'c', debutCar: 14, finCar: 30 })]);
     const restants = (await elementsDeCapture('cap-1')).map((e) => e.id).sort();
     expect(restants).toEqual(['b', 'c']);
+  });
+
+  it('ne repropose pas un passage que l’humain a déjà décidé ou corrigé', async () => {
+    await remplacerElements('cap-1', [
+      elementDe({ id: 'decide', verdict: 'ACCEPTE' }),
+      elementDe({ id: 'corrige', debutCar: 14, finCar: 30, corrigeParHumain: true }),
+    ]);
+    await remplacerElements('cap-1', [
+      elementDe({ id: 'double-1' }),
+      elementDe({ id: 'double-2', debutCar: 14, finCar: 30 }),
+      elementDe({ id: 'neuf', debutCar: 31, finCar: 40 }),
+    ]);
+    const restants = (await elementsDeCapture('cap-1')).map((e) => e.id).sort();
+    expect(restants).toEqual(['corrige', 'decide', 'neuf']);
   });
 
   it('applique une décision humaine qui prime sur la déduction', async () => {

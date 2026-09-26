@@ -82,7 +82,7 @@ code depuis ici :
 | Rejet d'une proposition | tenu | `bout-en-bout`. |
 | Correction apprise | tenu | `RevueTest` : une correction humaine n'est pas écrasée par une ré-analyse. |
 
-## memoire — 13 scénarios · 11 tenus, 2 partiels
+## memoire — 13 scénarios · 12 tenus, 1 partiel
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
@@ -98,7 +98,7 @@ code depuis ici :
 | Fiche personne | tenu | `bout-en-bout` : chaque ligne renvoie à sa capture, et rien ne se renseigne à la main. |
 | Déduction de la sphère | tenu | `spheres.test.ts`. |
 | Filtrage à la restitution | tenu | `spheres.test.ts` et `bout-en-bout` : rien n'est déplacé ni dupliqué. |
-| Fusion de doublons | partiel | `MemoireTest` couvre fusion, renommage, séparation et annulation dans le cœur. Aucun écran ne les propose. |
+| Fusion de doublons | tenu | `MemoireTest` dans le cœur ; sur la surface, change `fusion-personnes` : « Même personne que… » réunit deux fiches, « Annuler » ou « Séparer » les rend, la fusion tient à la ré-analyse et reste scellée par le coffre (`personnes.test.ts`, bout-en-bout « Deux fiches réunies », « Fusion annulée »). Renommer et séparer une fiche au-delà d'une fusion restent au cœur seul. |
 
 ## priorisation — 12 scénarios · 11 tenus, 1 partiel
 
