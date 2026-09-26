@@ -81,13 +81,19 @@ Toute requête qui modifie un état (`POST`) est refusée en 403 dans l'un de ce
 
 Avec `SameSite=Strict`, une page d'un autre site ne peut ni envoyer le cookie ni forger une requête acceptée.
 
-### 6. Origine et identifiant de site tirés de l'environnement, jamais de la requête
+### 6. Origine admise : celle de la requête, et une adresse de ce site
 
-La vérification WebAuthn exige l'origine attendue et l'identifiant de site (`rpID`). Ils sont pris dans les variables que Netlify pose à chaque déploiement :
-- `URL` pour la production ;
-- `DEPLOY_PRIME_URL` pour un aperçu.
+Une requête qui modifie un état n'est admise que si deux conditions tiennent.
 
-Ils ne sont jamais tirés de l'en-tête `Host`, qu'un client contrôle.
+1. Son en-tête `Origin` est l'origine même de la requête. C'est ce qui exclut la contrefaçon.
+2. Cette origine est une adresse du site, parmi :
+   - celles de l'environnement (`URL`, `DEPLOY_PRIME_URL`, `DEPLOY_URL`, et `ZENOTE_ORIGINES` pour le local et le bout-en-bout) ;
+   - l'adresse que Netlify passe à la fonction (`context.site.url`) ;
+   - ses adresses de déploiement `https://…--<nom du site>.netlify.app`, que Netlify ne route que vers ce site.
+
+L'identifiant de site WebAuthn (`rpID`) est le nom d'hôte de cette origine.
+
+Vérifié sur l'aperçu de déploiement : les variables de construction (`DEPLOY_PRIME_URL`) ne sont pas visibles des fonctions à l'exécution. D'où le recours au contexte du site. Un en-tête `Host` forgé ne mène pas à ce site, puisque c'est lui qui route vers la fonction.
 
 Conséquence assumée : une clé d'accès créée sur la production ne sert pas sur un aperçu, dont le domaine diffère. Les aperçus se testent avec un compte créé sur l'aperçu. Leurs magasins Blobs sont ceux du site : un compte d'aperçu est un vrai compte, soumis au même quota.
 

@@ -57,8 +57,8 @@ export type Journal = (evenement: Record<string, string | number>) => void;
 export interface DependancesCompte {
   magasins: Magasins;
   webauthn: VerificateurWebAuthn;
-  /** Les origines de l'application (production, aperçu) — jamais tirées de la requête. */
-  origines: string[];
+  /** L'origine est-elle admise pour cette requête ? Voir `partage/origines.ts`. */
+  origineAutorisee: (origine: string, requete: Request) => boolean;
   /** `ZENOTE_CODE_FONDATEUR`, ou `null` quand il n'est pas posé. */
   codeFondateur: string | null;
   journal: Journal;
@@ -129,7 +129,7 @@ export async function traiterCompte(requete: Request, d: DependancesCompte): Pro
   // Tout le reste modifie un état : POST, de l'origine de l'application, en JSON (décision 5).
   if (requete.method !== 'POST') return refus(405, 'methode-refusee');
   const origine = requete.headers.get('origin');
-  if (!origine || !d.origines.includes(origine)) {
+  if (!origine || !d.origineAutorisee(origine, requete)) {
     d.journal({ evenement: 'compte-refuse', motif: 'origine-refusee' });
     return refus(403, 'origine-refusee');
   }

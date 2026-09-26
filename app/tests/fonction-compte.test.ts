@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { base64url, magasinsEnMemoire } from '../../netlify/functions/partage/magasin.ts';
-import { originesAttendues } from '../../netlify/functions/partage/origines.ts';
+import { controleOrigine, originesAttendues } from '../../netlify/functions/partage/origines.ts';
 import { COOKIE_SESSION, DUREE_SESSION_MS, verifierSession } from '../../netlify/functions/partage/session.ts';
 import {
   DUREE_INVITATION_MS,
@@ -64,7 +64,7 @@ function banc(ajout: Partial<DependancesCompte> = {}) {
   const d: DependancesCompte = {
     magasins,
     webauthn,
-    origines: [ORIGINE],
+    origineAutorisee: controleOrigine({ URL: ORIGINE }),
     codeFondateur: FONDATEUR,
     journal: (l) => journal.push(l),
     maintenant: () => horloge,
@@ -239,6 +239,19 @@ describe('contrefaçon', () => {
     const texte = await b.appel('deconnexion', {}, admin.cookie, { 'Content-Type': 'text/plain' });
     expect(texte.statut).toBe(415);
     expect((await b.appel('session', undefined, admin.cookie)).corps.connecte).toBe(true);
+  });
+
+  it('une origine admise est celle de la requête et du site : production, aperçus, local', () => {
+    const admise = controleOrigine({ ZENOTE_ORIGINES: 'http://localhost:4178' }, { url: 'https://zenote-app.netlify.app', name: 'zenote-app' });
+    const vers = (url: string) => new Request(`${url}/api/compte/deconnexion`);
+    expect(admise('https://zenote-app.netlify.app', vers('https://zenote-app.netlify.app'))).toBe(true);
+    expect(admise('https://deploy-preview-6--zenote-app.netlify.app', vers('https://deploy-preview-6--zenote-app.netlify.app'))).toBe(true);
+    expect(admise('http://localhost:4178', vers('http://localhost:4178'))).toBe(true);
+    // Une origine du site, mais pas celle de la requête : contrefaçon.
+    expect(admise('https://deploy-preview-6--zenote-app.netlify.app', vers('https://zenote-app.netlify.app'))).toBe(false);
+    // Un autre site, même hébergé chez Netlify.
+    expect(admise('https://x--autre-site.netlify.app', vers('https://x--autre-site.netlify.app'))).toBe(false);
+    expect(admise('https://zenote-app.netlify.app.evil.example', vers('https://zenote-app.netlify.app.evil.example'))).toBe(false);
   });
 
   it('les origines viennent de l’environnement, pas de la requête', () => {

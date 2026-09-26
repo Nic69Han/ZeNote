@@ -10,15 +10,15 @@
  */
 
 import { magasinsBlobs } from '../partage/magasin-blobs.ts';
-import { originesAttendues } from '../partage/origines.ts';
+import { controleOrigine, type SiteNetlify } from '../partage/origines.ts';
 import { traiterCompte } from './traitement.ts';
 import { webauthnReel } from './webauthn.ts';
 
-export default (requete: Request): Promise<Response> =>
+export default (requete: Request, contexte?: { site?: SiteNetlify }): Promise<Response> =>
   traiterCompte(requete, {
     magasins: magasinsBlobs(),
     webauthn: webauthnReel,
-    origines: originesAttendues(),
+    origineAutorisee: controleOrigine(process.env, contexte?.site),
     codeFondateur: process.env.ZENOTE_CODE_FONDATEUR?.trim() || null,
     journal: (evenement) => console.info(JSON.stringify(evenement)),
   });

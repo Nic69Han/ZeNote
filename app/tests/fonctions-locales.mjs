@@ -49,7 +49,7 @@ export async function fonctionsLocales({ origine, codeFondateur, fournisseur }) 
       f.traiterCompte(requete, {
         magasins,
         webauthn: f.webauthnReel,
-        origines: [origine],
+        origineAutorisee: (o) => o === origine,
         codeFondateur,
         journal: (l) => journal.push(l),
       }),
