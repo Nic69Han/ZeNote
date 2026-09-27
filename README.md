@@ -130,7 +130,8 @@ lit ce que le produit ne sera pas.
 # Environnement de développement
 
 Assisté par agent, prêt à l'emploi : **OpenSpec** (workflow spec-driven), **RTK**
-(compression des sorties shell) et **Caveman** (compression des réponses).
+(compression des sorties shell), **Caveman** (compression des réponses) et **Ponytail**
+(écrire le moins de code possible).
 
 ## Installation
 
@@ -140,15 +141,17 @@ export PATH="$HOME/.local/bin:$PATH"   # si rtk n'est pas trouvé
 ```
 
 Le script est idempotent : il installe `rtk` dans `~/.local/bin`, `openspec` via npm global,
-et vérifie que la skill `caveman` est bien présente dans le dépôt.
+vérifie que la skill `caveman` est bien présente dans le dépôt, et installe le plugin Claude Code
+`ponytail` (via le CLI `claude`, portée utilisateur ; ses hooks nécessitent `node`).
 
-## Les trois outils
+## Les outils
 
 | Outil | Rôle | Source |
 |-------|------|--------|
 | [OpenSpec](https://github.com/Fission-AI/OpenSpec) | Développement piloté par les specs : proposition → specs → tâches → implémentation → archive | npm `@fission-ai/openspec` |
 | [RTK](https://github.com/rtk-ai/rtk) | Proxy CLI qui filtre/compresse la sortie des commandes avant qu'elle n'entre dans le contexte (jusqu'à −90 % de sortie bash) | binaire Rust |
 | [Caveman](https://github.com/amanattar/caveman-claude-skill) | Style de réponse ultra-compressé (~−75 % de tokens en sortie) sans perte de contenu technique | skill vendorée |
+| [Ponytail](https://github.com/DietrichGebert/ponytail) | L'agent réutilise l'existant (code du projet, stdlib, dépendances) avant d'écrire du nouveau code, et écrit le minimum qui marche | plugin Claude Code |
 
 ### OpenSpec
 
