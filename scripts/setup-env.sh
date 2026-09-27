@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set up the ZeNote agent environment: OpenSpec + RTK + Caveman.
+# Set up the ZeNote agent environment: OpenSpec + RTK + Caveman + Ponytail.
 #
 #   bash scripts/setup-env.sh
 #
@@ -83,9 +83,39 @@ check_caveman() {
   fi
 }
 
+# ----------------------------------------------------------- Ponytail --------
+# Claude Code plugin: write the least code that works (reuse > stdlib > new code).
+# Its hooks need node on PATH.
+# https://github.com/DietrichGebert/ponytail
+install_ponytail() {
+  if ! command -v claude >/dev/null 2>&1; then
+    warn "claude CLI not found — in Claude Code run:"
+    warn "  /plugin marketplace add DietrichGebert/ponytail"
+    warn "  /plugin install ponytail@ponytail"
+    return
+  fi
+  if ! command -v node >/dev/null 2>&1; then
+    warn "node not found — ponytail hooks need node on PATH"
+  fi
+
+  if claude plugin list 2>/dev/null | grep -q 'ponytail@ponytail'; then
+    info "ponytail plugin already installed"
+    return
+  fi
+
+  if ! claude plugin marketplace list 2>/dev/null | grep -qw ponytail; then
+    info "adding ponytail marketplace"
+    claude plugin marketplace add DietrichGebert/ponytail
+  fi
+  info "installing ponytail plugin"
+  claude plugin install ponytail@ponytail
+  info "ponytail installed"
+}
+
 install_rtk
 install_openspec
 check_caveman
+install_ponytail
 
 cat <<'EOF'
 
@@ -94,6 +124,7 @@ Environment ready.
   rtk       compresses bash output (hook in .claude/settings.json)
   openspec  /opsx:explore, /opsx:propose, /opsx:apply, /opsx:archive
   caveman   /caveman lite|full|ultra
+  ponytail  Claude Code plugin — least code that works (active automatically)
 
 If rtk is not on PATH, add this to your shell profile:
   export PATH="$HOME/.local/bin:$PATH"
