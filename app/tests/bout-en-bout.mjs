@@ -2073,6 +2073,174 @@ try {
   await pageSoir.evaluate(() => window.__zenote.ecrireReglage('delestageSoir', false));
   await pageSoir.close();
 
+  // --- Premier geste --------------------------------------------------------------
+  // Spec `premier-geste` — « Tâche floue », « Tâche déjà concrète », « Geste laissé
+  // vide » et « Geste fait ». Les deux tâches portent une conséquence (« sinon le
+  // chantier est bloqué ») et une échéance du jour : la Revue ne montre que les douze
+  // entrées les plus lourdes, et Maintenant trois — un test sans conséquence ne
+  // verrait jamais sa carte.
+  const elementsParTexte = (motif) =>
+    page.evaluate(
+      async (source) =>
+        (await window.__zenote.listerElements()).filter((e) => new RegExp(source, 'i').test(e.texte)),
+      motif.source,
+    );
+  await page.evaluate(async () => {
+    await window.__zenote.capturer({
+      texte: 'Il faut avancer sur le budget 2027 avant ce soir, sinon le chantier est bloqué.',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.capturer({
+      texte: 'Appeler le prestataire pour le devis du parking avant ce soir, sinon le chantier est bloqué.',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.traiterFileAnalyse();
+  });
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  const entreeFloue = page.locator('.entree', { hasText: /budget 2027/i }).first();
+  const entreeConcrete = page.locator('.entree', { hasText: /devis du parking/i }).first();
+  const lesDeuxVisibles = await Promise.all(
+    [entreeFloue, entreeConcrete].map((entree) =>
+      entree
+        .waitFor({ state: 'visible', timeout: 15_000 })
+        .then(() => true)
+        .catch(() => false),
+    ),
+  );
+  verifier('les deux tâches de l’essai sont en Revue', lesDeuxVisibles.every(Boolean), lesDeuxVisibles.join(' / '));
+
+  // Tâche floue : la zone de plan demande un premier geste, avant les déclencheurs.
+  await entreeFloue.locator('.bouton--accepter').click();
+  await page.waitForTimeout(400);
+  const gesteFloue = entreeFloue.locator('.geste__etiquette');
+  const champFloue = entreeFloue.locator('.geste__champ');
+  const ordreFloue = await entreeFloue.evaluate((entree) => {
+    const geste = entree.querySelector('.geste');
+    const plan = entree.querySelector('.bouton--plan');
+    return Boolean(geste && plan && geste.compareDocumentPosition(plan) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  verifier(
+    'une tâche floue (« avancer sur… ») : la zone de plan demande un premier geste, avant les déclencheurs',
+    (await gesteFloue.isVisible()) && /Premier geste \(deux minutes\)/.test(await gesteFloue.innerText()) && ordreFloue,
+  );
+  verifier(
+    'le champ est vide : le système ne rédige jamais le geste',
+    (await champFloue.inputValue()) === '',
+  );
+  await champFloue.fill("ouvrir le tableur et relire l'onglet charges");
+  await entreeFloue.locator('.bouton--plan').first().click();
+  await page.waitForTimeout(800);
+  const [elementFlou] = await elementsParTexte(/budget 2027/);
+  verifier(
+    'le geste saisi est enregistré comme action du plan',
+    elementFlou?.planAction === "ouvrir le tableur et relire l'onglet charges" &&
+      elementFlou?.verdict === 'ACCEPTE',
+    String(elementFlou?.planAction),
+  );
+
+  // Tâche concrète : aucune demande, un lien discret pour en préciser un.
+  await entreeConcrete.locator('.bouton--accepter').click();
+  await page.waitForTimeout(400);
+  const champConcrete = entreeConcrete.locator('.geste__etiquette');
+  const lienPreciser = entreeConcrete.locator('.geste__preciser');
+  verifier(
+    'une tâche déjà concrète : aucun premier geste demandé, un lien discret permet d’en préciser un',
+    !(await champConcrete.isVisible()) && (await lienPreciser.isVisible()),
+  );
+  await lienPreciser.click();
+  verifier(
+    'le lien ouvre le même champ',
+    (await champConcrete.isVisible()) && !(await lienPreciser.isVisible()),
+  );
+
+  // Geste laissé vide : le plan reste le texte de la tâche.
+  await entreeConcrete.locator('.bouton--plan').first().click();
+  await page.waitForTimeout(800);
+  const [elementConcret] = await elementsParTexte(/devis du parking/);
+  verifier(
+    'geste laissé vide : l’action du plan est le texte de la tâche',
+    elementConcret?.verdict === 'ACCEPTE' && elementConcret?.planAction === elementConcret?.texte,
+    String(elementConcret?.planAction),
+  );
+
+  // Maintenant : le geste est la chose à faire, la tâche dessous.
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  const carteFloue = page.locator('.proposition', { hasText: /budget 2027/i }).first();
+  const carteVisible = await carteFloue
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const texteCarteFloue = carteVisible ? await carteFloue.innerText() : '';
+  verifier(
+    'Maintenant affiche « Commencer par » le geste, avec le texte de la tâche',
+    carteVisible &&
+      /Commencer par : « ouvrir le tableur et relire l'onglet charges »/.test(texteCarteFloue) &&
+      /budget 2027/.test(texteCarteFloue),
+    texteCarteFloue.replace(/\s+/g, ' ').slice(0, 200) || 'aucune carte',
+  );
+  const carteConcrete = page.locator('.proposition', { hasText: /devis du parking/i }).first();
+  verifier(
+    'et rien de tel sur une tâche sans premier geste',
+    !(await carteConcrete.locator('.proposition__geste').count()) &&
+      !(await carteConcrete.locator('.bouton--geste-fait').count()),
+  );
+
+  // Geste fait : la tâche reste active, le geste suivant se note s'il existe.
+  await carteFloue.locator('.bouton--geste-fait').click();
+  await page.waitForTimeout(700);
+  const apresGeste = page.locator('.proposition', { hasText: /budget 2027/i }).first();
+  const [elementApresGeste] = await elementsParTexte(/budget 2027/);
+  verifier(
+    'geste fait : la tâche reste active, et un champ facultatif propose le geste suivant',
+    (await apresGeste.count()) === 1 &&
+      !elementApresGeste?.faitLe &&
+      (await apresGeste.locator('.geste-suite input').isVisible()) &&
+      /Et ensuite/.test(await apresGeste.locator('.geste-suite').innerText()) &&
+      (await apresGeste.locator('.proposition__geste').count()) === 0,
+    `faitLe : ${elementApresGeste?.faitLe ?? 'absent'}`,
+  );
+  await apresGeste.locator('.geste-suite input').fill('envoyer le résumé à Sophie');
+  await apresGeste.locator('.geste-suite__noter').click();
+  await page.waitForTimeout(700);
+  const apresSuite = page.locator('.proposition', { hasText: /budget 2027/i }).first();
+  const [elementApresSuite] = await elementsParTexte(/budget 2027/);
+  verifier(
+    'le geste suivant devient « Commencer par », sans clore la tâche',
+    /Commencer par : « envoyer le résumé à Sophie »/.test(await apresSuite.innerText()) &&
+      !elementApresSuite?.faitLe &&
+      elementApresSuite?.gestesFaits?.length === 1,
+    String(elementApresSuite?.planAction),
+  );
+  // Et le geste suivant est facultatif : « Plus tard » laisse la tâche telle quelle.
+  await apresSuite.locator('.bouton--geste-fait').click();
+  await page.waitForTimeout(600);
+  await page
+    .locator('.proposition', { hasText: /budget 2027/i })
+    .first()
+    .locator('.geste-suite__plus-tard')
+    .click();
+  await page.waitForTimeout(600);
+  const [elementApresPlusTard] = await elementsParTexte(/budget 2027/);
+  verifier(
+    'sans geste suivant, la tâche garde son texte pour action et reste active',
+    (await page.locator('.geste-suite').count()) === 0 &&
+      elementApresPlusTard?.planAction === elementApresPlusTard?.texte &&
+      !elementApresPlusTard?.faitLe,
+  );
+  await page
+    .locator('.proposition', { hasText: /budget 2027/i })
+    .first()
+    .locator('.bouton--accepter')
+    .click();
+  await page.waitForTimeout(700);
+  const [elementClos] = await elementsParTexte(/budget 2027/);
+  verifier('la tâche n’est close que par « C’est fait »', Boolean(elementClos?.faitLe));
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

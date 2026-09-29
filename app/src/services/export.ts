@@ -177,7 +177,12 @@ const CHAMPS_ELEMENTS: Record<string, string> = {
     '(service distant, qui ne juge que le type et la sphère), « modele » le modèle distant ' +
     'utilisé, ou null. Absent sur les éléments antérieurs à ce champ.',
   planDeclencheur: 'Le déclencheur choisi : « quand X », plutôt qu’une heure.',
-  planAction: 'L’action à faire à ce déclencheur.',
+  planAction:
+    'L’action à faire à ce déclencheur : le premier geste noté par l’utilisateur (deux ' +
+    'minutes, dans ses mots), ou le texte de l’élément s’il n’en a pas noté.',
+  gestesFaits:
+    'Les premiers gestes que l’utilisateur a marqués faits, dans l’ordre. La tâche, elle, ' +
+    'n’est close que par « faitLe ».',
   verdict:
     'EN_ATTENTE : pas encore passé en Revue. ACCEPTE : retenu. UN_JOUR : gardé sans date. ' +
     'REJETE : écarté par l’utilisateur.',

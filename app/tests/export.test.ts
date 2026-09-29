@@ -20,7 +20,14 @@ import {
   VERSION_FORMAT_EXPORT,
   type ExportZeNote,
 } from '../src/services/export.ts';
-import { enregistrerCapture, ecrireReglage, majCapture, toutEffacer } from '../src/stockage/depot.ts';
+import {
+  elementsDeCapture,
+  enregistrerCapture,
+  ecrireReglage,
+  majCapture,
+  majElement,
+  toutEffacer,
+} from '../src/stockage/depot.ts';
 import { analyserCapture, capturer } from '../src/services/pipeline.ts';
 
 const JOUR = '2026-09-12';
@@ -299,5 +306,29 @@ describe('la note de reprise voyage avec l’export', () => {
     });
     const exporte = await construireExport();
     expect(exporte.captures[0].reprise).toBeNull();
+  });
+});
+
+describe('le premier geste voyage avec l’export', () => {
+  it('emporte l’action du plan et les gestes faits, et les documente', async () => {
+    const capture = await capturer({
+      texte: 'Il faut avancer sur le budget 2027, sinon le chantier est bloqué.',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await analyserCapture(capture, JOUR);
+    const [element] = await elementsDeCapture(capture.id);
+    await majElement(element.id, {
+      planAction: 'envoyer le résumé à Sophie',
+      gestesFaits: ['ouvrir le tableur et relire l’onglet charges'],
+    });
+
+    const exporte = await construireExport();
+    const exporte1 = exporte.elements.find((e) => e.id === element.id);
+    expect(exporte1?.planAction).toBe('envoyer le résumé à Sophie');
+    expect(exporte1?.gestesFaits).toEqual(['ouvrir le tableur et relire l’onglet charges']);
+    expect(Object.keys(exporte.champs.elements)).toEqual(
+      expect.arrayContaining(['planAction', 'gestesFaits']),
+    );
   });
 });

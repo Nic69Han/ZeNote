@@ -26,6 +26,7 @@ import {
 } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import { gesteDeProposition } from './premier-geste.ts';
 import { carteReprise, noteARendre } from './reprise.ts';
 
 /**
@@ -243,6 +244,9 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
     element: ElementStocke | undefined,
     capture: Capture | undefined,
   ): HTMLElement {
+    // Spec `premier-geste` — « Premier geste affiché au moment d'agir » : le geste est la
+    // chose à faire, la tâche reste dessous.
+    const geste = gesteDeProposition(element, () => void rendre());
     return el(
       'li',
       { class: 'proposition', 'data-poids': p.poidsEffectif },
@@ -254,6 +258,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
           texte: LIBELLE_POIDS[p.poidsEffectif] ?? p.poidsEffectif,
         }),
       ),
+      geste.commencerPar,
       el('p', { class: 'proposition__texte', texte: p.texte }),
       // La raison dit ce qui se passe si ce n'est pas fait, jamais un score.
       el('p', { class: 'proposition__raison', texte: p.raison }),
@@ -267,6 +272,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
           texte: "C'est fait",
           onclick: () => void marquerFait(p),
         }),
+        geste.boutonFait,
         el('button', {
           class: 'bouton bouton--discret',
           type: 'button',
@@ -288,6 +294,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
           },
         }),
       ),
+      geste.suite,
     );
   }
 

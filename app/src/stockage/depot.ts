@@ -95,6 +95,15 @@ export interface ElementStocke extends ElementJson {
    * semaines et traité hier ».
    */
   vuLe?: string | null;
+  /**
+   * Les premiers gestes que l'utilisateur a marqués faits dans Maintenant, dans l'ordre.
+   *
+   * Spec `premier-geste` — « Premier geste affiché au moment d'agir ». Marquer un geste
+   * fait ne clôt pas la tâche : le geste passe ici et l'action du plan redevient la
+   * tâche, sans quoi la carte continuerait de dire « Commencer par » un geste déjà fait.
+   * Ce champ n'est jamais passé aux règles.
+   */
+  gestesFaits?: string[];
 }
 
 /** Les suivis d'élément, tels que le cœur les attend. */
