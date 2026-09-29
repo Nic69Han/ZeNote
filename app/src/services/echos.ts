@@ -182,6 +182,29 @@ export function passePertinent(
   };
 }
 
+/** Combien de caractères de la note passée la ligne de rappel montre au plus. */
+export const LONGUEUR_EXTRAIT_PASSE = 90;
+
+/**
+ * Ce que la ligne du passé pertinent dit : la note passée, et ce qui l'a fait remonter.
+ *
+ * Spec `suggestions-proactives` — « Raison visible » et « Passé pertinent expliqué ».
+ * Une suggestion non demandée qui ne dit pas pourquoi elle est là se lit comme un
+ * caprice de l'outil ; la raison (`Echo.pourquoi`, rendue par la recherche : mots
+ * partagés, personne ou date) était calculée puis jetée avant d'arriver à l'écran.
+ * Elle tient en une ligne : la couper reviendrait à ne plus l'expliquer.
+ */
+export function ligneDePasse(echo: Echo): { extrait: string; raison: string } {
+  const extrait = echo.extrait.trim();
+  return {
+    extrait:
+      extrait.length > LONGUEUR_EXTRAIT_PASSE
+        ? `${extrait.slice(0, LONGUEUR_EXTRAIT_PASSE).trimEnd()}…`
+        : extrait,
+    raison: echo.pourquoi.trim(),
+  };
+}
+
 /** Part des mots du premier texte que le second porte aussi, entre 0 et 1. */
 function recouvrement(a: string, b: string): number {
   const mots = (texte: string) =>
