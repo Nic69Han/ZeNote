@@ -57,6 +57,8 @@ export interface NouvelleCapture {
   audio?: Blob | null;
   dureeMs?: number | null;
   incomplete?: boolean;
+  /** Vrai pour l'enregistrement d'une réunion ou un compte rendu importé. */
+  reunion?: boolean;
 }
 
 /**
@@ -75,6 +77,7 @@ export async function capturer(entree: NouvelleCapture): Promise<Capture> {
     audio: entree.audio ?? null,
     incomplete: entree.incomplete ?? false,
     analysee: false,
+    ...(entree.reunion ? { reunion: true } : {}),
   };
   return enregistrerCapture(capture);
 }

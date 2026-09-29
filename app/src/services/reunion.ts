@@ -218,6 +218,7 @@ export async function deposerCompteRendu(
     texte,
     source: 'ECRITE',
     etatTranscription: 'OK',
+    reunion: true,
   });
 
   const rendu = importerCompteRendu(texte, monNom, capture.id, aujourdhui);
