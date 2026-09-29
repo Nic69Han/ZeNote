@@ -43,6 +43,7 @@ import {
   MAGASIN_ELEMENTS,
   MAGASIN_LEXIQUE,
   MAGASIN_MORCEAUX,
+  MAGASIN_RECHERCHES,
   MAGASIN_REGLAGES,
   demander,
   transaction,
@@ -205,6 +206,16 @@ export interface Capture {
    * Absent quand rien n'a été tenté. La Revue le signale, une seule fois.
    */
   repliAnalyse?: boolean;
+  /**
+   * `true` quand cette capture est l'enregistrement d'une réunion ou un compte rendu
+   * importé.
+   *
+   * Spec `reperes-temporels` — « Repères personnels ». Une réunion est le repère dont
+   * on se souvient le mieux, et rien d'autre dans la capture ne la distingue d'une
+   * note dictée en marchant. Posé au dépôt par le geste lui-même (« Enregistrer une
+   * réunion », « Importer un compte rendu »), jamais deviné.
+   */
+  reunion?: boolean;
 }
 
 /**
@@ -263,6 +274,20 @@ export interface Reglages {
    * le doute se tranche du côté de la vie privée.
    */
   spheresExclues: ('PROFESSIONNEL' | 'PERSONNEL')[];
+  /**
+   * La vitesse à laquelle on réécoute un enregistrement : 1×, 1,5× ou 2×.
+   *
+   * Spec `ecoute-acceleree` — « Vitesse de lecture ». Une préférence d'écoute, pas un
+   * contenu de note : elle a sa place ici, en clair, comme le thème.
+   */
+  vitesseEcoute: 1 | 1.5 | 2;
+  /**
+   * Sauter les pauses de plus de 700 ms à la lecture. Voir `audio/silences.ts`.
+   *
+   * Comme la vitesse, c'est un réglage d'écoute. Les questions cherchées, elles, ne
+   * sont jamais ici : ce magasin n'est pas scellé.
+   */
+  raccourcirSilences: boolean;
 }
 
 export const REGLAGES_PAR_DEFAUT: Reglages = {
@@ -275,6 +300,8 @@ export const REGLAGES_PAR_DEFAUT: Reglages = {
   monNom: '',
   analyseDistante: false,
   spheresExclues: [],
+  vitesseEcoute: 1,
+  raccourcirSilences: false,
 };
 
 // ------------------------------------------------- scellement et ouverture
@@ -800,14 +827,22 @@ export async function ecrireReglage<C extends keyof Reglages>(
 /** Efface toutes les données locales. Utilisé par les tests et par l'export/purge. */
 export async function toutEffacer(): Promise<void> {
   await transaction(
-    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES, MAGASIN_MORCEAUX, MAGASIN_LEXIQUE],
+    [
+      MAGASIN_CAPTURES,
+      MAGASIN_ELEMENTS,
+      MAGASIN_REGLAGES,
+      MAGASIN_MORCEAUX,
+      MAGASIN_LEXIQUE,
+      MAGASIN_RECHERCHES,
+    ],
     'readwrite',
-    ([captures, elements, reglages, morceaux, lexique]) => {
+    ([captures, elements, reglages, morceaux, lexique, recherches]) => {
       captures.clear();
       elements.clear();
       reglages.clear();
       morceaux.clear();
       lexique.clear();
+      recherches.clear();
     },
   );
 }
@@ -904,4 +939,104 @@ export async function retenirCorrections(nouvelles: Correction[]): Promise<Corre
  */
 export async function reecrireLexique(): Promise<void> {
   await retenirCorrections([]);
+}
+
+// ------------------------------------------------------- les recherches passées
+
+/**
+ * Une question retenue : ce qui a été cherché, et comment.
+ *
+ * Spec `recherches-passees` — « Questions retenues ». Jusqu'à 40 % des requêtes servent
+ * à retrouver quelque chose de déjà vu (Teevan et al., 2007) : ZeNote s'en souvient.
+ */
+export interface RechercheRetenue {
+  requete: string;
+  /** Par mots (ou moment), ou par personne : les deux entrées de l'écran Recherche. */
+  mode: 'MOTS' | 'PERSONNE';
+  /** Horodatage ISO de la dernière fois que la question a été posée. */
+  derniereFois: string;
+  /** Combien de fois elle l'a été. */
+  fois: number;
+}
+
+/** L'unique ligne du magasin, comme le lexique : toutes les questions tiennent dedans. */
+const CLE_RECHERCHES = 'recherches';
+
+interface RecherchesBrut {
+  id: string;
+  recherches?: RechercheRetenue[];
+  scelle?: Scelle;
+}
+
+/**
+ * Les questions retenues, de la plus récente à la plus ancienne.
+ *
+ * Par défaut, coffre fermé ou ligne illisible, rend vide : afficher des suggestions
+ * n'est jamais assez important pour bloquer un écran. Une écriture qui relit d'abord
+ * doit en revanche savoir qu'elle n'a rien lu — sinon elle écraserait tout l'historique
+ * par la seule question du moment. D'où `strict`, qui lève au lieu de rendre vide.
+ */
+export async function lireRecherches(strict = false): Promise<RechercheRetenue[]> {
+  const brut = await transaction([MAGASIN_RECHERCHES], 'readonly', ([recherches]) =>
+    demander<RecherchesBrut | undefined>(recherches.get(CLE_RECHERCHES)),
+  );
+  if (!brut) return [];
+  if (!brut.scelle) return brut.recherches ?? [];
+  try {
+    return await ouvrirValeur<RechercheRetenue[]>(brut.scelle);
+  } catch (erreur) {
+    if (strict) throw erreur;
+    return [];
+  }
+}
+
+/**
+ * Remplace toutes les questions retenues, scellées si un coffre existe.
+ *
+ * Une liste vide retire la ligne : « Tout oublier » ne doit laisser en base ni
+ * question ni scellé qui en aurait porté.
+ */
+export async function ecrireRecherches(liste: RechercheRetenue[]): Promise<void> {
+  if (liste.length === 0) {
+    await transaction([MAGASIN_RECHERCHES], 'readwrite', ([recherches]) => {
+      recherches.delete(CLE_RECHERCHES);
+    });
+    return;
+  }
+  const brut: RecherchesBrut = { id: CLE_RECHERCHES };
+  if (await chiffre()) {
+    brut.scelle = await scellerValeur(liste);
+  } else {
+    brut.recherches = liste;
+  }
+  await transaction([MAGASIN_RECHERCHES], 'readwrite', ([recherches]) => {
+    recherches.put(brut);
+  });
+}
+
+/**
+ * Réécrit les questions retenues telles que le dépôt les écrit maintenant : scellées,
+ * ou en clair.
+ *
+ * Sert à la reprise qui suit l'activation ou la levée du chiffrement, exactement comme
+ * [reecrireLexique] : les questions retenues portent des noms de personnes et de
+ * dossiers, et les laisser en clair rouvrirait dans la base le trou que le coffre ferme.
+ */
+export async function reecrireRecherches(): Promise<void> {
+  await ecrireRecherches(await lireRecherches(true));
+}
+
+/**
+ * Remet les questions retenues en clair, coffre ou pas.
+ *
+ * Réservé à la désactivation du chiffrement, comme [ecrireCaptureEnClair] : le coffre
+ * n'est supprimé qu'une fois cette ligne réécrite, faute de quoi elle resterait scellée
+ * pour un coffre qui n'existe plus, et l'historique serait perdu sans un mot.
+ */
+export async function ecrireRecherchesEnClair(): Promise<void> {
+  const liste = await lireRecherches(true);
+  if (liste.length === 0) return;
+  await transaction([MAGASIN_RECHERCHES], 'readwrite', ([recherches]) => {
+    recherches.put({ id: CLE_RECHERCHES, recherches: liste } satisfies RecherchesBrut);
+  });
 }

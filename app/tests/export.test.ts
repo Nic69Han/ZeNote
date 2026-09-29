@@ -22,6 +22,7 @@ import {
 } from '../src/services/export.ts';
 import { enregistrerCapture, ecrireReglage, majCapture, toutEffacer } from '../src/stockage/depot.ts';
 import { analyserCapture, capturer } from '../src/services/pipeline.ts';
+import { oublier, retenir } from '../src/services/recherches.ts';
 
 const JOUR = '2026-09-12';
 
@@ -250,5 +251,40 @@ describe('l’origine de l’analyse voyage avec l’export', () => {
     expect(parId.get(gardee.id)?.transmissible).toBe(false);
     expect(parId.get(libre.id)?.transmissible).toBe(true);
     expect(Object.keys(exporte.champs.captures)).toContain('transmissible');
+  });
+});
+
+describe('les recherches passées voyagent avec l’export', () => {
+  it('emporte les questions retenues, de la plus récente à la plus ancienne, et les documente', async () => {
+    await retenir('devis fournisseur', 'MOTS', new Date('2026-09-10T08:00:00.000Z'));
+    await retenir('Karim', 'PERSONNE', new Date('2026-09-11T08:00:00.000Z'));
+
+    const exporte = await relire();
+    expect(exporte.recherches).toEqual([
+      { requete: 'Karim', mode: 'PERSONNE', derniereFois: '2026-09-11T08:00:00.000Z', fois: 1 },
+      { requete: 'devis fournisseur', mode: 'MOTS', derniereFois: '2026-09-10T08:00:00.000Z', fois: 1 },
+    ]);
+    expect(Object.keys(exporte.champs.recherches)).toEqual(
+      expect.arrayContaining(['requete', 'mode', 'derniereFois', 'fois']),
+    );
+    expect(exporte.lisezMoi.join(' ')).toContain('recherches');
+  });
+
+  it('reste un document complet sans aucune question retenue', async () => {
+    expect((await relire()).recherches).toEqual([]);
+  });
+
+  it('n’emporte plus une question oubliée', async () => {
+    await retenir('devis fournisseur', 'MOTS');
+    await oublier('devis fournisseur', 'MOTS');
+    expect((await relire()).recherches).toEqual([]);
+  });
+
+  it('emporte les réglages d’écoute, en clair : ce ne sont pas des contenus de notes', async () => {
+    await ecrireReglage('vitesseEcoute', 1.5);
+    await ecrireReglage('raccourcirSilences', true);
+    const { reglages } = await relire();
+    expect(reglages.vitesseEcoute).toBe(1.5);
+    expect(reglages.raccourcirSilences).toBe(true);
   });
 });

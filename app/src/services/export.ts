@@ -12,11 +12,13 @@
 
 import { aujourdhui } from './pipeline.ts';
 import {
+  lireRecherches,
   lireReglages,
   listerCaptures,
   listerElements,
   type Capture,
   type ElementStocke,
+  type RechercheRetenue,
   type Reglages,
 } from '../stockage/depot.ts';
 
@@ -85,10 +87,16 @@ export interface ExportZeNote {
   lisezMoi: string[];
   totaux: { captures: number; elements: number };
   audio: ResumeAudio;
-  champs: { captures: Record<string, string>; elements: Record<string, string> };
+  champs: {
+    captures: Record<string, string>;
+    elements: Record<string, string>;
+    recherches: Record<string, string>;
+  };
   reglages: Reglages;
   captures: CaptureExportee[];
   elements: ElementStocke[];
+  /** Les questions retenues par la recherche, de la plus récente à la plus ancienne. */
+  recherches: RechercheRetenue[];
 }
 
 /** Le mode d'emploi, en français, dans le fichier. Il ne suppose rien de connu. */
@@ -107,6 +115,8 @@ const LISEZ_MOI: string[] = [
   'L’objet « champs » ci-dessous décrit chaque champ des deux listes, un par un.',
   'L’audio des captures dictées n’est PAS dans ce fichier ; l’objet « audio » dit ' +
     'précisément ce qui manque et pourquoi.',
+  'La liste « recherches » garde les dernières questions posées à la recherche, de la ' +
+    'plus récente à la plus ancienne ; l’objet « champs » en décrit les champs.',
   'Toutes les dates sont au format ISO 8601. Les horodatages sont en temps universel ' +
     '(UTC, suffixe Z) ; les échéances sont des jours, sans heure.',
 ];
@@ -176,6 +186,13 @@ const CHAMPS_ELEMENTS: Record<string, string> = {
   faitLe: 'Date et heure auxquelles l’élément a été marqué fait, ou absent s’il ne l’est pas.',
 };
 
+const CHAMPS_RECHERCHES: Record<string, string> = {
+  requete: 'La question, telle qu’elle a été tapée la dernière fois.',
+  mode: 'MOTS si elle a été posée par mots ou par moment, PERSONNE si elle l’a été par personne.',
+  derniereFois: 'Date et heure de la dernière fois que la question a été posée (ISO 8601, UTC).',
+  fois: 'Combien de fois la question a été posée.',
+};
+
 /** Ce que l'export dit du son qu'il n'emporte pas. */
 function resumerAudio(captures: Capture[]): ResumeAudio {
   const avecAudio = captures.filter((c) => c.aAudio);
@@ -220,10 +237,11 @@ function exporterCapture(capture: Capture): CaptureExportee {
  * format sans avoir besoin de données.
  */
 export async function construireExport(maintenant: Date = new Date()): Promise<ExportZeNote> {
-  const [captures, elements, reglages] = await Promise.all([
+  const [captures, elements, reglages, recherches] = await Promise.all([
     listerCaptures(),
     listerElements(),
     lireReglages(),
+    lireRecherches(),
   ]);
 
   // Les éléments sont regroupés par capture puis remis dans l'ordre du texte source :
@@ -239,10 +257,11 @@ export async function construireExport(maintenant: Date = new Date()): Promise<E
     lisezMoi: LISEZ_MOI,
     totaux: { captures: captures.length, elements: ordonnes.length },
     audio: resumerAudio(captures),
-    champs: { captures: CHAMPS_CAPTURES, elements: CHAMPS_ELEMENTS },
+    champs: { captures: CHAMPS_CAPTURES, elements: CHAMPS_ELEMENTS, recherches: CHAMPS_RECHERCHES },
     reglages,
     captures: captures.map(exporterCapture),
     elements: ordonnes,
+    recherches,
   };
 }
 

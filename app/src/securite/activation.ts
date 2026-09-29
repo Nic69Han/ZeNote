@@ -27,12 +27,14 @@ import {
 import {
   ecrireCaptureEnClair,
   ecrireElementEnClair,
+  ecrireRecherchesEnClair,
   enregistrerElement,
   identifiantsDesCaptures,
   lireCapture,
   listerElements,
   majCapture,
   reecrireLexique,
+  reecrireRecherches,
 } from '../stockage/depot.ts';
 
 /** Ce qu'une reprise a réellement touché. */
@@ -67,6 +69,10 @@ async function reecrireTout(): Promise<Reprise> {
   // Le lexique aussi : il porte des noms de personnes et de dossiers, et le laisser
   // en clair rouvrirait dans la base le trou que tout le reste ferme.
   await reecrireLexique();
+
+  // Les questions déjà posées aussi : « licenciement de Karim » se lit en clair comme
+  // n'importe quelle phrase dictée (spec `recherches-passees` — « Chiffrement »).
+  await reecrireRecherches();
 
   return { captures, elements: elements.length };
 }
@@ -108,6 +114,10 @@ export async function desactiverChiffrement(): Promise<Reprise> {
 
   const elements = await listerElements();
   for (const element of elements) await ecrireElementEnClair(element);
+
+  // Avant de supprimer le coffre : scellées pour un coffre qui n'existe plus, les
+  // questions retenues seraient perdues sans un mot.
+  await ecrireRecherchesEnClair();
 
   await supprimerCoffre();
   return { captures, elements: elements.length };
