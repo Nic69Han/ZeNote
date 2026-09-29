@@ -1,0 +1,171 @@
+/* Suggestions avec leur raison, et « La semaine ».
+   Change `suggestions-et-recul`. Rien ici ne signale, ne colore ni ne compte : ni couleur
+   d'alerte, ni pastille, ni barre de progression. Un retour sur la semaine se lit ; il
+   ne se note pas. */
+
+/* ------------------------------------------------- l'en-tête, sur un écran étroit */
+
+/* « La semaine » fait quatre écrans en retrait : sur un téléphone, ils ne tiennent plus
+   à côté de la marque et du thème sans faire défiler la page de côté. Les liens passent
+   sur leur propre ligne, sous la marque et le thème, et se replient s'il en vient d'autres. */
+.entete {
+  flex-wrap: wrap;
+  row-gap: 0.15rem;
+}
+
+.retrait {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 34rem) {
+  .retrait {
+    order: 3;
+    flex: 1 0 100%;
+    /* Le texte du premier lien s'aligne sur la marque, malgré le padding des liens. */
+    margin-inline: -0.55rem 0;
+  }
+}
+
+/* --------------------------------------------- le passé, avec sa raison */
+
+/* La ligne reste discrète : la note, la raison, et un lien qui ne sert qu'à qui le veut. */
+.passe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.6rem;
+}
+
+.passe__texte {
+  flex: 1 1 100%;
+}
+
+.passe__raison {
+  flex: 1 1 auto;
+  color: var(--encre-tres-douce);
+  font-size: 0.75rem;
+}
+
+.passe__voir {
+  color: var(--encre-douce);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  /* Une cible tactile confortable sans grossir la ligne. */
+  padding-block: 0.35rem;
+  padding-inline: 0.25rem;
+}
+
+/* ------------------------------------------------ l'invitation en Revue */
+
+.invitation-semaine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-block-end: 0.85rem;
+  color: var(--encre-douce);
+  font-size: 0.85rem;
+}
+
+/* ------------------------------------------------------------ la semaine */
+
+.ecran--semaine {
+  gap: 1.25rem;
+}
+
+.semaine__groupe {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+}
+
+.semaine__titre {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.semaine__lignes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.semaine__ligne {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.semaine__texte {
+  color: var(--encre);
+  font-size: 0.95rem;
+}
+
+.semaine__motif {
+  color: var(--encre-tres-douce);
+  font-size: 0.8rem;
+}
+
+.semaine__vide {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.92rem;
+}
+
+.semaine__question {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.semaine__libelle {
+  color: var(--encre);
+  font-size: 0.95rem;
+}
+
+.semaine__retour {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.85rem;
+}
+
+/* ---------------------------------------- le rythme des suggestions (Réglages) */
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggestion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: var(--rayon);
+  background: var(--fond-creux);
+}
+
+.suggestion__nom {
+  margin: 0;
+  color: var(--encre);
+  font-size: 0.92rem;
+}
+
+.suggestion__rythme {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.85rem;
+}

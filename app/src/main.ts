@@ -20,7 +20,10 @@ import { assurerCoffreCharge, etatCoffre, verrouiller } from './securite/coffre.
 import {
   ecrireReglage,
   lireReglages,
+  listerCaptures,
+  listerElements,
   majCapture,
+  majElement,
   supprimerCapture,
   toutEffacer,
   type Reglages,
@@ -30,6 +33,7 @@ import { surEnregistrement } from './audio/enregistreur.ts';
 import { montrerCapturer } from './ui/capturer.ts';
 import { montrerMaintenant } from './ui/maintenant.ts';
 import { montrerRevue } from './ui/revue.ts';
+import { montrerSemaine } from './ui/semaine.ts';
 import { montrerRecherche } from './ui/recherche.ts';
 import { montrerPersonnes } from './ui/personnes.ts';
 import { montrerReglages } from './ui/reglages.ts';
@@ -41,7 +45,14 @@ import {
   rappelsDuPointDeRupture,
 } from './services/rappels.ts';
 
-type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'personnes' | 'reglages';
+type Onglet =
+  | 'capturer'
+  | 'revue'
+  | 'maintenant'
+  | 'recherche'
+  | 'personnes'
+  | 'semaine'
+  | 'reglages';
 
 /** Les trois surfaces de la barre du bas : celles d'une journée de travail. */
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
@@ -54,6 +65,7 @@ const ONGLETS: { cle: Onglet; libelle: string }[] = [
 const ECRANS_RETRAIT: { cle: Onglet; libelle: string }[] = [
   { cle: 'recherche', libelle: 'Rechercher' },
   { cle: 'personnes', libelle: 'Les gens' },
+  { cle: 'semaine', libelle: 'La semaine' },
   { cle: 'reglages', libelle: 'Vos données' },
 ];
 
@@ -161,6 +173,7 @@ async function demarrer(): Promise<void> {
     else if (valide === 'maintenant') demonterEcran = await montrerMaintenant(vue);
     else if (valide === 'recherche') demonterEcran = await montrerRecherche(vue);
     else if (valide === 'personnes') demonterEcran = await montrerPersonnes(vue);
+    else if (valide === 'semaine') await montrerSemaine(vue);
     else await montrerReglages(vue);
   }
 
@@ -277,10 +290,29 @@ declare global {
       ecrireReglage: typeof ecrireReglage;
       /** Retirer une capture et ses éléments, pour qu'un parcours ne pèse pas sur le suivant. */
       supprimerCapture: typeof supprimerCapture;
+      /**
+       * Poser une date de fait ou un verdict sur un élément, et relire éléments et
+       * réglages : de quoi composer une semaine passée sans attendre sept jours.
+       */
+      majElement: typeof majElement;
+      listerElements: typeof listerElements;
+      listerCaptures: typeof listerCaptures;
+      lireReglages: typeof lireReglages;
     };
   }
 }
-window.__zenote = { capturer, traiterFileAnalyse, toutEffacer, majCapture, ecrireReglage, supprimerCapture };
+window.__zenote = {
+  capturer,
+  traiterFileAnalyse,
+  toutEffacer,
+  majCapture,
+  ecrireReglage,
+  supprimerCapture,
+  majElement,
+  listerElements,
+  listerCaptures,
+  lireReglages,
+};
 
 registerSW({ immediate: true });
 void demarrer();
