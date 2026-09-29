@@ -21,6 +21,7 @@ import {
   type IssueRevoir,
   type ResolutionJson,
   type EntreeRevueJson,
+  type OmissionElementJson,
   type RelanceJson,
 } from '../core/regles.ts';
 import {
@@ -71,6 +72,18 @@ import {
   replanifier,
   type RappelsDuMoment,
 } from '../services/rappels.ts';
+import {
+  ajustementPhraseEntiere,
+  elementsANegationPerdue,
+  negationsPerdues,
+  omissionsDesElements,
+} from '../services/omissions.ts';
+import {
+  dit,
+  deduitDe,
+  marqueDeduit,
+  passageExact,
+} from './provenance.ts';
 
 const LIBELLE_TYPE: Record<ElementJson['type'], string> = {
   TACHE: 'Tâche',
@@ -156,6 +169,15 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   const decisionsPistes = new Map<string, boolean>();
   /** Les captures dont les pistes sont à l'écran, sans piste choisie ni carte décidée. */
   const pistesPresentees = new Set<string>();
+  /** Ce que chaque élément en attente a perdu de sa phrase. Refait à chaque rendu. */
+  let omissions = new Map<string, OmissionElementJson>();
+  /**
+   * Les éléments dont une négation perdue attend encore une confirmation.
+   *
+   * Calculé depuis les éléments stockés : ceux que la file rend ont traversé le cœur, qui
+   * ne connaît pas `omissionLevee` et l'a perdu en route.
+   */
+  let negationsAConfirmer = new Set<string>();
 
   // Le type stocké, pas seulement le contrat du cœur : une relance touche `relanceLe`
   // et `faitLe`, que les règles ne connaissent pas et n'ont pas à connaître.
@@ -282,12 +304,16 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const sphere = (await lireReglages()).filtreSphere;
     const tous = await listerElements();
     const elements = filtrerParSphere(tous, sphere);
-    const file = completerRevue(revueObjets(elements, jour), elements);
+    const captures = await listerCaptures();
+    // Spec `provenance` — « Omissions signalées » : ce que chaque élément a perdu de
+    // la phrase dont il a été découpé. Une négation perdue fait confirmer l'élément.
+    omissions = omissionsDesElements(captures, elements);
+    negationsAConfirmer = elementsANegationPerdue(omissions, elements);
+    const file = completerRevue(revueObjets(elements, jour), elements, negationsAConfirmer);
 
     // Ce que la mémoire sait des références de ces éléments. Reconstruite à chaque
     // rendu depuis les captures et les éléments : c'est une couche dérivée, elle n'a
     // ni stockage ni migration, et elle ne peut pas contredire les notes.
-    const captures = await listerCaptures();
     capturesConnues = captures.map((c) => ({
       id: c.id,
       texte: c.texte,
@@ -1378,52 +1404,86 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const e = entree.element;
     const ligne = el('li', { class: 'entree', 'data-type': e.type });
 
+    // Spec `provenance` — « Élément en Revue » : chaque attribut déduit porte la
+    // mention « déduit ». Un élément corrigé à la main n'en porte plus : ce que
+    // l'utilisateur a réglé n'est plus une déduction.
+    const deduits = !e.corrigeParHumain;
+    const badge = (classe: string, libelle: string): HTMLElement =>
+      el('span', { class: classe }, libelle, deduits ? ' ' : null, deduits ? marqueDeduit() : null);
+
     const badges = el(
       'div',
       { class: 'badges' },
-      el('span', { class: 'badge badge--type', texte: LIBELLE_TYPE[e.type] }),
+      badge('badge badge--type', LIBELLE_TYPE[e.type]),
       e.poids
-        ? el('span', {
-            class: `badge badge--poids badge--poids-${e.poids.toLowerCase()}`,
-            texte: LIBELLE_POIDS[e.poids],
-          })
+        ? badge(
+            `badge badge--poids badge--poids-${e.poids.toLowerCase()}`,
+            LIBELLE_POIDS[e.poids],
+          )
         : null,
       e.echeance
-        ? el('span', {
-            class: 'badge badge--echeance chiffres',
-            texte: `${dateLisible(e.echeance)} · ${LIBELLE_URGENCE[entree.urgence] ?? ''}`,
-          })
+        ? badge(
+            'badge badge--echeance chiffres',
+            `${dateLisible(e.echeance)} · ${LIBELLE_URGENCE[entree.urgence] ?? ''}`,
+          )
         : null,
       // Spec `extraction` — « Expression floue ». Un horizon n'est pas une date, et
       // ne doit pas lui ressembler : pas de chiffres, pas d'urgence, et le mot
       // « sans date ferme » écrit en toutes lettres. Une date inventée passerait
       // pour une échéance promise, et le produit la dirait en retard.
       !e.echeance && e.horizon
-        ? el('span', {
-            class: 'badge badge--horizon',
-            texte: `sans date ferme · ${LIBELLE_HORIZON[e.horizon]}`,
-          })
+        ? badge('badge badge--horizon', `sans date ferme · ${LIBELLE_HORIZON[e.horizon]}`)
         : null,
-      e.interlocuteur ? el('span', { class: 'badge', texte: e.interlocuteur }) : null,
+      e.interlocuteur ? badge('badge', e.interlocuteur) : null,
       entree.aConfirmer
         ? el('span', { class: 'badge badge--doute', texte: 'à confirmer' })
         : null,
     );
 
+    // Spec `provenance` — « Déduction accompagnée de sa source » : le passage exact
+    // est dans la carte, en citation, sans dépliage. Le texte de l'élément n'est que
+    // ce passage remis en forme ; ce qui a été dit, c'est la capture.
+    const passage = passageExact(e, capture?.texte);
+    const intro = e.issuDeReunion ? 'le compte rendu dit' : undefined;
+
     // Spec `extraction` — « Expression relative » : l'expression d'origine reste
     // visible sur l'élément. La date est une déduction ; « avant vendredi » est ce
     // qui a été dit, et c'est lui qui permet de voir d'un coup d'œil qu'elle est
-    // juste — ou qu'elle ne l'est pas.
+    // juste — ou qu'elle ne l'est pas. Elle est citée si elle figure dans le passage,
+    // et présentée comme un libellé du système sinon.
     const origine = origineLisible(e);
-    const raisons = [
-      e.poidsIndice ? `Poids : ${e.poidsIndice}.` : '',
-      e.echeanceIndice ? `Échéance : « ${e.echeanceIndice} ».` : '',
-      origine ? `Origine : ${origine}.` : '',
-    ].filter((r) => r !== '');
-    const justification = el('p', {
-      class: 'entree__indice',
-      texte: raisons.join(' '),
-    });
+    const raisons: (HTMLElement | string)[] = [];
+    if (e.poidsIndice) {
+      raisons.push(
+        deduits
+          ? deduitDe('Poids', e.poidsIndice, passage, { intro })
+          : `Poids : ${e.poidsIndice}.`,
+      );
+    }
+    if (e.echeanceIndice) {
+      raisons.push(
+        deduits
+          ? deduitDe('Échéance', e.echeanceIndice, passage, { intro })
+          : `Échéance : ${e.echeanceIndice}.`,
+      );
+    }
+    if (origine) raisons.push(`Origine : ${origine}.`);
+    const justification = el(
+      'p',
+      { class: 'entree__indice' },
+      raisons.flatMap((r, i) => (i === 0 ? [r] : [' ', r])),
+    );
+
+    // Spec `provenance` — « Omissions signalées ». Une négation perdue au découpage
+    // inverse la phrase : le passage est présenté à confirmer, avec la phrase entière.
+    // Un nombre ou un nom perdu est seulement signalé.
+    const omission = omissions.get(e.id);
+    const negationBloquante = negationsAConfirmer.has(e.id);
+    const blocOmission = omission
+      ? negationBloquante
+        ? blocNegationPerdue(e, omission)
+        : noteOmission(omission)
+      : null;
 
     const zoneActions = el('div', { class: 'entree__actions' });
     const zonePlan = el('div', { class: 'plan', hidden: true });
@@ -1431,6 +1491,14 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
 
     zoneActions.append(
       bouton('Accepter', 'bouton--accepter', () => {
+        // Une négation perdue ne s'accepte pas sans avoir lu la phrase entière : on
+        // renvoie à la confirmation, on ne pose ni plan ni verdict. Aucun rappel ne
+        // peut donc naître d'un passage dont le sens est peut-être inversé.
+        if (negationBloquante) {
+          annoncer('Une négation manque à ce passage. Lisez la phrase entière, puis confirmez-la.');
+          (blocOmission?.querySelector('.omission__confirmer') as HTMLButtonElement | null)?.focus();
+          return;
+        }
         if (actionnable(e.type) && !e.planDeclencheur) {
           zonePlan.hidden = false;
           (zonePlan.querySelector('button') as HTMLButtonElement | null)?.focus();
@@ -1476,7 +1544,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const question = questionDeReference(e);
     ligne.append(
       badges,
-      el('p', { class: 'entree__texte', texte: e.texte }),
+      el('p', { class: 'entree__texte' }, dit(passage, { intro })),
+      ...(blocOmission ? [blocOmission] : []),
       justification,
       ...(question ? [question] : []),
       ...(ecouter ? [ecouter] : []),
@@ -1485,6 +1554,85 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       zoneAjustement,
     );
     return ligne;
+  }
+
+  /**
+   * Une négation perdue au découpage : la phrase entière, les mots manquants en évidence.
+   *
+   * Spec `provenance` — « Négation perdue au découpage ». « Il ne faut surtout pas, et
+   * j'insiste, envoyer le devis » donne le passage « j'insiste, envoyer le devis » :
+   * fidèle à la capture, et contraire à ce qui a été dit. Le passage seul ne permet pas
+   * de le voir, alors la phrase est là, dans la carte, avec « ne … pas » surlignés.
+   *
+   * Deux sorties, aucune n'accepte : confirmer que le passage est bien ce qu'on veut
+   * garder, ou reprendre la phrase entière. C'est seulement ensuite que « Accepter »
+   * ouvre le plan — donc que le moindre rappel devient possible.
+   */
+  function blocNegationPerdue(e: ElementJson, omission: OmissionElementJson): HTMLElement {
+    const manquantes = negationsPerdues(omission).map((m) => m.mots);
+    const plages = omission.manques.map((m) => ({
+      debut: m.debutCar - omission.debutPhrase,
+      fin: m.finCar - omission.debutPhrase,
+    }));
+
+    return el(
+      'div',
+      { class: 'omission omission--negation', role: 'group', 'aria-label': 'Négation perdue' },
+      el('p', {
+        class: 'omission__titre',
+        texte:
+          'Ce passage a perdu une négation : sans elle, il peut dire le contraire de ce ' +
+          'que vous avez dit. Voici la phrase entière.',
+      }),
+      el(
+        'p',
+        { class: 'omission__phrase' },
+        dit(omission.phrase, {
+          surligner: plages,
+          intro: e.issuDeReunion ? 'le compte rendu dit' : undefined,
+        }),
+      ),
+      el(
+        'p',
+        { class: 'omission__manque' },
+        'Il manque : ',
+        el('strong', { class: 'omission__mots', texte: manquantes.join(' … ') }),
+        '.',
+      ),
+      el(
+        'div',
+        { class: 'omission__actions' },
+        bouton('C’est bien cela', 'bouton--plein omission__confirmer', () => {
+          void (async () => {
+            // L'état d'avant porte explicitement « pas encore lu » : l'élément qui a
+            // traversé le cœur ne connaît pas ce champ, et « Annuler » ne le rendrait
+            // pas à sa confirmation.
+            await appliquer({ ...e, omissionLevee: false } as ElementStocke, {
+              omissionLevee: true,
+            });
+            annoncer('Phrase confirmée.');
+            await rendre();
+          })();
+        }),
+        bouton('Reprendre la phrase entière', 'bouton--ajuster omission__reprendre', () => {
+          void decider(e, ajustementPhraseEntiere(e, omission), 'Phrase entière reprise.');
+        }),
+      ),
+    );
+  }
+
+  /**
+   * Ce que la phrase d'origine dit en plus : un nombre, un nom, ou une négation déjà
+   * confirmée. Un simple signalement — l'élément reste décidable sans rien de plus.
+   */
+  function noteOmission(omission: OmissionElementJson): HTMLElement {
+    const mots = [...new Set(omission.manques.map((m) => m.mots))];
+    return el(
+      'p',
+      { class: 'entree__omission', role: 'note' },
+      dit(mots, { intro: 'La phrase d’origine dit aussi' }),
+      '.',
+    );
   }
 
   /**

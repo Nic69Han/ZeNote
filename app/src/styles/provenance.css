@@ -1,0 +1,146 @@
+/*
+ * Ce qui a été dit, et ce qui en a été déduit.
+ *
+ * Spec `provenance`. La typographie fait la distinction, pas une légende : un texte de
+ * l'utilisateur est toujours entre guillemets français et introduit par « vous avez
+ * dit » ; un texte produit par ZeNote ne l'est jamais et porte la mention « déduit ».
+ * Tout passe par les mêmes deux formes (`ui/provenance.ts`), donc par les mêmes
+ * règles ici.
+ */
+
+/* --- Des paroles de l'utilisateur ------------------------------------------ */
+
+.dit {
+  overflow-wrap: anywhere;
+}
+
+.dit__intro {
+  color: var(--encre-douce);
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-style: normal;
+}
+
+/* Dans une carte, l'introduction se lit au-dessus des mots, pas au milieu d'eux. */
+.entree__texte .dit__intro,
+.proposition__texte .dit__intro,
+.omission__phrase .dit__intro {
+  display: block;
+}
+
+.dit__mots {
+  font-style: italic;
+}
+
+/* Les mots que l'élément a perdus en route, dans la phrase entière. */
+.dit__manque {
+  padding: 0 0.15em;
+  border-radius: 3px;
+  background: var(--signal-doux);
+  color: var(--encre);
+  font-style: normal;
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 var(--signal);
+}
+
+/* --- Ce que le système en a tiré ------------------------------------------- */
+
+.deduit__marque {
+  display: inline-block;
+  margin-inline-start: 0.15rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--trait-fort);
+  border-radius: 999px;
+  color: var(--encre-douce);
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.5;
+  vertical-align: 0.08em;
+  white-space: nowrap;
+}
+
+.deduit__depuis {
+  display: block;
+  margin-top: 0.15rem;
+}
+
+/* Dans un badge, la mention reste discrète : elle accompagne, elle ne concurrence pas. */
+.badge .deduit__marque {
+  margin-inline-start: 0.3rem;
+  padding: 0 0.3rem;
+  font-size: 0.62rem;
+  line-height: 1.4;
+}
+
+.reponse__provenance,
+.fiche__provenance {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.82rem;
+}
+
+/* --- Les citations de la recherche ----------------------------------------- */
+
+.citation__intro {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.citation__extrait {
+  font-style: italic;
+}
+
+.citation__extrait::before {
+  content: '«\00a0';
+}
+
+.citation__extrait::after {
+  content: '\00a0»';
+}
+
+/* --- Ce qu'un élément a perdu de sa phrase --------------------------------- */
+
+.entree__omission {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.86rem;
+}
+
+.omission {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--signal);
+  border-inline-start-width: 4px;
+  border-radius: var(--rayon);
+  background: var(--signal-doux);
+  color: var(--encre);
+}
+
+.omission > p {
+  margin: 0;
+}
+
+.omission__titre {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.omission__phrase {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.omission__manque {
+  font-size: 0.86rem;
+}
+
+.omission__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}

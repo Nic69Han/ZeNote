@@ -15,6 +15,7 @@
 import { fiches, type FicheJson, type LigneFicheJson } from '../core/regles.ts';
 import { listerCaptures, listerElements } from '../stockage/depot.ts';
 import { el, vider } from './dom.ts';
+import { dit, marqueDeduit } from './provenance.ts';
 
 const LIBELLE_TYPE: Record<string, string> = {
   TACHE: 'tâche',
@@ -85,6 +86,14 @@ export async function montrerPersonnes(racine: HTMLElement): Promise<() => void>
           texte: fiche.mentions === 1 ? '1 mention' : `${fiche.mentions} mentions`,
         }),
       ),
+      // Spec `provenance` : une fiche n'est pas ce qui a été dit, c'est ce qu'on en a
+      // tiré. Elle le dit une fois, en tête ; chaque ligne cite ensuite les mots.
+      el(
+        'p',
+        { class: 'fiche__provenance' },
+        marqueDeduit(),
+        ' Cette fiche est tirée de vos notes ; les citations sont vos paroles.',
+      ),
     );
 
     if (fiche.ouverts.length > 0) {
@@ -114,7 +123,7 @@ export async function montrerPersonnes(racine: HTMLElement): Promise<() => void>
             'li',
             { class: 'fiche__echange', 'data-capture': echange.captureId },
             el('span', { class: 'fiche__quand chiffres', texte: quand(echange.quand) }),
-            el('span', { class: 'fiche__extrait', texte: echange.extrait }),
+            el('span', { class: 'fiche__extrait' }, dit(echange.extrait)),
           ),
         );
       }
@@ -131,11 +140,14 @@ export async function montrerPersonnes(racine: HTMLElement): Promise<() => void>
         el(
           'li',
           { class: `fiche__ligne ${classe}`, 'data-element': ligne.elementId },
-          el('span', {
-            class: 'badge badge--type',
-            texte: LIBELLE_TYPE[ligne.type] ?? ligne.type.toLowerCase(),
-          }),
-          el('span', { class: 'fiche__texte', texte: ligne.texte }),
+          el(
+            'span',
+            { class: 'badge badge--type' },
+            LIBELLE_TYPE[ligne.type] ?? ligne.type.toLowerCase(),
+            ' ',
+            marqueDeduit(),
+          ),
+          el('span', { class: 'fiche__texte' }, dit(ligne.texte)),
         ),
       );
     }

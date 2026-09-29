@@ -6,8 +6,10 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  VERSION_CONTRAT_ATTENDUE,
   filtrerAncrageObjets,
   maintenantObjets,
+  omissionsObjets,
   revueObjets,
   type ElementJson,
 } from '../src/core/regles.ts';
@@ -167,5 +169,59 @@ describe('filtrerAncrage', () => {
       'élément sans texte',
       'passage source vide ou incohérent',
     ]);
+  });
+});
+
+describe('contrat 14 — provenance', () => {
+  it('le cœur parle le contrat attendu', () => {
+    expect(VERSION_CONTRAT_ATTENDUE).toBe('14');
+  });
+
+  it('sépare la raison d’une proposition en ce qui a été dit et ce qui est déduit', () => {
+    const [proposition] = maintenantObjets(
+      [
+        element({
+          id: 'a',
+          poids: 'FORT',
+          poidsIndice: 'sinon le chantier est bloqué',
+          echeance: '2026-09-13',
+        }),
+      ],
+      JOUR,
+    );
+    expect(proposition.raisonDite).toBe('sinon le chantier est bloqué');
+    expect(proposition.raisonDeduite).toBe('échéance demain');
+    // `raison` reste entière, pour la compatibilité.
+    expect(proposition.raison).toBe('sinon le chantier est bloqué — échéance demain');
+  });
+
+  it('ne présente rien comme dit quand aucun indice de poids n’existe', () => {
+    const [proposition] = maintenantObjets([element({ id: 'a' })], JOUR);
+    expect(proposition.raisonDite).toBeNull();
+    expect(proposition.raisonDeduite).toBe('sans échéance');
+  });
+
+  it('omissionsObjets rend la phrase entière et les mots perdus à leur place', () => {
+    const capture = "Il ne faut surtout pas, et j'insiste, envoyer le devis";
+    const debut = capture.indexOf("j'insiste");
+    const [omission] = omissionsObjets(capture, [
+      element({ id: 'a', texte: "J'insiste, envoyer le devis", debutCar: debut, finCar: capture.length }),
+    ]);
+    expect(omission.elementId).toBe('a');
+    expect(capture.slice(omission.debutPhrase, omission.finPhrase)).toBe(capture);
+    expect(omission.manques.map((m) => [m.nature, m.mots])).toEqual([
+      ['NEGATION', 'ne'],
+      ['NEGATION', 'pas'],
+    ]);
+    for (const manque of omission.manques) {
+      expect(capture.slice(manque.debutCar, manque.finCar)).toBe(manque.mots);
+    }
+  });
+
+  it('omissionsObjets ne rend rien pour un élément qui n’a rien perdu', () => {
+    const capture = 'Envoyer le devis à Karim';
+    expect(
+      omissionsObjets(capture, [element({ id: 'a', debutCar: 0, finCar: capture.length })]),
+    ).toEqual([]);
   });
 });

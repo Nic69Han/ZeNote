@@ -28,6 +28,7 @@ import { aujourdhui } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 import { prendreQuestionProposee } from './questionProposee.ts';
+import { INTRO_DIT, marqueDeduit } from './provenance.ts';
 
 /**
  * L'état du réseau au moment de la question : le cœur en déduit seul ce qu'il met en
@@ -112,6 +113,20 @@ export async function montrerRecherche(racine: HTMLElement): Promise<() => void>
         'data-fondee': String(reponse.fondee),
         texte: reponse.enonce,
       }),
+      // Spec `provenance` — « Énoncé de recherche ». L'énoncé est formulé par le
+      // système : il est marqué déduit, et jamais entre guillemets. Seules les
+      // citations des captures, plus bas, sont les paroles de l'utilisateur. Une
+      // absence n'affirme rien de tiré des notes : elle n'a rien à marquer.
+      ...(reponse.fondee
+        ? [
+            el(
+              'p',
+              { class: 'reponse__provenance' },
+              marqueDeduit(),
+              ' Cet énoncé est formulé par ZeNote. Vos paroles sont dans les citations.',
+            ),
+          ]
+        : []),
     );
 
     // Pas de citation, pas de liste : une affirmation que rien ne porte n'a nulle part
@@ -149,6 +164,10 @@ export async function montrerRecherche(racine: HTMLElement): Promise<() => void>
     return el(
       'li',
       { class: 'citation', 'data-capture': citation.captureId },
+      // L'extrait est en style de citation (guillemets par la feuille de style) ; la
+      // mention qui l'introduit est ici, à côté, pour que le texte de l'extrait reste
+      // exactement celui de la capture.
+      el('p', { class: 'citation__intro', texte: INTRO_DIT }),
       el('p', { class: 'citation__extrait', texte: citation.extrait }),
       // Le « pourquoi » vient du cœur : c'est une raison, jamais un score.
       el('p', { class: 'citation__pourquoi', texte: citation.pourquoi }),

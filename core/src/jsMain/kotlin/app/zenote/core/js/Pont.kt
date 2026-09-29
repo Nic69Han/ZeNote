@@ -3,7 +3,7 @@ package app.zenote.core.js
 import app.zenote.core.api.Regles
 
 /**
- * Le pont vers le navigateur. Quatorze fonctions, un contrat JSON, aucun état.
+ * Le pont vers le navigateur. Quinze fonctions, un contrat JSON, aucun état.
  *
  * La PWA détient les données (IndexedDB) et appelle ces règles ; les applications
  * natives appelleront les mêmes, en JVM. C'est ce qui garantit qu'un même jeu de
@@ -23,6 +23,15 @@ object ZeNoteRegles {
 
     /** Transcription lisible : texte brut → texte sans hésitations, brut inchangé. */
     fun transcriptionLisible(brut: String): String = Regles.transcriptionLisible(brut)
+
+    /**
+     * Omissions : texte de la capture + `[ElementJson]` → `[OmissionElementJson]`.
+     *
+     * Ce que chaque élément a perdu de la phrase dont il a été découpé — une
+     * négation, un nombre, un nom. Les éléments qui n'ont rien perdu n'y figurent pas.
+     */
+    fun omissions(texteCapture: String, elementsJson: String): String =
+        Regles.omissions(texteCapture, elementsJson)
 
     /**
      * Ancrage : texte source + `[ElementJson]` → `AncrageJson`.
@@ -124,9 +133,10 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 13 » avec les fiches d'entité. Une surface qui attend cette
-     * version et en trouve une plus ancienne parle à un cœur sans cette fonction, et
-     * doit le dire au lieu de planter à l'appel.
+     * Passée à « 14 » avec les omissions (`omissions`) et la raison d'une proposition
+     * séparée en `raisonDite` / `raisonDeduite`. Une surface qui attend cette version
+     * et en trouve une plus ancienne parle à un cœur sans cette fonction, et doit le
+     * dire au lieu de planter à l'appel.
      */
-    val version: String = "13"
+    val version: String = "14"
 }

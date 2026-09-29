@@ -26,6 +26,7 @@ import {
 } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import { deduit, deduitDe, dit, marqueDeduit, passageExact } from './provenance.ts';
 
 /**
  * Les éléments écartés le sont pour la session en cours seulement : écarter n'est ni
@@ -235,20 +236,31 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
     element: ElementStocke | undefined,
     capture: Capture | undefined,
   ): HTMLElement {
+    // Spec `provenance` — « Raison d'une proposition ». Ce qui a été dit et ce que le
+    // système en a tiré ne se collent plus dans une même phrase : le passage est cité,
+    // et chaque morceau de la raison dit d'où il vient.
+    const dedans = element ?? { texte: p.texte, debutCar: 0, finCar: 0 };
+    const passage = passageExact(dedans, capture?.texte);
+    const intro = element?.issuDeReunion ? 'le compte rendu dit' : undefined;
+    const fixeALaMain = element?.corrigeParHumain === true;
+
     return el(
       'li',
       { class: 'proposition', 'data-poids': p.poidsEffectif },
       el(
         'div',
         { class: 'proposition__entete' },
-        el('span', {
-          class: `badge badge--poids badge--poids-${p.poidsEffectif.toLowerCase()}`,
-          texte: LIBELLE_POIDS[p.poidsEffectif] ?? p.poidsEffectif,
-        }),
+        el(
+          'span',
+          { class: `badge badge--poids badge--poids-${p.poidsEffectif.toLowerCase()}` },
+          LIBELLE_POIDS[p.poidsEffectif] ?? p.poidsEffectif,
+          fixeALaMain ? null : ' ',
+          fixeALaMain ? null : marqueDeduit(),
+        ),
       ),
-      el('p', { class: 'proposition__texte', texte: p.texte }),
+      el('p', { class: 'proposition__texte' }, dit(passage, { intro })),
       // La raison dit ce qui se passe si ce n'est pas fait, jamais un score.
-      el('p', { class: 'proposition__raison', texte: p.raison }),
+      el('p', { class: 'proposition__raison' }, raisonEnDeuxMorceaux(p, passage, fixeALaMain, intro)),
       source(element, capture),
       el(
         'div',
@@ -281,6 +293,33 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
         }),
       ),
     );
+  }
+
+  /**
+   * La raison d'une proposition, en deux morceaux qui n'ont pas la même origine.
+   *
+   * Le poids vient de l'analyse de ce que l'utilisateur a dit : l'indice est cité s'il
+   * figure mot pour mot dans le passage, présenté comme un libellé déduit sinon. Le
+   * poids qu'il a fixé lui-même n'est pas une déduction. L'urgence, elle, est tirée de
+   * l'échéance : toujours déduite, jamais entre guillemets.
+   */
+  function raisonEnDeuxMorceaux(
+    p: PropositionJson,
+    passage: string,
+    fixeALaMain: boolean,
+    intro: string | undefined,
+  ): (HTMLElement | string)[] {
+    let poids: HTMLElement | string;
+    if (p.raisonDite === null) {
+      // Aucun indice : le système le dit lui-même, ce n'est pas une parole.
+      const repli = ` — ${p.raisonDeduite}`;
+      poids = p.raison.endsWith(repli) ? p.raison.slice(0, -repli.length) : p.raison;
+    } else if (fixeALaMain) {
+      poids = p.raisonDite;
+    } else {
+      poids = deduitDe('Poids', p.raisonDite, passage, { intro });
+    }
+    return [poids, ' — ', deduit(p.raisonDeduite)];
   }
 
   /**

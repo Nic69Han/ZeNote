@@ -53,19 +53,6 @@ object Disfluences {
         "euh", "heu", "eh", "hum", "hmm", "mmh", "mm", "hein", "ben", "bah", "beh",
     )
 
-    /** Les mots dont la disparition changerait une phrase en son contraire. */
-    private val NEGATIONS = setOf(
-        "ne", "n", "pas", "non", "jamais", "rien", "aucun", "aucune", "ni", "sans",
-    )
-
-    /** Les nombres écrits en lettres, qu'une réduction de répétition abîmerait. */
-    private val NOMBRES = setOf(
-        "zero", "un", "une", "deux", "trois", "quatre", "cinq", "six", "sept", "huit",
-        "neuf", "dix", "onze", "douze", "treize", "quatorze", "quinze", "seize",
-        "vingt", "trente", "quarante", "cinquante", "soixante", "cent", "cents",
-        "mille", "million", "millions", "milliard", "milliards", "demi", "quart",
-    )
-
     /** La plus longue répétition qu'on ose réduire : au-delà, ce n'est plus un bégaiement. */
     private const val GROUPE_MAX = 3
 
@@ -115,8 +102,8 @@ object Disfluences {
         val intouchable: Boolean =
             mot.firstOrNull()?.isUpperCase() == true ||
                 forme.any { it.isDigit() } ||
-                forme in NEGATIONS ||
-                forme in NOMBRES
+                forme in Marques.NEGATIONS ||
+                forme in Marques.NOMBRES
     }
 
     /**
