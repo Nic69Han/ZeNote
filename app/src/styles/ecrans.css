@@ -1411,3 +1411,32 @@
   border-color: var(--calme);
   color: var(--calme);
 }
+
+/* L'invite du soir : une seule, sur l'écran de capture, qui se retire d'un geste.
+   Ni couleur d'alerte ni compteur — c'est une proposition, pas une dette. */
+.invite-soir {
+  margin-block: 0.8rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+}
+
+.invite-soir__titre {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.invite-soir__texte {
+  margin: 0 0 0.7rem;
+  color: var(--encre-douce);
+  font-size: 0.9rem;
+}
+
+.invite-soir__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

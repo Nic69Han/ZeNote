@@ -16,6 +16,7 @@ import {
   traiterFileTranscription,
 } from '../services/pipeline.ts';
 import { deposerCompteRendu } from '../services/reunion.ts';
+import { CONFIRMATION_DU_SOIR, CONSIGNE_DU_SOIR, inviteDuSoir } from '../services/delestage.ts';
 import { passePertinent } from '../services/echos.ts';
 import { CoffreVerrouille } from '../securite/coffre.ts';
 import { espaceLiberable, estManqueDePlace, libererEspace } from '../services/espace.ts';
@@ -32,8 +33,11 @@ import { annoncer, el, vider } from './dom.ts';
 
 type Etat = 'REPOS' | 'ENREGISTRE' | 'ECRITURE' | 'CONFIRME' | 'ECHEC';
 
-/** Ce que la prochaine capture doit être : ordinaire, ou une note de reprise. */
-type Intention = 'ORDINAIRE' | 'REPRISE';
+/**
+ * Ce que la prochaine capture doit être : ordinaire, une note de reprise, ou la liste
+ * du lendemain déposée depuis l'invite du soir.
+ */
+type Intention = 'ORDINAIRE' | 'REPRISE' | 'SOIR';
 
 /** La confirmation d'une note de reprise : écrite, et promise pour le retour. */
 const CONFIRMATION_REPRISE = 'Noté. Vous le retrouverez à votre retour.';
@@ -56,8 +60,8 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
   let modeEcrit = false;
   /**
    * Ce que la prochaine capture est, au-delà d'une capture : une note de reprise
-   * (« Je m'arrête là »). Armé par un geste, désarmé par la capture qui l'emploie —
-   * jamais reporté sur la suivante.
+   * (« Je m'arrête là ») ou la liste du soir. Armé par un geste, désarmé par la capture
+   * qui l'emploie — jamais reporté sur la suivante.
    */
   let intention: Intention = 'ORDINAIRE';
 
@@ -225,13 +229,11 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     texte: 'Je m’arrête là',
     'aria-pressed': 'false',
   });
-  const consigneReprise = el(
+  const texteConsigne = el('p', { class: 'consigne__texte' });
+  const consigneMoment = el(
     'div',
-    { class: 'consigne consigne--reprise', role: 'status', hidden: true },
-    el('p', {
-      class: 'consigne__texte',
-      texte: 'Où en êtes-vous ? Dites ou écrivez par quoi reprendre : vous le retrouverez à votre retour.',
-    }),
+    { class: 'consigne', role: 'status', hidden: true },
+    texteConsigne,
     el('button', {
       class: 'bouton bouton--discret consigne__annuler',
       type: 'button',
@@ -240,21 +242,119 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     }),
   );
 
-  /** Arme (ou désarme) la note de reprise ; l'écriture s'ouvre, le bouton reste maintenable. */
+  /**
+   * Arme (ou désarme) la capture suivante ; l'écriture s'ouvre, et le bouton reste
+   * maintenable pour dicter.
+   */
   function armer(nouvelle: Intention): void {
     intention = nouvelle;
-    const reprise = intention === 'REPRISE';
-    boutonReprise.setAttribute('aria-pressed', String(reprise));
-    consigneReprise.hidden = !reprise;
-    zoneEcrite.placeholder = reprise ? 'Où j’en étais…' : 'Écrire au lieu de parler…';
-    deposer.textContent = reprise ? 'Poser la note' : 'Déposer';
-    if (reprise) {
+    const arme = intention !== 'ORDINAIRE';
+    boutonReprise.setAttribute('aria-pressed', String(intention === 'REPRISE'));
+    consigneMoment.hidden = !arme;
+    consigneMoment.dataset.intention = intention;
+    texteConsigne.textContent =
+      intention === 'REPRISE'
+        ? 'Où en êtes-vous ? Dites ou écrivez par quoi reprendre : vous le retrouverez à votre retour.'
+        : intention === 'SOIR'
+          ? CONSIGNE_DU_SOIR
+          : '';
+    zoneEcrite.placeholder =
+      intention === 'REPRISE'
+        ? 'Où j’en étais…'
+        : intention === 'SOIR'
+          ? 'Demain : quoi, pour qui, quand…'
+          : 'Écrire au lieu de parler…';
+    deposer.textContent =
+      intention === 'REPRISE' ? 'Poser la note' : intention === 'SOIR' ? 'Déposer ma liste' : 'Déposer';
+    if (arme) {
       modeEcrit = true;
       blocEcrit.hidden = false;
       basculeEcrite.setAttribute('aria-expanded', 'true');
       basculeEcrite.textContent = 'Parler plutôt';
       zoneEcrite.focus();
-      annoncer('Note de reprise : dites ou écrivez où vous en êtes.');
+      annoncer(
+        intention === 'REPRISE'
+          ? 'Note de reprise : dites ou écrivez où vous en êtes.'
+          : 'Liste du lendemain : dites ou écrivez, précisément.',
+      );
+    }
+  }
+
+  /** La confirmation de la capture qui vient d'être écrite, selon ce qu'elle était. */
+  function confirmationDe(faite: Intention): string {
+    return faite === 'REPRISE'
+      ? CONFIRMATION_REPRISE
+      : faite === 'SOIR'
+        ? CONFIRMATION_DU_SOIR
+        : "C'est à moi. Tu peux oublier.";
+  }
+
+  /** Ce qui suit une capture armée : le geste se désarme, et l'invite du soir se retire. */
+  function terminerIntention(faite: Intention): void {
+    if (faite === 'ORDINAIRE') return;
+    armer('ORDINAIRE');
+    if (faite === 'SOIR') void retirerInvite();
+  }
+
+  // ------------------------------------------------- l'invite du soir
+  //
+  // Spec `delestage-du-soir` — « Invite du soir facultative » et « Dépôt digne de
+  // confiance ». Une invite, une fois par soirée, sur cet écran et nulle part ailleurs.
+  // Elle arme la même capture que les autres (écrite d'abord, confirmée ensuite) ;
+  // seule la confirmation dit que le contenu est écrit et peut être lâché.
+  //
+  // Ni reproche, ni compte des soirées manquées : « Pas ce soir » la retire, c'est tout.
+  /** Le jour de référence de la soirée, tant que l'invite est à l'écran. */
+  let jourInvite: string | null = null;
+  const invite = el(
+    'section',
+    { class: 'invite-soir', 'aria-labelledby': 'titre-invite-soir', hidden: true },
+    el('h2', { id: 'titre-invite-soir', class: 'invite-soir__titre', texte: 'Vider sa tête ce soir' }),
+    el('p', { class: 'invite-soir__texte', texte: CONSIGNE_DU_SOIR }),
+    el(
+      'div',
+      { class: 'invite-soir__actions' },
+      el('button', {
+        class: 'bouton bouton--plein invite-soir__deposer',
+        type: 'button',
+        texte: 'Déposer ma liste',
+        onclick: () => armer('SOIR'),
+      }),
+      el('button', {
+        class: 'bouton bouton--discret invite-soir__pas-ce-soir',
+        type: 'button',
+        texte: 'Pas ce soir',
+        onclick: () => {
+          if (intention === 'SOIR') armer('ORDINAIRE');
+          void retirerInvite();
+        },
+      }),
+    ),
+  );
+
+  /** Retient que cette soirée a eu son invite, utilisée ou écartée, et la retire. */
+  async function retirerInvite(): Promise<void> {
+    invite.hidden = true;
+    if (jourInvite === null) return;
+    const jour = jourInvite;
+    jourInvite = null;
+    try {
+      await ecrireReglage('delestageVuLe', jour);
+    } catch {
+      // L'invite est un confort : ne pas pouvoir écrire le réglage ne doit rien
+      // coûter à la capture, qui est déjà écrite.
+    }
+  }
+
+  /** Lit les réglages du moment : ceux reçus au démarrage ne suivent pas l'écran Réglages. */
+  async function proposerInviteDuSoir(): Promise<void> {
+    try {
+      const jour = inviteDuSoir(new Date(), await lireReglages());
+      if (jour === null) return;
+      jourInvite = jour;
+      invite.hidden = false;
+    } catch {
+      // Sans réglages lisibles, pas d'invite : le silence est le bon défaut.
     }
   }
 
@@ -403,7 +503,7 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     if (etat !== 'ENREGISTRE') return;
     arreterChrono();
     afficherEtat('ECRITURE', 'Écriture…');
-    const pourReprise = intention === 'REPRISE';
+    const faite = intention;
 
     const audio = await enregistreur.arreter();
 
@@ -421,15 +521,15 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
         etatTranscription: 'ABSENTE',
         audio: audio.blob,
         dureeMs: audio.dureeMs,
-        reprise: pourReprise,
+        reprise: faite === 'REPRISE',
       });
       // « Tu peux oublier » se tient ici parce que la chaîne qui suit ne perd rien :
       // l'audio est en base ; la transcription tourne sur l'appareil dans les secondes
       // qui viennent ; et si elle ne reconnaît rien, la capture remonte en tête de la
       // Revue avec son audio, à reprendre. Aucun chemin ne mène au silence.
       retourEcrite(reglages.sonConfirmation);
-      afficherEtat('CONFIRME', pourReprise ? CONFIRMATION_REPRISE : "C'est à moi. Tu peux oublier.");
-      if (pourReprise) armer('ORDINAIRE');
+      afficherEtat('CONFIRME', confirmationDe(faite));
+      terminerIntention(faite);
       apercu.textContent = '';
       await rafraichirJournal();
       transcrireEnArrierePlan();
@@ -529,13 +629,13 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     const texte = zoneEcrite.value.trim();
     if (!texte) return;
     afficherEtat('ECRITURE', 'Écriture…');
-    const pourReprise = intention === 'REPRISE';
+    const faite = intention;
     try {
-      await capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', reprise: pourReprise });
+      await capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', reprise: faite === 'REPRISE' });
       retourEcrite(reglages.sonConfirmation);
       zoneEcrite.value = '';
-      afficherEtat('CONFIRME', pourReprise ? CONFIRMATION_REPRISE : "C'est à moi. Tu peux oublier.");
-      if (pourReprise) armer('ORDINAIRE');
+      afficherEtat('CONFIRME', confirmationDe(faite));
+      terminerIntention(faite);
       await rafraichirJournal();
       void traiterFileAnalyse();
       // Après l'écriture, jamais pendant : la capture ne doit rien attendre, et
@@ -713,9 +813,10 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       message,
       secours,
       ...avertissements,
+      invite,
       rappelPasse,
       el('div', { class: 'actions' }, boutonReprise, basculeEcrite, boutonReunion, basculeImport),
-      consigneReprise,
+      consigneMoment,
       blocEcrit,
       blocImport,
       el('h2', { class: 'titre-section', texte: 'Dernières captures' }),
@@ -725,6 +826,7 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
 
   afficherEtat('REPOS');
   void rafraichirJournal();
+  void proposerInviteDuSoir();
   // Le micro est préparé à l'avance pour que l'appui suivant démarre sans attendre.
   void prechauffer();
   // Ce qui attendait une transcription — une capture faite juste avant de fermer

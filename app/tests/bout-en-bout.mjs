@@ -1921,6 +1921,158 @@ try {
     `${await elementsDe(idNoteGardee)} élément(s)`,
   );
 
+  // --- Vider sa tête le soir --------------------------------------------------------
+  // Spec `delestage-du-soir` — « Invite du soir facultative » et « Dépôt digne de
+  // confiance ». L'heure du soir est celle de l'horloge du navigateur (`page.clock`),
+  // sur une page à part : rien n'attend qu'il soit vraiment vingt-deux heures, et
+  // l'horloge simulée ne touche pas au reste du parcours.
+  const instantSoir = (jour, heures, minutes = 0) => new Date(2026, 8, jour, heures, minutes);
+  const pageSoir = await contexte.newPage();
+  const erreursSoir = [];
+  pageSoir.on('pageerror', (e) => erreursSoir.push(String(e)));
+  await pageSoir.clock.install({ time: instantSoir(29, 22, 10) });
+  await pageSoir.goto(`${adresse}/`, { waitUntil: 'networkidle' });
+  await pageSoir.locator('.ecran--capture').waitFor({ state: 'visible', timeout: 15_000 });
+  await pageSoir.waitForTimeout(600);
+  const inviteVisible = () => pageSoir.locator('.invite-soir:visible').count();
+  const rouvrirCapture = async () => {
+    await pageSoir.reload({ waitUntil: 'networkidle' });
+    await pageSoir.locator('.ecran--capture').waitFor({ state: 'visible', timeout: 15_000 });
+    await pageSoir.waitForTimeout(600);
+  };
+
+  verifier(
+    'réglage éteint par défaut : aucune invite du soir à 22 h 10',
+    (await pageSoir.evaluate(() => new Date().getHours())) === 22 && (await inviteVisible()) === 0,
+    `heure simulée ${await pageSoir.evaluate(() => new Date().toTimeString().slice(0, 5))}`,
+  );
+
+  // Le bloc de réglage : éteint et à 21 h 00 sur une installation neuve.
+  await pageSoir.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await pageSoir.locator('.bloc--delestage').waitFor({ state: 'visible', timeout: 15_000 });
+  const caseSoir = pageSoir.locator('.bloc--delestage input[name="delestage-soir"]');
+  verifier(
+    'le réglage « Vider sa tête le soir » est éteint, proposé pour 21 h 00',
+    !(await caseSoir.isChecked()) &&
+      (await pageSoir.locator('.bloc--delestage input[type="time"]').inputValue()) === '21:00',
+  );
+  await caseSoir.check();
+  await pageSoir.waitForTimeout(400);
+  const reglagesSoir = () => pageSoir.evaluate(() => window.__zenote.lireReglages());
+  verifier(
+    'allumé, il retient l’interrupteur et l’heure',
+    (await reglagesSoir()).delestageSoir === true && (await reglagesSoir()).delestageHeure === '21:00',
+  );
+
+  // Invite dans la soirée : sur l'écran de capture, avec la consigne de précision.
+  await pageSoir.locator('.nav__lien[data-onglet="capturer"]').click();
+  await pageSoir.locator('.invite-soir').waitFor({ state: 'visible', timeout: 15_000 });
+  const texteInvite = await pageSoir.locator('.invite-soir').innerText();
+  verifier(
+    'à 22 h 10, l’invite apparaît sur l’écran de capture avec la consigne de précision',
+    /quoi, pour qui, quand/i.test(texteInvite) && /pas ce soir/i.test(texteInvite),
+    texteInvite.replace(/\s+/g, ' ').slice(0, 140),
+  );
+  verifier(
+    'sans reproche ni compte de soirées manquées',
+    !/\d+\s+soir|manqu|oubli|retard|encore/i.test(texteInvite),
+  );
+
+  // Jamais ailleurs.
+  let invitesAilleurs = 0;
+  for (const ecran of ['revue', 'maintenant']) {
+    await pageSoir.locator(`.nav__lien[data-onglet="${ecran}"]`).click();
+    await pageSoir.waitForTimeout(500);
+    invitesAilleurs += await pageSoir.locator('.invite-soir').count();
+  }
+  for (const ecran of ['recherche', 'personnes', 'reglages']) {
+    await pageSoir.locator(`.retrait__lien[data-ecran="${ecran}"]`).click();
+    await pageSoir.waitForTimeout(500);
+    invitesAilleurs += await pageSoir.locator('.invite-soir').count();
+  }
+  verifier('l’invite n’apparaît sur aucun autre écran', invitesAilleurs === 0, `${invitesAilleurs} ailleurs`);
+
+  // « Pas ce soir » : retirée, y compris après minuit, mais pas la soirée suivante.
+  await pageSoir.locator('.nav__lien[data-onglet="capturer"]').click();
+  await pageSoir.locator('.invite-soir').waitFor({ state: 'visible', timeout: 15_000 });
+  await pageSoir.locator('.invite-soir__pas-ce-soir').click();
+  await pageSoir.waitForTimeout(400);
+  const retiree = (await inviteVisible()) === 0;
+  await rouvrirCapture();
+  const retireeAuRechargement = (await inviteVisible()) === 0;
+  await pageSoir.clock.setSystemTime(instantSoir(30, 0, 20));
+  await rouvrirCapture();
+  const retireeApresMinuit =
+    (await pageSoir.evaluate(() => new Date().getDate())) === 30 && (await inviteVisible()) === 0;
+  verifier(
+    '« Pas ce soir » retire l’invite, au rechargement comme après minuit',
+    retiree && retireeAuRechargement && retireeApresMinuit,
+    `retirée ${retiree}, rechargée ${retireeAuRechargement}, après minuit ${retireeApresMinuit}`,
+  );
+  await pageSoir.clock.setSystemTime(instantSoir(30, 21, 30));
+  await rouvrirCapture();
+  verifier(
+    'et elle revient à la soirée suivante, sans rien avoir compté',
+    (await inviteVisible()) === 1,
+  );
+
+  // Liste du lendemain déposée : capture ordinaire, confirmée « lâchable », en Revue.
+  await pageSoir.locator('.invite-soir__deposer').click();
+  await pageSoir
+    .locator('.zone-ecrite')
+    .fill('Demain matin avant dix heures, appeler Karim pour le devis du toit, sinon le chantier est bloqué.');
+  await pageSoir.evaluate(() => {
+    window.__journal.length = 0;
+  });
+  await pageSoir.locator('.bloc-ecrit .bouton--plein').click();
+  let confirmationSoir = '';
+  for (let essai = 0; essai < 40 && !/lâcher/i.test(confirmationSoir); essai += 1) {
+    await pageSoir.waitForTimeout(100);
+    confirmationSoir = await pageSoir.locator('.message').innerText().catch(() => '');
+  }
+  const journalSoir = await pageSoir.evaluate(() => window.__journal);
+  const rangEcriteSoir = journalSoir.findIndex((e) => e.quoi === 'capture-durable');
+  const rangConfirmeeSoir = journalSoir.findIndex((e) => e.quoi === 'confirmation');
+  verifier(
+    'la liste déposée est confirmée « Écrit. Vous pouvez le lâcher jusqu’à demain. », écrite d’abord',
+    confirmationSoir === "Écrit. Vous pouvez le lâcher jusqu'à demain." &&
+      rangEcriteSoir !== -1 &&
+      rangConfirmeeSoir !== -1 &&
+      rangEcriteSoir < rangConfirmeeSoir,
+    `${confirmationSoir} — écriture n°${rangEcriteSoir}, confirmation n°${rangConfirmeeSoir}`,
+  );
+  await pageSoir.waitForTimeout(500);
+  verifier('l’invite se retire une fois la liste déposée', (await inviteVisible()) === 0);
+  await rouvrirCapture();
+  await pageSoir.clock.setSystemTime(instantSoir(30, 23, 55));
+  await rouvrirCapture();
+  const revueSoir = await pageSoir.evaluate(() => window.__zenote.lireReglages());
+  verifier(
+    'elle ne réapparaît pas ce soir-là',
+    (await inviteVisible()) === 0 && revueSoir.delestageVuLe === '2026-09-30',
+    `vue le ${revueSoir.delestageVuLe}`,
+  );
+  const reglagesBruts = await pageSoir.evaluate(async () => JSON.stringify(await window.__zenote.lireReglages()));
+  verifier(
+    'et les réglages ne portent aucun texte de la note',
+    !/Karim|devis|chantier/i.test(reglagesBruts),
+  );
+
+  // Le lendemain matin : les éléments de la liste sont en Revue, comme ceux de toute capture.
+  await pageSoir.clock.setSystemTime(instantSoir(31, 8, 0));
+  await pageSoir.goto(`${adresse}/#revue`, { waitUntil: 'networkidle' });
+  const entreeSoir = await pageSoir
+    .locator('.entree', { hasText: /appeler Karim pour le devis du toit/i })
+    .first()
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  verifier('les éléments de la liste sont en Revue le lendemain', entreeSoir);
+  verifier('aucune erreur JavaScript pendant la soirée simulée', erreursSoir.length === 0, erreursSoir.slice(0, 2).join(' | '));
+  // Le parcours suivant ne doit pas hériter d'une invite allumée sur l'horloge réelle.
+  await pageSoir.evaluate(() => window.__zenote.ecrireReglage('delestageSoir', false));
+  await pageSoir.close();
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

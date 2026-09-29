@@ -10,8 +10,8 @@ Une case n'est cochée que lorsqu'un test nommé la couvre.
 
 ## 2. Vider sa tête le soir
 
-- [ ] 2.1 Réglages `delestageSoir` (faux), `delestageHeure` ('21:00'), `delestageVuLe` ; fonction pure `inviteDuSoir(maintenant, reglages)` avec le jour de référence qui passe minuit ; vérifier par `delestage.test.ts` les trois scénarios de « Invite du soir facultative »
-- [ ] 2.2 Bloc de réglage dans `reglages.ts` et invite sur l'écran de capture, confirmation « Écrit. Vous pouvez le lâcher jusqu'à demain. » ; vérifier dans `bout-en-bout.mjs` « Liste du lendemain déposée »
+- [x] 2.1 Réglages `delestageSoir` (faux), `delestageHeure` ('21:00'), `delestageVuLe` ; fonction pure `inviteDuSoir(maintenant, reglages)` avec le jour de référence qui passe minuit ; vérifier par `delestage.test.ts` les trois scénarios de « Invite du soir facultative »
+- [x] 2.2 Bloc de réglage dans `reglages.ts` et invite sur l'écran de capture, confirmation « Écrit. Vous pouvez le lâcher jusqu'à demain. » ; vérifier dans `bout-en-bout.mjs` « Liste du lendemain déposée »
 
 ## 3. Premier geste
 

@@ -28,6 +28,7 @@ import {
   type Reglages,
 } from '../stockage/depot.ts';
 import { diagnostiquer, enTexte } from '../audio/diagnostic.ts';
+import { blocDelestage } from './reglages-delestage.ts';
 import { activerChiffrement, desactiverChiffrement } from '../securite/activation.ts';
 import {
   assurerCoffreCharge,
@@ -188,6 +189,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       blocAnalyseDistante(reglages),
       blocChiffrement(coffre, appareilPossible, donnees),
       blocCreneau(reglages),
+      blocDelestage(reglages),
       blocExport(donnees, texte),
       blocEffacement(donnees),
       blocDictee(),

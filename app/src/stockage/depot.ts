@@ -283,6 +283,22 @@ export interface Reglages {
    * le doute se tranche du côté de la vie privée.
    */
   spheresExclues: ('PROFESSIONNEL' | 'PERSONNEL')[];
+  /**
+   * « Vider sa tête le soir » : l'invite du soir sur l'écran de capture. Éteinte par
+   * défaut — un rituel qu'on n'a pas demandé est une insistance de plus.
+   *
+   * Spec `delestage-du-soir` — « Invite du soir facultative ». Ni ce réglage ni les
+   * deux suivants ne portent de texte de note : ce magasin n'est pas scellé.
+   */
+  delestageSoir: boolean;
+  /** L'heure de début de la soirée, en `HH:MM`. */
+  delestageHeure: string;
+  /**
+   * Le jour de référence de la dernière soirée où l'invite a été utilisée ou écartée.
+   * Le jour où la soirée a commencé, pas celui de l'instant : passé minuit, c'est
+   * toujours la même soirée, donc la même invite (voir `services/delestage.ts`).
+   */
+  delestageVuLe: string | null;
 }
 
 export const REGLAGES_PAR_DEFAUT: Reglages = {
@@ -295,6 +311,9 @@ export const REGLAGES_PAR_DEFAUT: Reglages = {
   monNom: '',
   analyseDistante: false,
   spheresExclues: [],
+  delestageSoir: false,
+  delestageHeure: '21:00',
+  delestageVuLe: null,
 };
 
 // ------------------------------------------------- scellement et ouverture
