@@ -54,6 +54,12 @@ import { avisRepli, completerRevue, origineLisible } from '../analyse/origine.ts
 import { apprendre } from '../services/lexique.ts';
 import { echosDe } from '../services/echos.ts';
 import {
+  presenterMaintenant,
+  signalerIgnoree,
+  signalerUtilisee,
+} from '../services/retenue.ts';
+import { ligneInvitationSemaine } from './invitationSemaine.ts';
+import {
   FENETRE_ANNULATION_MS,
   supprimerAvecAnnulation,
   type Annulation,
@@ -142,6 +148,14 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   /** Les captures et éléments du moment, pour chercher à quoi une note renvoie. */
   let capturesConnues: CaptureJson[] = [];
   let elementsConnus: ElementJson[] = [];
+  /**
+   * Les pistes d'échange que la retenue a laissé passer (`false`) ou présenté (`true`),
+   * par capture. La décision se prend une fois : refaire le tirage à chaque rendu
+   * ferait apparaître et disparaître la carte au fil des gestes.
+   */
+  const decisionsPistes = new Map<string, boolean>();
+  /** Les captures dont les pistes sont à l'écran, sans piste choisie ni carte décidée. */
+  const pistesPresentees = new Set<string>();
 
   // Le type stocké, pas seulement le contrat du cœur : une relance touche `relanceLe`
   // et `faitLe`, que les règles ne connaissent pas et n'ont pas à connaître.
@@ -351,6 +365,11 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       );
     }
 
+    // Spec `retour-semaine` — « Invitation hebdomadaire discrète » : une ligne, au plus
+    // une fois par semaine, qui disparaît une fois l'écran de la semaine ouvert.
+    const invitationSemaine = await ligneInvitationSemaine(captures, jour);
+    if (invitationSemaine) section.append(invitationSemaine);
+
     if (aRevoir.length > 0) section.append(blocARevoir(aRevoir, parElementStocke));
 
     if (moment.escalades.length > 0) section.append(blocEscalades(moment));
@@ -400,6 +419,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       (await lireReglages()).analyseDistante,
     );
     if (repli) section.append(el('p', { class: 'avis-repli', role: 'status', texte: repli }));
+
+    await preparerPistes(file.groupes.map((g) => g.captureId), captures, tous);
 
     for (const groupe of file.groupes) {
       section.append(await rendreGroupe(groupe.captureId, groupe.entrees));
@@ -1256,6 +1277,40 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
    * Les pistes sont proposées, jamais retenues d'office. Rattacher à la mauvaise
    * conversation fabrique un souvenir faux, que plus rien ne vient corriger.
    */
+  /**
+   * Décide, pour chaque carte affichée, si ses pistes se présentent, et compte celles
+   * qui se sont refermées sans piste choisie.
+   *
+   * Spec `suggestions-proactives` — « Retenue après suggestions ignorées ». Les pistes
+   * sont une question, pas une interruption : la retenue n'espace que la proposition,
+   * et ne cache jamais une piste déjà choisie (`captureLiee`, traitée avant tout).
+   * Utilisée = une piste choisie ; ignorée = la carte décidée sans en choisir.
+   */
+  async function preparerPistes(
+    affichees: string[],
+    captures: Capture[],
+    tous: ElementStocke[],
+  ): Promise<void> {
+    for (const id of [...pistesPresentees]) {
+      const capture = captures.find((c) => c.id === id);
+      const encoreADecider = tous.some((e) => e.captureId === id && e.verdict === 'EN_ATTENTE');
+      if (capture && encoreADecider) continue;
+      pistesPresentees.delete(id);
+      if (!capture?.captureLiee) await signalerIgnoree('PISTES_ECHANGE');
+    }
+
+    for (const id of affichees) {
+      if (decisionsPistes.has(id)) continue;
+      const capture = captures.find((c) => c.id === id);
+      if (!capture || capture.captureLiee) continue;
+      const pistes = echosDe(capture.texte, capture.id, capturesConnues, elementsConnus, jour);
+      if (pistes.length === 0) continue;
+      const presenter = await presenterMaintenant('PISTES_ECHANGE');
+      decisionsPistes.set(id, presenter);
+      if (presenter) pistesPresentees.add(id);
+    }
+  }
+
   function renvoiAUnEchange(capture: Capture): HTMLElement | null {
     if (capture.captureLiee) {
       const liee = capturesConnues.find((c) => c.id === capture.captureLiee);
@@ -1275,6 +1330,9 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       jour,
     );
     if (pistes.length === 0) return null;
+    // La retenue a laissé passer cette occasion : la note reste rattachable, mais la
+    // question ne se pose pas (spec `suggestions-proactives`).
+    if (decisionsPistes.get(capture.id) === false) return null;
 
     const bloc = el(
       'div',
@@ -1297,6 +1355,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
             texte: piste.extrait.slice(0, 70),
             onclick: () => {
               void (async () => {
+                pistesPresentees.delete(capture.id);
+                await signalerUtilisee('PISTES_ECHANGE');
                 await majCapture(capture.id, { captureLiee: piste.captureId });
                 annoncer('Rattaché.');
                 await rendre();

@@ -16,7 +16,13 @@ import {
   traiterFileTranscription,
 } from '../services/pipeline.ts';
 import { deposerCompteRendu } from '../services/reunion.ts';
-import { passePertinent } from '../services/echos.ts';
+import { ligneDePasse, passePertinent, type Echo } from '../services/echos.ts';
+import {
+  presenterMaintenant,
+  signalerIgnoree,
+  signalerUtilisee,
+} from '../services/retenue.ts';
+import { proposerQuestion } from './questionProposee.ts';
 import { CoffreVerrouille } from '../securite/coffre.ts';
 import { espaceLiberable, estManqueDePlace, libererEspace } from '../services/espace.ts';
 import {
@@ -192,6 +198,8 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
 
   const rappelPasse = el('p', { class: 'passe', role: 'status', hidden: true });
   let effacementPasse: number | undefined;
+  /** Vrai tant que la ligne du passé est à l'écran sans avoir été touchée. */
+  let passeAffiche = false;
 
   const basculeEcrite = el('button', {
     class: 'bouton bouton--discret',
@@ -490,8 +498,10 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
    * Ce qu'on a déjà dit sur ce sujet, signalé discrètement puis oublié.
    *
    * Spec `recherche` — « Rappel proactif » et « Suggestion ignorable ». Aucune
-   * action n'est proposée, aucune réponse demandée, et la ligne s'efface seule : une
+   * réponse n'est demandée, rien ne se ferme, et la ligne s'efface seule : une
    * suggestion qu'il faut fermer est une interruption, quel que soit son contenu.
+   * Elle dit maintenant pourquoi elle est là, et son seul lien, « Voir », ne sert qu'à
+   * qui le veut (spec `suggestions-proactives`).
    *
    * Elle se tait plus souvent qu'elle ne parle. Un rappel qui se déclenche à chaque
    * capture devient un décor, et l'on cesse de le lire le jour où il aurait servi.
@@ -509,25 +519,64 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       );
       if (!echo) return;
 
-      vider(rappelPasse);
-      rappelPasse.hidden = false;
-      rappelPasse.append(
-        el('span', {
-          class: 'passe__texte',
-          texte: `Déjà dit : « ${echo.extrait.slice(0, 90)} »`,
-        }),
-      );
-      annoncer('Un élément passé sur ce sujet existe déjà.');
+      // Spec `suggestions-proactives` — « Retenue après suggestions ignorées » : la
+      // sorte s'espace quand ses présentations passent sans être ouvertes. Ce qu'on
+      // ne présente pas est compté comme une occasion sautée, pas comme une ignorée.
+      if (!(await presenterMaintenant('PASSE_PERTINENT'))) return;
 
-      if (effacementPasse !== undefined) window.clearTimeout(effacementPasse);
-      effacementPasse = window.setTimeout(() => {
-        rappelPasse.hidden = true;
-        vider(rappelPasse);
-      }, DUREE_RAPPEL_PASSE_MS);
+      // Un rappel encore affiché qu'un autre remplace s'efface sans avoir été touché.
+      if (passeAffiche) void signalerIgnoree('PASSE_PERTINENT').catch(() => undefined);
+      afficherPasse(echo);
     } catch {
       // Le passé est un confort. Une recherche qui échoue — coffre fermé, base
       // occupée — ne doit rien changer à la capture, qui est déjà écrite.
     }
+  }
+
+  /**
+   * La ligne du passé : la note, ce qui l'a fait remonter, et un lien « Voir ».
+   *
+   * Spec `suggestions-proactives` — « Raison visible ». Le lien n'est pas une
+   * demande : la ligne reste ignorable et s'efface seule. Il sert de signal honnête —
+   * utilisée = « Voir » touché ; ignorée = effacée sans qu'on y ait touché. Aucun
+   * autre indice (temps passé, regard) n'est compté.
+   */
+  function afficherPasse(echo: Echo): void {
+    const { extrait, raison } = ligneDePasse(echo);
+
+    vider(rappelPasse);
+    rappelPasse.hidden = false;
+    passeAffiche = true;
+    rappelPasse.append(
+      el('span', { class: 'passe__texte', texte: `Déjà dit : « ${extrait} »` }),
+      el('span', { class: 'passe__raison', texte: raison }),
+      el('a', {
+        class: 'passe__voir',
+        href: '#recherche',
+        texte: 'Voir',
+        onclick: () => {
+          // Utilisée : le rythme normal revient. La question est déposée avant que le
+          // lien ne change d'écran, et la ligne n'a plus de raison de s'effacer seule.
+          proposerQuestion(echo.extrait);
+          passeAffiche = false;
+          if (effacementPasse !== undefined) window.clearTimeout(effacementPasse);
+          effacementPasse = undefined;
+          void signalerUtilisee('PASSE_PERTINENT').catch(() => undefined);
+        },
+      }),
+    );
+    annoncer('Un élément passé sur ce sujet existe déjà.');
+
+    if (effacementPasse !== undefined) window.clearTimeout(effacementPasse);
+    effacementPasse = window.setTimeout(() => {
+      effacementPasse = undefined;
+      rappelPasse.hidden = true;
+      vider(rappelPasse);
+      if (passeAffiche) {
+        passeAffiche = false;
+        void signalerIgnoree('PASSE_PERTINENT').catch(() => undefined);
+      }
+    }, DUREE_RAPPEL_PASSE_MS);
   }
 
   // ------------------------------------------------------------------ liaisons

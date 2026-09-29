@@ -13,7 +13,19 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { endormie, passePertinent } from '../src/services/echos.ts';
+import {
+  LONGUEUR_EXTRAIT_PASSE,
+  endormie,
+  ligneDePasse,
+  passePertinent,
+} from '../src/services/echos.ts';
+import {
+  doitPresenter,
+  noterIgnoree,
+  noterUtilisee,
+  retenueInitiale,
+  rythme,
+} from '../src/services/retenue.ts';
 import type { CaptureJson, ElementJson } from '../src/core/regles.ts';
 
 const JOUR = '2026-09-25';
@@ -103,6 +115,62 @@ describe('quand il se tait', () => {
     expect(
       passePertinent('acheter un nouveau téléphone pour le bureau', 'c-3', PASSE, ELEMENTS, JOUR),
     ).toBeNull();
+  });
+});
+
+describe('Passé pertinent expliqué', () => {
+  const NOTE = 'relancer le fournisseur sur le chiffrage du chantier de Bron';
+
+  it('la ligne porte l’extrait de la note passée et la raison du rapprochement', () => {
+    const echo = passePertinent(NOTE, 'c-3', PASSE, ELEMENTS, JOUR);
+    expect(echo).not.toBeNull();
+    const ligne = ligneDePasse(echo as NonNullable<typeof echo>);
+    expect(ligne.extrait).toContain('chiffrage');
+    // La raison vient de la recherche, telle quelle : non vide, et sans score.
+    expect(ligne.raison.length).toBeGreaterThan(0);
+    expect(ligne.raison).toBe(echo?.pourquoi.trim());
+    expect(ligne.raison).not.toMatch(/\d+\s*%|score/i);
+  });
+
+  it('un extrait trop long est coupé, la raison jamais', () => {
+    const longue = 'chantier '.repeat(30);
+    const ligne = ligneDePasse({ captureId: 'c-1', extrait: longue, pourquoi: 'mots partagés' });
+    expect(ligne.extrait.length).toBeLessThanOrEqual(LONGUEUR_EXTRAIT_PASSE + 1);
+    expect(ligne.extrait.endsWith('…')).toBe(true);
+    expect(ligne.raison).toBe('mots partagés');
+  });
+
+  it('un extrait court reste entier', () => {
+    const ligne = ligneDePasse({ captureId: 'c-1', extrait: 'revoir le chiffrage', pourquoi: 'x' });
+    expect(ligne.extrait).toBe('revoir le chiffrage');
+  });
+});
+
+describe('Trois fois ignoré, le passé pertinent se fait plus rare', () => {
+  const NOTE = 'relancer le fournisseur sur le chiffrage du chantier de Bron';
+
+  it('le rappel n’est présenté qu’une fois sur deux occasions, puis rétabli par un « Voir »', () => {
+    // Le passé est trouvé à chaque occasion : c'est la retenue qui décide de le montrer.
+    let etat = retenueInitiale();
+    for (let i = 0; i < 3; i += 1) {
+      expect(passePertinent(NOTE, 'c-3', PASSE, ELEMENTS, JOUR)).not.toBeNull();
+      const decision = doitPresenter(etat, 'PASSE_PERTINENT');
+      expect(decision.presenter).toBe(true);
+      etat = noterIgnoree(decision.etat, 'PASSE_PERTINENT');
+    }
+
+    const suivantes = [];
+    for (let i = 0; i < 4; i += 1) {
+      const decision = doitPresenter(etat, 'PASSE_PERTINENT');
+      suivantes.push(decision.presenter);
+      etat = decision.etat;
+    }
+    expect(suivantes).toEqual([false, true, false, true]);
+
+    // Utilisé (« Voir » touché) : chaque occasion se présente de nouveau.
+    etat = noterUtilisee(etat, 'PASSE_PERTINENT');
+    expect(doitPresenter(etat, 'PASSE_PERTINENT').presenter).toBe(true);
+    expect(rythme(etat, 'PASSE_PERTINENT').espacee).toBe(false);
   });
 });
 

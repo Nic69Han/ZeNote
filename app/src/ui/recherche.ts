@@ -27,6 +27,7 @@ import { listerCaptures, listerElements, type Capture } from '../stockage/depot.
 import { aujourdhui } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import { prendreQuestionProposee } from './questionProposee.ts';
 
 /**
  * L'état du réseau au moment de la question : le cœur en déduit seul ce qu'il met en
@@ -318,6 +319,15 @@ export async function montrerRecherche(racine: HTMLElement): Promise<() => void>
       }),
     ),
   );
+
+  // Un lien « Voir » (le passé pertinent) dépose sa question : elle est posée d'emblée,
+  // le champ la montre, et l'utilisateur peut la corriger comme n'importe quelle autre.
+  const proposee = prendreQuestionProposee();
+  if (proposee) {
+    const champ = racine.querySelector<HTMLInputElement>('#quete-mots');
+    if (champ) champ.value = proposee;
+    void parQuestion(proposee);
+  }
 
   return libererLecteurs;
 }

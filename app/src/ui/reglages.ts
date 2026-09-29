@@ -27,6 +27,13 @@ import {
   toutEffacer,
   type Reglages,
 } from '../stockage/depot.ts';
+import {
+  LIBELLE_SORTE,
+  SORTES_SUGGESTION,
+  normaliser as normaliserRetenue,
+  remettreRythmeNormal,
+  rythme,
+} from '../services/retenue.ts';
 import { diagnostiquer, enTexte } from '../audio/diagnostic.ts';
 import { activerChiffrement, desactiverChiffrement } from '../securite/activation.ts';
 import {
@@ -188,6 +195,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       blocAnalyseDistante(reglages),
       blocChiffrement(coffre, appareilPossible, donnees),
       blocCreneau(reglages),
+      blocSuggestions(reglages),
       blocExport(donnees, texte),
       blocEffacement(donnees),
       blocDictee(),
@@ -249,6 +257,66 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
           })();
         },
       }),
+    );
+  }
+
+  // ------------------------------------------------------------ les suggestions
+
+  /**
+   * Le rythme de chaque sorte de suggestion non demandée, et de quoi le rétablir.
+   *
+   * Spec `suggestions-proactives` — « Rythme dit dans les réglages ». Quand une sorte
+   * s'est espacée parce que ses présentations passaient sans être ouvertes, le dire
+   * ici est la contrepartie de l'avoir fait : sans cette ligne, un rappel qui se raréfie
+   * ressemble à un rappel qui ne marche plus. Le constat porte sur la suggestion, jamais
+   * sur celui qui ne l'a pas ouverte.
+   */
+  function blocSuggestions(reglages: Reglages): HTMLElement {
+    const etat = normaliserRetenue(reglages.retenue);
+    const liste = el('ul', { class: 'suggestions' });
+
+    for (const sorte of SORTES_SUGGESTION) {
+      const { espacee, libelle } = rythme(etat, sorte);
+      liste.append(
+        el(
+          'li',
+          {
+            class: 'suggestion',
+            'data-sorte': sorte,
+            'data-espacee': String(espacee),
+          },
+          el('p', { class: 'suggestion__nom', texte: LIBELLE_SORTE[sorte] }),
+          el('p', { class: 'suggestion__rythme', texte: libelle }),
+          espacee
+            ? el('button', {
+                class: 'bouton bouton--discret suggestion__retour',
+                type: 'button',
+                texte: 'Revenir au rythme normal',
+                onclick: () => {
+                  void (async () => {
+                    await remettreRythmeNormal(sorte);
+                    annoncer('Rythme normal rétabli.');
+                    await rendre();
+                  })();
+                },
+              })
+            : null,
+        ),
+      );
+    }
+
+    return el(
+      'section',
+      { class: 'bloc bloc--suggestions', 'aria-labelledby': 'titre-suggestions' },
+      el('h2', { id: 'titre-suggestions', class: 'bloc__titre', texte: 'Suggestions' }),
+      el('p', {
+        class: 'bloc__texte',
+        texte:
+          'Certaines suggestions arrivent sans que vous les ayez demandées, avec la raison ' +
+          'qui les amène. Quand elles restent sans suite, elles se font plus rares ; en ' +
+          'ouvrir une rétablit aussitôt le rythme normal.',
+      }),
+      liste,
     );
   }
 
