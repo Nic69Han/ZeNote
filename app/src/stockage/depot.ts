@@ -95,6 +95,16 @@ export interface ElementStocke extends ElementJson {
    * semaines et traité hier ».
    */
   vuLe?: string | null;
+  /**
+   * `true` quand l'utilisateur a lu la phrase entière d'un élément qui avait perdu une
+   * négation, et l'a gardé tel quel.
+   *
+   * Spec `provenance` — « Omissions signalées ». Tant qu'une négation manque et que ce
+   * champ n'est pas posé, l'élément reste « à confirmer » en Revue : ni plan ni rappel
+   * ne lui est posé. Jamais passé aux règles : le cœur recalcule l'omission depuis la
+   * capture, c'est la surface qui retient qu'elle a été vue.
+   */
+  omissionLevee?: boolean;
 }
 
 /** Les suivis d'élément, tels que le cœur les attend. */

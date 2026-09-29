@@ -36,8 +36,16 @@ function rangUrgence(urgence: string): number {
  * éléments d'origine, par identifiant. Un type à confirmer s'ajoute ensuite aux
  * doutes que le cœur a déjà reconnus, et chaque groupe est retrié comme le cœur le
  * fait — l'urgent, puis l'incertain.
+ *
+ * `negationsPerdues` : les éléments qui ont perdu une négation au découpage et dont
+ * l'utilisateur n'a pas encore lu la phrase entière (spec `provenance`). Ils rejoignent
+ * les doutes : « à confirmer », hors de l'acceptation groupée.
  */
-export function completerRevue(file: RevueJson, elements: ElementJson[]): RevueJson {
+export function completerRevue(
+  file: RevueJson,
+  elements: ElementJson[],
+  negationsPerdues: ReadonlySet<string> = new Set(),
+): RevueJson {
   const parId = new Map(elements.map((e) => [e.id, e]));
   return {
     ...file,
@@ -55,7 +63,8 @@ export function completerRevue(file: RevueJson, elements: ElementJson[]): RevueJ
               sphereConfiance: origine.sphereConfiance,
               origineAnalyse: origine.origineAnalyse,
             },
-            aConfirmer: entree.aConfirmer || typeAConfirmer(origine),
+            aConfirmer:
+              entree.aConfirmer || typeAConfirmer(origine) || negationsPerdues.has(origine.id),
           };
         })
         .sort(

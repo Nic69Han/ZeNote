@@ -1696,6 +1696,272 @@ try {
       : 'suppression non exercée',
   );
 
+  // --- Provenance : ce qui a été dit, ce qui en est déduit --------------------
+  // Spec `provenance`. Deux promesses, vérifiées sur le vrai écran : chaque
+  // déduction arrive avec les mots dont elle vient (et le système ne se fait jamais
+  // passer pour l'utilisateur), et une négation perdue au découpage ne devient pas
+  // une tâche sans que la phrase entière ait été lue.
+  //
+  // Le cas d'école : « il ne faut surtout pas, et j'insiste, envoyer le devis » se
+  // découpe sur « , et j' » et donne « j'insiste, envoyer le devis » — fidèle à la
+  // capture, contraire à ce qui a été dit. Chaque capture porte une conséquence
+  // (« sinon le chantier est bloqué ») : la Revue ne montre que les douze éléments les
+  // plus lourds ou les plus pressés.
+  const elementsEnBase = () =>
+    page.evaluate(async () => {
+      const base = await new Promise((ok, ko) => {
+        const r = indexedDB.open('zenote');
+        r.onsuccess = () => ok(r.result);
+        r.onerror = () => ko(r.error);
+      });
+      return await new Promise((ok, ko) => {
+        const d = base.transaction('elements', 'readonly').objectStore('elements').getAll();
+        d.onsuccess = () => ok(d.result);
+        d.onerror = () => ko(d.error);
+      });
+    });
+  const elementDe = async (debutTexte) =>
+    (await elementsEnBase()).find((e) => (e.texte ?? '').toLowerCase().startsWith(debutTexte));
+  const deposer = (texte, source = 'ECRITE') =>
+    page.evaluate(
+      async ([t, s]) => {
+        const capture = await window.__zenote.capturer({
+          texte: t,
+          source: s,
+          etatTranscription: 'OK',
+        });
+        await window.__zenote.traiterFileAnalyse();
+        return capture.id;
+      },
+      [texte, source],
+    );
+  const carteRevue = (motif) => page.locator('.entree', { hasText: motif }).first();
+
+  const capturesProvenance = [];
+  capturesProvenance.push(
+    await deposer(
+      "il ne faut surtout pas, et j'insiste, envoyer le devis demain sinon le chantier est bloqué",
+      'VOCALE',
+    ),
+    await deposer('il faut relancer les devis demain, sinon le chantier est bloqué puis trois devis sont en retard'),
+    await deposer(
+      'je ne suis pas disponible mardi. Renvoyer la facture avant demain, sinon le chantier est bloqué.',
+    ),
+    await deposer(
+      'ne jamais valider le budget, et je transmets la facture aujourd’hui sinon le chantier est bloqué',
+    ),
+  );
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1200);
+
+  // Scénario « Négation perdue au découpage »
+  const passageNie = carteRevue(/j'insiste, envoyer le devis/i);
+  const vuPassageNie = await passageNie
+    .waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true)
+    .catch(() => false);
+  const dansLaCarte = vuPassageNie ? await passageNie.locator('.entree__texte').innerText() : '';
+  verifier(
+    'le passage source est dans la carte, cité comme dit',
+    /^vous avez dit\s+«\s*j'insiste, envoyer le devis demain sinon le chantier est bloqué\s*»$/i.test(
+      dansLaCarte.trim(),
+    ),
+    dansLaCarte || 'carte introuvable',
+  );
+
+  const badgesDeduits = vuPassageNie
+    ? await passageNie.locator('.badges .badge:not(.badge--doute)').count()
+    : 0;
+  const marquesDeduit = vuPassageNie
+    ? await passageNie.locator('.badges .badge:not(.badge--doute) .deduit__marque').count()
+    : -1;
+  verifier(
+    'chaque attribut déduit porte la mention « déduit »',
+    badgesDeduits >= 2 && marquesDeduit === badgesDeduits,
+    `${marquesDeduit} mention(s) pour ${badgesDeduits} attribut(s)`,
+  );
+
+  const justification = vuPassageNie ? await passageNie.locator('.entree__indice').innerText() : '';
+  verifier(
+    'le poids déduit n’est pas mis dans la bouche de l’utilisateur',
+    /Poids\s*:.*déduit/.test(justification) && !/«.*bloque quelqu’?'?un d’?'?autre.*»/.test(justification),
+    justification || 'aucune justification',
+  );
+
+  verifier(
+    'la Revue le présente à confirmer',
+    vuPassageNie && (await passageNie.locator('.badge--doute').count()) === 1,
+    'badge « à confirmer »',
+  );
+  const phraseEntiere = vuPassageNie ? await passageNie.locator('.omission__phrase').innerText() : '';
+  const motsEnEvidence = vuPassageNie
+    ? await passageNie.locator('.omission__phrase mark').allInnerTexts()
+    : [];
+  verifier(
+    'avec la phrase entière et « ne … pas » mis en évidence',
+    /il ne faut surtout pas, et j'insiste, envoyer le devis/i.test(phraseEntiere) &&
+      motsEnEvidence.join(' … ') === 'ne … pas',
+    `${motsEnEvidence.join(' … ') || 'aucun mot en évidence'} dans « ${phraseEntiere.trim()} »`,
+  );
+
+  // Scénario « Rien de perdu » et « Pas de faux signalement hors de la phrase »
+  const sansRien = carteRevue(/Renvoyer la facture avant demain/i);
+  const vuSansRien = await sansRien
+    .waitFor({ state: 'visible', timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+  verifier(
+    'aucun signalement quand rien n’est perdu, ni pour une négation d’une autre phrase',
+    vuSansRien && (await sansRien.locator('.omission, .entree__omission').count()) === 0,
+    vuSansRien ? 'aucun signalement' : 'carte introuvable',
+  );
+
+  // Scénario « Nombre perdu »
+  const nombrePerdu = carteRevue(/relancer les devis/i);
+  const vuNombre = await nombrePerdu
+    .waitFor({ state: 'visible', timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+  const noteNombre = vuNombre ? await nombrePerdu.locator('.entree__omission').innerText() : '';
+  verifier(
+    'un nombre perdu est signalé : la phrase d’origine dit aussi « trois »',
+    /la phrase d’origine dit aussi\s+«\s*trois\s*»/i.test(noteNombre),
+    noteNombre || 'aucun signalement',
+  );
+  verifier(
+    'et l’élément reste décidable sans confirmation supplémentaire',
+    vuNombre &&
+      (await nombrePerdu.locator('.omission--negation').count()) === 0 &&
+      (await nombrePerdu.locator('.bouton--accepter').count()) === 1,
+    'aucun bloc de confirmation',
+  );
+
+  // Accepter, sans avoir lu la phrase entière, ne fait rien : ni plan, ni verdict.
+  if (vuPassageNie) {
+    await passageNie.locator('.bouton--accepter').click();
+    await page.waitForTimeout(400);
+  }
+  const avantConfirmation = await elementDe("j'insiste, envoyer le devis");
+  verifier(
+    'accepter avant de confirmer ne pose ni plan ni verdict, donc aucun rappel',
+    vuPassageNie &&
+      (await passageNie.locator('.plan:visible').count()) === 0 &&
+      avantConfirmation?.verdict === 'EN_ATTENTE' &&
+      !avantConfirmation?.planDeclencheur,
+    `${avantConfirmation?.verdict ?? 'élément introuvable'}, plan : ${avantConfirmation?.planDeclencheur ?? 'aucun'}`,
+  );
+
+  // Confirmer la phrase entière lève l'omission, puis le plan s'ouvre comme d'habitude.
+  if (vuPassageNie) {
+    await passageNie.locator('.omission__confirmer').click();
+    await page.waitForTimeout(900);
+  }
+  const apresConfirmation = carteRevue(/j'insiste, envoyer le devis/i);
+  verifier(
+    'confirmer la phrase entière lève l’obligation, sans rien accepter',
+    vuPassageNie &&
+      (await apresConfirmation.locator('.omission--negation').count()) === 0 &&
+      (await apresConfirmation.locator('.badge--doute').count()) === 0 &&
+      (await elementDe("j'insiste, envoyer le devis"))?.verdict === 'EN_ATTENTE',
+    'plus de bloc « négation perdue », toujours en attente',
+  );
+  if (vuPassageNie) {
+    await apresConfirmation.locator('.bouton--accepter').click();
+    await page.waitForTimeout(300);
+    await apresConfirmation.locator('.plan .bouton--plan', { hasText: 'Ce soir' }).click();
+    await page.waitForTimeout(900);
+  }
+  const accepte = await elementDe("j'insiste, envoyer le devis");
+  verifier(
+    'l’élément confirmé s’accepte avec son plan, et retient qu’il a été lu en entier',
+    accepte?.verdict === 'ACCEPTE' &&
+      accepte?.planDeclencheur === 'ce soir' &&
+      accepte?.omissionLevee === true,
+    `${accepte?.verdict ?? 'introuvable'}, ${accepte?.planDeclencheur ?? 'sans plan'}`,
+  );
+
+  // Reprendre la phrase entière : le passage s'élargit, la négation n'est plus perdue.
+  const negationJamais = carteRevue(/je transmets la facture/i);
+  const vuJamais = await negationJamais
+    .waitFor({ state: 'visible', timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (vuJamais) {
+    await negationJamais.locator('.omission__reprendre').click();
+    await page.waitForTimeout(900);
+  }
+  const carteElargie = carteRevue(/valider le budget, et je transmets/i);
+  const texteReprise = vuJamais ? await carteElargie.locator('.entree__texte').innerText().catch(() => '') : '';
+  verifier(
+    'reprendre la phrase entière élargit le passage, et plus rien ne manque',
+    /ne jamais valider le budget, et je transmets la facture/i.test(texteReprise) &&
+      (await carteElargie.locator('.omission--negation').count()) === 0,
+    texteReprise || 'passage non élargi',
+  );
+
+  // Scénario « Raison d'une proposition »
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(900);
+  const propositionDevis = page.locator('.proposition', { hasText: /j'insiste, envoyer le devis/i });
+  // Maintenant ne montre que trois choses : on écarte, pour la session, ce qui passe devant.
+  for (let essai = 0; essai < 12 && (await propositionDevis.count()) === 0; essai += 1) {
+    const autre = page.locator('.proposition .bouton--discret', { hasText: 'Pas maintenant' }).first();
+    if ((await autre.count()) === 0) break;
+    await autre.click();
+    await page.waitForTimeout(250);
+  }
+  const vuProposition = (await propositionDevis.count()) === 1;
+  const texteProposition = vuProposition ? await propositionDevis.locator('.proposition__texte').innerText() : '';
+  verifier(
+    'Maintenant cite les mots exacts : « sinon le chantier est bloqué » est dit par l’utilisateur',
+    /^vous avez dit\s+«.*sinon le chantier est bloqué\s*»$/i.test(texteProposition.trim()),
+    texteProposition || 'proposition introuvable',
+  );
+  const raisonProposition = vuProposition ? await propositionDevis.locator('.proposition__raison').innerText() : '';
+  const urgenceDeduite = vuProposition
+    ? await propositionDevis.locator('.proposition__raison .deduit', { hasText: /échéance demain/ }).count()
+    : 0;
+  verifier(
+    'et l’urgence tirée de l’échéance est marquée déduite, séparément de la citation',
+    urgenceDeduite === 1 &&
+      /échéance demain\s+déduit/.test(raisonProposition) &&
+      (await propositionDevis
+        .locator('.proposition__raison .deduit', { hasText: /échéance demain/ })
+        .locator('.dit')
+        .count()) === 0 &&
+      !/[«»]/.test(raisonProposition) &&
+      raisonProposition.includes('—'),
+    raisonProposition || 'aucune raison',
+  );
+
+  // Scénario « Énoncé de recherche »
+  await page.locator('.retrait__lien[data-ecran="recherche"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('.quete--mots .quete__champ').fill('chantier bloqué');
+  await page.locator('.quete--mots button[type="submit"]').click();
+  await page.waitForTimeout(700);
+  const enonce = await page.locator('.reponse__enonce').innerText().catch(() => '');
+  const provenanceReponse = await page.locator('.reponse__provenance').innerText().catch(() => '');
+  const introCitation = await page.locator('.citation__intro').first().innerText().catch(() => '');
+  verifier(
+    'l’énoncé de recherche est marqué déduit, sans guillemets',
+    /déduit/.test(provenanceReponse) && enonce.trim() !== '' && !/[«»]/.test(enonce),
+    `${enonce.trim()} — ${provenanceReponse.trim()}`,
+  );
+  verifier(
+    'seules les citations des captures sont présentées comme dites par l’utilisateur',
+    /vous avez dit/i.test(introCitation) && (await page.locator('.reponse__enonce .dit').count()) === 0,
+    introCitation || 'aucune citation',
+  );
+
+  for (const id of capturesProvenance) {
+    await page.evaluate((c) => window.__zenote.supprimerCapture(c), id);
+  }
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

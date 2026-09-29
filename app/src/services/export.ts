@@ -174,6 +174,9 @@ const CHAMPS_ELEMENTS: Record<string, string> = {
     'REJETE : écarté par l’utilisateur.',
   corrigeParHumain: 'Vrai si l’utilisateur a corrigé cet élément à la main.',
   faitLe: 'Date et heure auxquelles l’élément a été marqué fait, ou absent s’il ne l’est pas.',
+  omissionLevee:
+    'Vrai si l’utilisateur a lu la phrase entière d’un élément qui avait perdu une négation ' +
+    'au découpage, et l’a gardé tel quel. Absent sinon.',
 };
 
 /** Ce que l'export dit du son qu'il n'emporte pas. */
