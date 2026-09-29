@@ -4,9 +4,12 @@ Une case n'est cochée que lorsqu'un test nommé la couvre.
 
 ## 1. Cœur : détecteur d'omissions
 
-- [ ] 1.1 Extraire de `Disfluences.kt` les listes de négations et de nombres dans un objet partagé (`texte/Marques.kt`), sans changer le comportement de `Disfluences` ; vérifier que `DisfluencesTest` passe inchangé
-- [ ] 1.2 Écrire `texte/Omissions.kt` : `phraseDe(texte, debutCar, finCar)` et `dans(phrase, passage)` selon la décision 1 ; vérifier par `OmissionsTest.kt` les quatre scénarios de « Omissions signalées », dont la négation hors phrase non signalée, et un nom en tête de phrase non compté
-- [ ] 1.3 Exposer `Regles.omissions(texteCapture, elementsJson)` (JSON) dans `api/Regles.kt` et `Pont.kt`, passer le contrat à `14`, ajouter `raisonDite` / `raisonDeduite` à la proposition ; vérifier par un test JVM de l'API et par `regles.test.ts` côté PWA après `bash scripts/sync-core-js.sh`
+- [x] 1.1 Extraire de `Disfluences.kt` les listes de négations et de nombres dans un objet partagé (`texte/Marques.kt`), sans changer le comportement de `Disfluences` ; vérifier que `DisfluencesTest` passe inchangé
+  *Fait : `texte/Marques.kt` (`Marques.NEGATIONS`, `Marques.NOMBRES`) ; `DisfluencesTest` (10 tests) passe sans modification.*
+- [x] 1.2 Écrire `texte/Omissions.kt` : `phraseDe(texte, debutCar, finCar)` et `dans(phrase, passage)` selon la décision 1 ; vérifier par `OmissionsTest.kt` les quatre scénarios de « Omissions signalées », dont la négation hors phrase non signalée, et un nom en tête de phrase non compté
+  *Écart : l'API est positionnelle — `Omissions.phraseDe(texte, debutCar, finCar)` rend les bornes de la phrase, `Omissions.dans(texte, phrase, debutCar, finCar)` rend les omissions avec leurs positions dans la capture (et non `dans(phrase, passage)` sur deux chaînes), pour que l'écran surligne les mots dans la phrase entière. « un » et « une » ne comptent pas comme nombres (articles) ; deux noms séparés par une espace ne font qu'une omission. Couvert par `OmissionsTest` (15 tests).*
+- [x] 1.3 Exposer `Regles.omissions(texteCapture, elementsJson)` (JSON) dans `api/Regles.kt` et `Pont.kt`, passer le contrat à `14`, ajouter `raisonDite` / `raisonDeduite` à la proposition ; vérifier par un test JVM de l'API et par `regles.test.ts` côté PWA après `bash scripts/sync-core-js.sh`
+  *Fait : `ProvenanceTest` (5 tests JVM), `regles.test.ts` (« contrat 14 — provenance », 5 tests) ; `app/vendor/zenote-core/` régénéré.*
 
 ## 2. PWA : dit / déduit
 

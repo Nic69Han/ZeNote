@@ -38,6 +38,7 @@ import app.zenote.core.revue.Suivi
 import app.zenote.core.recherche.Reponse
 import app.zenote.core.recherche.TexteSource
 import app.zenote.core.texte.Disfluences
+import app.zenote.core.texte.Omissions
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
@@ -79,6 +80,8 @@ object Regles {
                 elementId = p.element.id.value,
                 texte = p.element.texte,
                 raison = p.raison,
+                raisonDite = p.raisonDite,
+                raisonDeduite = p.raisonDeduite,
                 poidsEffectif = p.poidsEffectif.name,
                 urgence = p.urgence.name,
             )
@@ -305,6 +308,44 @@ object Regles {
      * étant des positions dans ce texte-là.
      */
     fun transcriptionLisible(brut: String): String = Disfluences.lisible(brut)
+
+    /**
+     * Ce que chaque élément a perdu de la phrase dont il a été découpé.
+     *
+     * Spec `provenance` — « Omissions signalées ». Un élément est un passage exact de
+     * sa capture, mais le découpage peut séparer une négation de ce qu'elle nie : la
+     * règle d'ancrage voit un passage réel, pas une phrase coupée. Cette règle-ci
+     * compare chaque élément à sa phrase et rend ce qui a disparu en route.
+     *
+     * Seuls les éléments qui ont perdu quelque chose figurent dans la réponse. Un
+     * élément dont les bornes ne tiennent pas dans le texte (une capture réécrite
+     * depuis) n'est pas évalué : on n'affirme rien de ce qu'on ne peut pas relire.
+     *
+     * @param texteCapture le texte de la capture, celui des positions `debutCar` et
+     *   `finCar` — le brut, pas la version lisible
+     * @param elementsJson tableau d'[ElementJson] issus de cette capture
+     * @return tableau d'[OmissionElementJson]
+     */
+    fun omissions(texteCapture: String, elementsJson: String): String {
+        val omissions = decoder(elementsJson).mapNotNull { dto ->
+            if (dto.debutCar < 0 || dto.finCar > texteCapture.length || dto.debutCar >= dto.finCar) {
+                return@mapNotNull null
+            }
+            val phrase = Omissions.phraseDe(texteCapture, dto.debutCar, dto.finCar)
+            val manques = Omissions.dans(texteCapture, phrase, dto.debutCar, dto.finCar)
+            if (manques.isEmpty()) return@mapNotNull null
+            OmissionElementJson(
+                elementId = dto.id,
+                phrase = texteCapture.substring(phrase.debut, phrase.fin),
+                debutPhrase = phrase.debut,
+                finPhrase = phrase.fin,
+                manques = manques.map { m ->
+                    ManqueJson(m.nature.name, m.mots, m.debutCar, m.finCar)
+                },
+            )
+        }
+        return json.encodeToString(ListSerializer(OmissionElementJson.serializer()), omissions)
+    }
 
     /**
      * @param passagesIncertainsJson tableau de [PassageIncertainJson] : les morceaux
