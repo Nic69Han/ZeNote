@@ -1598,11 +1598,15 @@ try {
     rappelPasse || 'rien n’est remonté',
   );
 
-  const boutonsDansLeRappel = await page.locator('.passe button, .passe a').count();
+  // Change `suggestions-et-recul` : la ligne porte désormais un lien « Voir », le seul
+  // signal honnête d'une suggestion utilisée. Il ne demande rien et ne ferme rien —
+  // la ligne s'efface seule. Ce qui reste interdit : un bouton, donc une chose à fermer.
+  const boutonsDansLeRappel = await page.locator('.passe button').count();
+  const liensDansLeRappel = await page.locator('.passe a').allInnerTexts();
   verifier(
     'sans rien à fermer ni à décider : une suggestion qu’on doit fermer interrompt',
-    boutonsDansLeRappel === 0,
-    `${boutonsDansLeRappel} action(s) dans la suggestion`,
+    boutonsDansLeRappel === 0 && liensDansLeRappel.length === 1 && /^voir$/i.test(liensDansLeRappel[0]),
+    `${boutonsDansLeRappel} bouton(s), lien(s) : ${liensDansLeRappel.join(', ') || 'aucun'}`,
   );
 
   const confirmationTenue = await page.locator('.message').innerText().catch(() => '');
@@ -1695,6 +1699,364 @@ try {
       ? `${apresAnnulation} capture(s) en souffrance, contre ${avantSuppression} avant`
       : 'suppression non exercée',
   );
+
+  // --- Suggestions avec leur raison, et retour sur la semaine ---------------------
+  // Change `suggestions-et-recul`. Les deux capacités comptent des présentations
+  // ignorées, des dates et des groupes : un parcours qui a déjà décidé des dizaines
+  // d'éléments et laissé courir des minuteries d'effacement fausserait chaque
+  // décompte. Elles se vérifient donc dans un contexte neuf, à base vide, qui ne
+  // touche en rien la suite du parcours (le chiffrement relit la base du premier).
+  {
+    const contexteNeuf = await navigateur.newContext({
+      viewport: { width: 420, height: 900 },
+      permissions: ['microphone'],
+    });
+    const neuve = await contexteNeuf.newPage();
+    // Ce contexte-là non plus ne parle à personne.
+    neuve.on('request', (r) => {
+      const hote = new URL(r.url()).host;
+      if (hote && hote !== `localhost:${PORT}` && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) {
+        sorties.push(`${r.method()} ${r.url()}`);
+      }
+    });
+    neuve.on('pageerror', (e) => erreurs.push(String(e)));
+    neuve.on('console', (m) => {
+      if (m.type() === 'error') erreurs.push(m.text());
+    });
+
+    await neuve.goto(`${adresse}/`, { waitUntil: 'networkidle' });
+    await neuve
+      .locator('.ecran')
+      .first()
+      .waitFor({ state: 'visible', timeout: 15_000 })
+      .catch(() => {});
+
+    /** Dépose une note et l'analyse, sans passer par l'écran (aucune suggestion). */
+    const deposer = (texte) =>
+      neuve.evaluate(async (t) => {
+        const c = await window.__zenote.capturer({ texte: t, source: 'ECRITE', etatTranscription: 'OK' });
+        await window.__zenote.traiterFileAnalyse();
+        return c.id;
+      }, texte);
+    /** Dépose une note par l'écran Capturer : c'est là que le passé se propose. */
+    const deposerParEcran = async (texte) => {
+      await neuve.locator('.zone-ecrite').fill(texte);
+      await neuve.getByRole('button', { name: /^déposer$/i }).click();
+      await neuve.waitForTimeout(1500);
+    };
+    const retenue = () => neuve.evaluate(async () => (await window.__zenote.lireReglages()).retenue);
+    const poserRetenue = (etat) =>
+      neuve.evaluate((e) => window.__zenote.ecrireReglage('retenue', e), etat);
+    const neutre = { ignoreesDAffilee: 0, presentationsSautees: 0 };
+    const ouvrir = async (ecran) => {
+      await neuve.locator(`[data-onglet="${ecran}"], [data-ecran="${ecran}"]`).first().click();
+      await neuve.waitForTimeout(1200);
+    };
+    /** Quitter puis revenir : le seul moyen de remonter un écran déjà affiché. */
+    const rouvrirRevue = async () => {
+      await ouvrir('capturer');
+      await ouvrir('revue');
+    };
+    const sansDebordement = () =>
+      neuve.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      );
+    const jourLocal = (avant = 0) =>
+      neuve.evaluate((n) => {
+        const d = new Date();
+        d.setDate(d.getDate() - n);
+        const p = (v) => String(v).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+      }, avant);
+
+    // ---- Le passé, avec sa raison ------------------------------------------------
+    // Spec `suggestions-proactives` — « Passé pertinent expliqué ».
+    await deposer('point avec Sophie sur le chiffrage du chantier de Bron, sinon le chantier est bloqué');
+    await ouvrir('capturer');
+    if ((await neuve.locator('.bloc-ecrit:visible').count()) === 0) {
+      await neuve.getByRole('button', { name: /écrire plutôt/i }).click();
+      await neuve.waitForTimeout(200);
+    }
+    await deposerParEcran('relancer le fournisseur sur le chiffrage du chantier de Bron');
+
+    const ligneExplicative = neuve.locator('.passe:visible');
+    const texteExtrait = await ligneExplicative.locator('.passe__texte').innerText().catch(() => '');
+    const texteRaison = await ligneExplicative.locator('.passe__raison').innerText().catch(() => '');
+    verifier(
+      'Passé pertinent expliqué : la ligne montre l’extrait de la note passée et la raison du rapprochement',
+      /déjà dit/i.test(texteExtrait) && /chiffrage|chantier/i.test(texteExtrait) && texteRaison.trim().length > 0,
+      `${texteExtrait} — ${texteRaison}`,
+    );
+
+    // Elle s'efface d'elle-même, et c'est cette absence de geste qui la fait compter
+    // comme ignorée : rien d'autre (ni temps passé, ni défilement) n'est mesuré.
+    const effacee = await neuve
+      .locator('.passe')
+      .waitFor({ state: 'hidden', timeout: 20_000 })
+      .then(() => true)
+      .catch(() => false);
+    await neuve.waitForTimeout(300);
+    const apresEffacement = await retenue();
+    verifier(
+      'et elle s’efface d’elle-même ; effacée sans avoir été touchée, elle est comptée ignorée',
+      effacee && apresEffacement.PASSE_PERTINENT.ignoreesDAffilee === 1,
+      `${apresEffacement.PASSE_PERTINENT.ignoreesDAffilee} ignorée(s) d’affilée`,
+    );
+
+    // ---- Trois fois ignorée, puis utilisée ---------------------------------------
+    // « Voir » est le seul geste qui compte comme utilisation.
+    await poserRetenue({ PASSE_PERTINENT: { ignoreesDAffilee: 3, presentationsSautees: 0 }, PISTES_ECHANGE: neutre });
+    await deposerParEcran('reprendre le chiffrage du chantier de Bron avec le fournisseur');
+    const premiereOccasion = await neuve.locator('.passe:visible').count();
+    await deposerParEcran('relancer le chiffrage du chantier de Bron avec le fournisseur demain');
+    const secondeOccasion = await neuve.locator('.passe:visible').count();
+    verifier(
+      'Trois fois ignorée : le rappel suivant n’est présenté qu’une fois sur deux occasions',
+      premiereOccasion === 0 && secondeOccasion === 1,
+      `occasion 1 : ${premiereOccasion} ligne(s) ; occasion 2 : ${secondeOccasion} ligne(s)`,
+    );
+
+    await neuve.locator('.passe__voir').click();
+    await neuve.waitForTimeout(1500);
+    const versRecherche = await neuve.evaluate(() => location.hash);
+    const questionPosee = await neuve.locator('#quete-mots').inputValue().catch(() => '');
+    const citations = await neuve.locator('.citation').count();
+    verifier(
+      '« Voir » mène à la Recherche avec la note citée, question déjà posée',
+      versRecherche === '#recherche' && /chiffrage/i.test(questionPosee) && citations > 0,
+      `${versRecherche} · question « ${questionPosee.slice(0, 40)} » · ${citations} citation(s)`,
+    );
+    const apresVoir = await retenue();
+    verifier(
+      'Utilisée à nouveau : ouvrir un rappel pendant que la sorte est espacée rétablit le rythme normal',
+      apresVoir.PASSE_PERTINENT.ignoreesDAffilee === 0 && apresVoir.PASSE_PERTINENT.presentationsSautees === 0,
+      JSON.stringify(apresVoir.PASSE_PERTINENT),
+    );
+
+    // ---- Le rythme, dit dans les réglages ----------------------------------------
+    await poserRetenue({ PASSE_PERTINENT: { ignoreesDAffilee: 3, presentationsSautees: 0 }, PISTES_ECHANGE: neutre });
+    await ouvrir('reglages');
+    const suggestionPasse = neuve.locator('.suggestion[data-sorte="PASSE_PERTINENT"]');
+    const dit = await suggestionPasse.innerText().catch(() => '');
+    const boutonRythme = suggestionPasse.locator('.suggestion__retour');
+    verifier(
+      'Rythme dit dans les réglages : la sorte espacée le dit en clair, sans reproche, et propose de revenir au rythme normal',
+      /une fois sur deux/i.test(dit) &&
+        (await boutonRythme.count()) === 1 &&
+        !/ignor|négligé|oubli/i.test(dit) &&
+        (await neuve.locator('.suggestion[data-sorte="PISTES_ECHANGE"]').getAttribute('data-espacee')) === 'false',
+      dit.replace(/\s+/g, ' '),
+    );
+    await boutonRythme.click();
+    await neuve.waitForTimeout(600);
+    const apresRetour = await retenue();
+    verifier(
+      'le geste des réglages rétablit le rythme normal',
+      (await suggestionPasse.getAttribute('data-espacee')) === 'false' &&
+        apresRetour.PASSE_PERTINENT.ignoreesDAffilee === 0,
+      JSON.stringify(apresRetour.PASSE_PERTINENT),
+    );
+
+    // ---- Les pistes d'échange en Revue : même comptage ----------------------------
+    // Ignorée = la carte décidée sans choisir de piste ; utilisée = une piste choisie.
+    await poserRetenue({ PASSE_PERTINENT: neutre, PISTES_ECHANGE: neutre });
+    await deposer('point avec Karim sur le devis Delta du chantier Omega, sinon le chantier est bloqué');
+    await deposer('reprendre le truc dont on a parlé avec Karim sur le devis Delta, sinon le chantier est bloqué');
+    await rouvrirRevue();
+
+    const carteB = neuve
+      .locator('.groupe')
+      .filter({ has: neuve.locator('details.source', { hasText: /reprendre le truc dont/i }) });
+    const pistesB = await carteB.locator('.renvoi__choix').count();
+    if (pistesB > 0) {
+      await carteB.locator('.source__resume').click();
+      await neuve.waitForTimeout(300);
+    }
+    verifier(
+      'les pistes d’échange arrivent avec leur raison, comme avant',
+      pistesB > 0 && (await carteB.locator('.renvoi__pourquoi').first().innerText()).trim().length > 0,
+      `${pistesB} piste(s)`,
+    );
+    for (let garde = 0; garde < 6 && (await carteB.locator('.bouton--unjour').count()) > 0; garde += 1) {
+      await carteB.locator('.bouton--unjour').first().click();
+      await neuve.waitForTimeout(500);
+    }
+    const apresCarteDecidee = await retenue();
+    verifier(
+      'une carte décidée sans choisir de piste compte pour une suggestion ignorée',
+      (await carteB.count()) === 0 && apresCarteDecidee.PISTES_ECHANGE.ignoreesDAffilee === 1,
+      `${apresCarteDecidee.PISTES_ECHANGE.ignoreesDAffilee} ignorée(s) d’affilée`,
+    );
+
+    await deposer('rappeler le truc dont on a parlé avec Karim sur le devis Delta, sinon le chantier est bloqué');
+    await rouvrirRevue();
+    const carteC = neuve
+      .locator('.groupe')
+      .filter({ has: neuve.locator('details.source', { hasText: /rappeler le truc dont/i }) });
+    const choixC = carteC.locator('.renvoi__choix');
+    if ((await choixC.count()) > 0) {
+      await carteC.locator('.source__resume').click();
+      await neuve.waitForTimeout(300);
+      await choixC.first().click();
+      await neuve.waitForTimeout(1000);
+    }
+    const apresPiste = await retenue();
+    verifier(
+      'choisir une piste est une suggestion utilisée : le rythme normal revient',
+      apresPiste.PISTES_ECHANGE.ignoreesDAffilee === 0 &&
+        // La source est repliée après le rendu : on lit le texte, pas ce qui s'affiche.
+        /suite de/i.test(await carteC.locator('.renvoi--pose').textContent().catch(() => '')),
+      JSON.stringify(apresPiste.PISTES_ECHANGE),
+    );
+
+    // Espacées, les pistes ne se posent qu'une fois sur deux ; celle déjà choisie se lit toujours.
+    await poserRetenue({ PASSE_PERTINENT: neutre, PISTES_ECHANGE: { ignoreesDAffilee: 3, presentationsSautees: 0 } });
+    await deposer('noter le truc dont on a parlé avec Karim sur le devis Delta, sinon le chantier est bloqué');
+    await rouvrirRevue();
+    const carteD = neuve
+      .locator('.groupe')
+      .filter({ has: neuve.locator('details.source', { hasText: /noter le truc dont/i }) });
+    const piste1 = await carteD.locator('.renvoi__choix').count();
+    const choisieToujoursLue = await neuve
+      .locator('.groupe')
+      .filter({ has: neuve.locator('details.source', { hasText: /rappeler le truc dont/i }) })
+      .locator('.renvoi--pose')
+      .count();
+    await rouvrirRevue();
+    const piste2 = await carteD.locator('.renvoi__choix').count();
+    verifier(
+      'espacées, les pistes ne se posent qu’une fois sur deux occasions — sans jamais cacher une piste déjà choisie',
+      piste1 === 0 && piste2 > 0 && choisieToujoursLue === 1,
+      `visite 1 : ${piste1} piste(s) ; visite 2 : ${piste2} piste(s) ; piste choisie lue : ${choisieToujoursLue}`,
+    );
+
+    // ---- La semaine ---------------------------------------------------------------
+    // Spec `retour-semaine`. Base vidée : le contexte est jetable.
+    await neuve.evaluate(() => window.__zenote.toutEffacer());
+    await ouvrir('semaine');
+    const videsAffiches = await neuve.locator('.semaine__vide').allInnerTexts();
+    verifier(
+      'Groupe vide : un groupe sans rien dit « Rien cette semaine. », sans autre commentaire',
+      videsAffiches.length === 3 && videsAffiches.every((t) => t.trim() === 'Rien cette semaine.'),
+      videsAffiches.join(' | '),
+    );
+
+    const ids = {};
+    for (const [cle, texte] of [
+      ['fait1', 'Omega : envoyer le récapitulatif au comité'],
+      ['fait2', 'Sigma : relire le contrat du prestataire'],
+      ['abandon', 'Kappa : appeler le fournisseur pour la remise'],
+      ['ecarte', 'Delta : refaire le budget du trimestre'],
+      ['ancien', 'Zeta : classer les archives du service'],
+    ]) {
+      ids[cle] = await deposer(texte);
+    }
+    const aujourdhuiLocal = await jourLocal(0);
+    const ilYaDix = await jourLocal(10);
+    const ilYaHuit = await jourLocal(8);
+    const textes = await neuve.evaluate(
+      async ({ ids, aujourdhuiLocal, ilYaDix }) => {
+        const tous = await window.__zenote.listerElements();
+        const premier = (captureId) => tous.find((e) => e.captureId === captureId);
+        const poser = async (cle, ajustement) => {
+          const e = premier(ids[cle]);
+          if (!e) return null;
+          await window.__zenote.majElement(e.id, { type: 'TACHE', ...ajustement });
+          return e.texte;
+        };
+        return {
+          fait1: await poser('fait1', { verdict: 'ACCEPTE', faitLe: aujourdhuiLocal }),
+          fait2: await poser('fait2', { verdict: 'ACCEPTE', faitLe: aujourdhuiLocal }),
+          abandon: await poser('abandon', { verdict: 'REJETE', faitLe: new Date().toISOString() }),
+          ecarte: await poser('ecarte', { verdict: 'ACCEPTE', ecarteFois: 3, vuLe: aujourdhuiLocal }),
+          ancien: await poser('ancien', { verdict: 'ACCEPTE', faitLe: ilYaDix }),
+        };
+      },
+      { ids, aujourdhuiLocal, ilYaDix },
+    );
+
+    // Signal : pas de ligne tant qu'il n'y a pas de semaine d'usage ni d'ouverture ancienne.
+    await ouvrir('revue');
+    const ligneTropTot = await neuve.locator('.invitation-semaine').count();
+
+    await neuve.evaluate((jour) => window.__zenote.ecrireReglage('semaineVueLe', jour), ilYaHuit);
+    await rouvrirRevue();
+    const lignes = neuve.locator('.invitation-semaine');
+    const ligneSemaine = await lignes.count();
+    const lienSemaine = ligneSemaine === 1 ? await lignes.locator('a').getAttribute('href') : null;
+    verifier(
+      'Signal hebdomadaire : la Revue affiche une ligne qui mène à la semaine quand l’écran n’a pas été ouvert depuis sept jours',
+      ligneTropTot === 0 && ligneSemaine === 1 && lienSemaine === '#semaine',
+      `avant : ${ligneTropTot} ligne(s) ; après : ${ligneSemaine} ligne(s), lien ${lienSemaine}`,
+    );
+    verifier(
+      'et la Revue ne déborde pas de l’écran, ligne comprise',
+      await sansDebordement(),
+      'aucun défilement horizontal',
+    );
+
+    await lignes.locator('a').click();
+    await neuve.waitForTimeout(1200);
+    const groupeDe = (cle) => neuve.locator(`.semaine__groupe[data-groupe="${cle}"]`);
+    const texteGroupe = async (cle) => (await groupeDe(cle).innerText().catch(() => ''));
+    const avance = await texteGroupe('avance');
+    const lache = await texteGroupe('lache');
+    const bloque = await texteGroupe('bloque');
+    verifier(
+      'Semaine ordinaire : deux tâches faites, une abandonnée et une écartée trois fois vont chacune dans leur groupe',
+      textes.fait1 &&
+        textes.fait2 &&
+        textes.abandon &&
+        textes.ecarte &&
+        avance.includes(textes.fait1) &&
+        avance.includes(textes.fait2) &&
+        !avance.includes(textes.abandon) &&
+        lache.includes(textes.abandon) &&
+        !lache.includes(textes.fait1) &&
+        bloque.includes(textes.ecarte) &&
+        !avance.includes(textes.ancien) &&
+        /Ce qui a avancé/.test(avance) &&
+        /Ce que vous avez lâché/.test(lache) &&
+        /Ce qui n’avance plus/.test(bloque),
+      JSON.stringify(textes),
+    );
+
+    const ecranSemaine = await neuve.locator('.ecran--semaine').innerText();
+    verifier(
+      'Aucun chiffre de performance : pas de %, de taux, de série ni de comparaison dans l’écran',
+      !/%|pourcent|taux|série|d’affilée|semaine dernière|par rapport/i.test(ecranSemaine),
+      'aucune de ces formes dans l’écran',
+    );
+    verifier(
+      'et l’écran de la semaine ne déborde pas non plus',
+      await sansDebordement(),
+      'aucun défilement horizontal',
+    );
+
+    await neuve.locator('.semaine__zone').fill('le fournisseur B tient ses délais');
+    await neuve.getByRole('button', { name: /^noter$/i }).click();
+    await neuve.waitForTimeout(1200);
+    const notee = await neuve.evaluate(async () => {
+      const captures = await window.__zenote.listerCaptures();
+      const c = captures.find((x) => x.texte === 'le fournisseur B tient ses délais');
+      return c ? { source: c.source, etat: c.etatTranscription } : null;
+    });
+    verifier(
+      'Chose à retenir : la réponse à la question finale est enregistrée comme une capture écrite',
+      notee?.source === 'ECRITE' && notee?.etat === 'OK',
+      JSON.stringify(notee),
+    );
+
+    await ouvrir('revue');
+    await rouvrirRevue();
+    verifier(
+      'la ligne disparaît une fois l’écran de la semaine ouvert',
+      (await neuve.locator('.invitation-semaine').count()) === 0,
+      `${await neuve.locator('.invitation-semaine').count()} ligne(s)`,
+    );
+
+    await contexteNeuf.close();
+  }
 
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
