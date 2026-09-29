@@ -107,6 +107,15 @@ export interface ElementStocke extends ElementJson {
    * capture, c'est la surface qui retient qu'elle a été vue.
    */
   omissionLevee?: boolean;
+  /**
+   * Les premiers gestes que l'utilisateur a marqués faits dans Maintenant, dans l'ordre.
+   *
+   * Spec `premier-geste` — « Premier geste affiché au moment d'agir ». Marquer un geste
+   * fait ne clôt pas la tâche : le geste passe ici et l'action du plan redevient la
+   * tâche, sans quoi la carte continuerait de dire « Commencer par » un geste déjà fait.
+   * Ce champ n'est jamais passé aux règles.
+   */
+  gestesFaits?: string[];
 }
 
 /** Les suivis d'élément, tels que le cœur les attend. */
@@ -227,6 +236,26 @@ export interface Capture {
    * réunion », « Importer un compte rendu »), jamais deviné.
    */
   reunion?: boolean;
+  /**
+   * Présent quand la capture est une note de reprise — « je m'arrête là ».
+   *
+   * Spec `reprise` — « Note de reprise ». Une capture comme les autres (écrite
+   * d'abord, scellée, transcrite si dictée), à ceci près que l'analyse la marque
+   * analysée sans en tirer d'élément : c'est un marque-page, pas une liste de tâches.
+   * Absent sur toute capture ordinaire, et sur toute capture d'avant ce champ.
+   */
+  reprise?: NoteDeReprise;
+}
+
+/**
+ * Le marquage d'une note de reprise.
+ *
+ * `poseeLe` est l'horodatage ISO de la pose ; `reprisLe` celui du geste « C'est
+ * reparti », `null` ou absent tant que la note attend son retour.
+ */
+export interface NoteDeReprise {
+  poseeLe: string;
+  reprisLe?: string | null;
 }
 
 /**
@@ -314,6 +343,22 @@ export interface Reglages {
    * sont jamais ici : ce magasin n'est pas scellé.
    */
   raccourcirSilences: boolean;
+  /**
+   * « Vider sa tête le soir » : l'invite du soir sur l'écran de capture. Éteinte par
+   * défaut — un rituel qu'on n'a pas demandé est une insistance de plus.
+   *
+   * Spec `delestage-du-soir` — « Invite du soir facultative ». Ni ce réglage ni les
+   * deux suivants ne portent de texte de note : ce magasin n'est pas scellé.
+   */
+  delestageSoir: boolean;
+  /** L'heure de début de la soirée, en `HH:MM`. */
+  delestageHeure: string;
+  /**
+   * Le jour de référence de la dernière soirée où l'invite a été utilisée ou écartée.
+   * Le jour où la soirée a commencé, pas celui de l'instant : passé minuit, c'est
+   * toujours la même soirée, donc la même invite (voir `services/delestage.ts`).
+   */
+  delestageVuLe: string | null;
 }
 
 export const REGLAGES_PAR_DEFAUT: Reglages = {
@@ -335,6 +380,9 @@ export const REGLAGES_PAR_DEFAUT: Reglages = {
   semaineVueLe: null,
   vitesseEcoute: 1,
   raccourcirSilences: false,
+  delestageSoir: false,
+  delestageHeure: '21:00',
+  delestageVuLe: null,
 };
 
 // ------------------------------------------------- scellement et ouverture
@@ -570,7 +618,9 @@ export function capturesATranscrire(): Promise<Capture[]> {
  */
 export function capturesEnSouffrance(): Promise<Capture[]> {
   return capturesRetenues(
-    (c) => !c.analysee && !analysable(c) && !aTranscrire(c),
+    // Une note de reprise n'est jamais « à reprendre » en Revue : elle n'en produit
+    // rien (spec `reprise`), et sa carte offre l'audio à qui veut la réécouter.
+    (c) => !c.reprise && !c.analysee && !analysable(c) && !aTranscrire(c),
     plusRecentesDAbord,
     true,
   );

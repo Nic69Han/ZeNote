@@ -1335,3 +1335,170 @@
   color: var(--encre-douce);
   font-size: 0.85rem;
 }
+
+/* --- Reprise et délestage ------------------------------------------------------ */
+
+/* Plusieurs gestes sur l'écran de capture : ils passent à la ligne plutôt que de
+   déborder sur un téléphone. */
+.actions {
+  flex-wrap: wrap;
+}
+
+/* « Où vous en étiez » : la note posée avant de s'arrêter, citée telle quelle. */
+.reprise {
+  margin-block-end: 1rem;
+  padding: 0.9rem 1rem;
+  border: 2px solid var(--calme);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+}
+
+.reprise__titre {
+  margin: 0 0 0.2rem;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--calme);
+}
+
+.reprise__quand {
+  margin: 0 0 0.6rem;
+  color: var(--encre-douce);
+  font-size: 0.82rem;
+}
+
+.reprise__texte {
+  margin: 0 0 0.8rem;
+  font-size: 1.05rem;
+  color: var(--encre);
+  overflow-wrap: anywhere;
+}
+
+.reprise__texte--muet {
+  color: var(--encre-douce);
+  font-size: 0.9rem;
+}
+
+.reprise__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.8rem;
+}
+
+/* La consigne d'un geste armé (« Je m'arrête là », l'invite du soir) : une ligne
+   calme, qui se retire d'un geste. */
+.consigne {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-block-start: 0.6rem;
+  padding: 0.6rem 0.8rem;
+  border-inline-start: 3px solid var(--calme);
+  border-radius: 0 var(--rayon) var(--rayon) 0;
+  background: var(--calme-doux);
+  color: var(--encre);
+  font-size: 0.9rem;
+}
+
+.consigne__texte {
+  margin: 0;
+  flex: 1 1 14rem;
+}
+
+.bouton--reprise[aria-pressed='true'] {
+  border-color: var(--calme);
+  color: var(--calme);
+}
+
+/* L'invite du soir : une seule, sur l'écran de capture, qui se retire d'un geste.
+   Ni couleur d'alerte ni compteur — c'est une proposition, pas une dette. */
+.invite-soir {
+  margin-block: 0.8rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--trait-fort);
+  border-radius: var(--rayon-large);
+  background: var(--fond-carte);
+}
+
+.invite-soir__titre {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.invite-soir__texte {
+  margin: 0 0 0.7rem;
+  color: var(--encre-douce);
+  font-size: 0.9rem;
+}
+
+.invite-soir__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Le premier geste : demandé en Revue, montré dans Maintenant comme la chose à faire. */
+.geste {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin-block: 0.5rem;
+}
+
+.geste__etiquette {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+}
+
+.geste__intitule {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--encre);
+}
+
+.geste__aide {
+  color: var(--encre-douce);
+  font-size: 0.8rem;
+}
+
+.geste__champ {
+  width: 100%;
+}
+
+.proposition__geste {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 1.1rem;
+  font-weight: 650;
+  color: var(--encre);
+  overflow-wrap: anywhere;
+}
+
+.geste-suite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-block-start: 0.7rem;
+  padding: 0.6rem 0.8rem;
+  border-inline-start: 3px solid var(--calme);
+  border-radius: 0 var(--rayon) var(--rayon) 0;
+  background: var(--calme-doux);
+}
+
+.geste-suite__fait {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--encre);
+}
+
+.geste-suite__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

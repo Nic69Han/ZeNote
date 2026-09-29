@@ -35,6 +35,7 @@ import {
   rythme,
 } from '../services/retenue.ts';
 import { diagnostiquer, enTexte } from '../audio/diagnostic.ts';
+import { blocDelestage } from './reglages-delestage.ts';
 import { activerChiffrement, desactiverChiffrement } from '../securite/activation.ts';
 import {
   assurerCoffreCharge,
@@ -196,6 +197,7 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       blocChiffrement(coffre, appareilPossible, donnees),
       blocCreneau(reglages),
       blocSuggestions(reglages),
+      blocDelestage(reglages),
       blocExport(donnees, texte),
       blocEffacement(donnees),
       blocDictee(),

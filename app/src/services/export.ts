@@ -19,6 +19,7 @@ import {
   type Capture,
   type ElementStocke,
   type RechercheRetenue,
+  type NoteDeReprise,
   type Reglages,
 } from '../stockage/depot.ts';
 
@@ -76,6 +77,8 @@ export interface CaptureExportee {
   essaisTranscription: number;
   /** `false` si l'utilisateur a demandé de garder cette capture sur l'appareil. */
   transmissible: boolean;
+  /** Le marquage d'une note de reprise, ou `null` pour une capture ordinaire. */
+  reprise: NoteDeReprise | null;
   audio: AudioNonInclus;
 }
 
@@ -142,6 +145,12 @@ const CHAMPS_CAPTURES: Record<string, string> = {
     'Faux si l’utilisateur a demandé que cette capture ne soit jamais envoyée à une ' +
     'analyse distante. Vrai sinon — ce qui n’implique pas qu’elle l’ait été : cela dépend ' +
     'aussi du réglage « analyseDistante ».',
+  reprise:
+    'Non nul si la capture est une note de reprise (« Je m’arrête là »), posée avant un ' +
+    'décrochage pour retrouver où l’on en était. « poseeLe » est l’instant de la pose ' +
+    '(ISO 8601, UTC), « reprisLe » celui du geste « C’est reparti », ou null tant que la ' +
+    'note attend. Une note de reprise n’a produit aucun élément, sauf si l’utilisateur l’a ' +
+    'gardée pour la Revue — le marquage disparaît alors. Nul pour toute autre capture.',
   audio:
     'Ce que devient le son : « inclus » vaut toujours faux dans ce format. ' +
     '« presentSurLAppareil » dit si un enregistrement existe bien, « octets » sa taille et ' +
@@ -178,7 +187,12 @@ const CHAMPS_ELEMENTS: Record<string, string> = {
     '(service distant, qui ne juge que le type et la sphère), « modele » le modèle distant ' +
     'utilisé, ou null. Absent sur les éléments antérieurs à ce champ.',
   planDeclencheur: 'Le déclencheur choisi : « quand X », plutôt qu’une heure.',
-  planAction: 'L’action à faire à ce déclencheur.',
+  planAction:
+    'L’action à faire à ce déclencheur : le premier geste noté par l’utilisateur (deux ' +
+    'minutes, dans ses mots), ou le texte de l’élément s’il n’en a pas noté.',
+  gestesFaits:
+    'Les premiers gestes que l’utilisateur a marqués faits, dans l’ordre. La tâche, elle, ' +
+    'n’est close que par « faitLe ».',
   verdict:
     'EN_ATTENTE : pas encore passé en Revue. ACCEPTE : retenu. UN_JOUR : gardé sans date. ' +
     'REJETE : écarté par l’utilisateur.',
@@ -223,6 +237,9 @@ function exporterCapture(capture: Capture): CaptureExportee {
     analysee: capture.analysee,
     essaisTranscription: capture.essaisTranscription ?? 0,
     transmissible: capture.transmissible !== false,
+    reprise: capture.reprise
+      ? { poseeLe: capture.reprise.poseeLe, reprisLe: capture.reprise.reprisLe ?? null }
+      : null,
     audio: {
       inclus: false,
       presentSurLAppareil: capture.aAudio,

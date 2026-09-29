@@ -59,6 +59,11 @@ export interface NouvelleCapture {
   incomplete?: boolean;
   /** Vrai pour l'enregistrement d'une réunion ou un compte rendu importé. */
   reunion?: boolean;
+  /**
+   * Vrai pour une note de reprise (« Je m'arrête là »). La capture porte alors son
+   * marquage, et l'analyse n'en tirera aucun élément — spec `reprise`.
+   */
+  reprise?: boolean;
 }
 
 /**
@@ -79,6 +84,7 @@ export async function capturer(entree: NouvelleCapture): Promise<Capture> {
     analysee: false,
     ...(entree.reunion ? { reunion: true } : {}),
   };
+  if (entree.reprise) capture.reprise = { poseeLe: capture.creeLe, reprisLe: null };
   return enregistrerCapture(capture);
 }
 
@@ -101,6 +107,14 @@ export async function analyserCapture(
   jour = aujourdhui(),
   distant: AnalyseDistante = analyserADistance,
 ): Promise<number> {
+  // Spec `reprise` — « Poser une note de reprise ». Un marque-page n'est pas une liste
+  // de tâches : le doubler en Revue ferait lire deux fois la même chose. Elle sort de
+  // la file, analysée, sans élément et sans rien envoyer à l'analyse distante.
+  if (capture.reprise) {
+    await majCapture(capture.id, { analysee: true });
+    return 0;
+  }
+
   let proposes = candidats(capture.texte, capture.id, jour, capture.dureeMs);
   let repliAnalyse: boolean | undefined;
 

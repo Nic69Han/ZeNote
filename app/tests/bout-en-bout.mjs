@@ -2654,6 +2654,553 @@ try {
     );
   }
 
+  // =========================================================================
+  // Change `reprise-et-delestage` : reprendre après un décrochage, vider sa tête le
+  // soir, commencer par un premier geste. Un seul bloc, dans l'ordre des trois
+  // capacités. Les heures se posent sur des données datées d'hier ou sur l'horloge du
+  // navigateur (`page.clock`) : rien n'attend qu'il soit vraiment dix heures deux.
+  // =========================================================================
+
+  // --- Où j'en étais : la note de reprise -----------------------------------------
+  // Spec `reprise` — « Poser une note de reprise », « Retour après une réunion »,
+  // « Reprise marquée », « Une seule note à la fois » et « Envoyer en Revue ».
+  const hierA = (heures, minutes) => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    d.setHours(heures, minutes, 0, 0);
+    return d.toISOString();
+  };
+  /** Les captures marquées reprise, la plus récente d'abord. */
+  const notesDeReprise = () =>
+    page.evaluate(async () =>
+      (await window.__zenote.listerCaptures())
+        .filter((c) => c.reprise)
+        .map((c) => ({
+          id: c.id,
+          texte: c.texte,
+          source: c.source,
+          aAudio: c.aAudio,
+          analysee: c.analysee,
+          reprise: c.reprise,
+        })),
+    );
+  const elementsDe = (captureId) =>
+    page.evaluate(
+      async (id) => (await window.__zenote.listerElements()).filter((e) => e.captureId === id).length,
+      captureId,
+    );
+
+  // Une dictée : « Je m'arrête là », puis le bouton maintenu. Le même chemin
+  // d'écriture qu'une capture ordinaire, marqué reprise.
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('.bouton--reprise').click();
+  await page.locator('.bouton-capture').focus();
+  await page.keyboard.down(' ');
+  await page.waitForTimeout(6500);
+  await page.keyboard.up(' ');
+  let confirmationDictee = '';
+  for (let essai = 0; essai < 40 && !/retrouverez/i.test(confirmationDictee); essai += 1) {
+    await page.waitForTimeout(100);
+    confirmationDictee = await page.locator('.message').innerText().catch(() => '');
+  }
+  const notesApresDictee = await notesDeReprise();
+  const dictee = notesApresDictee.find((n) => n.source === 'VOCALE');
+  verifier(
+    'une note de reprise dictée est écrite avec son audio, marquée reprise et confirmée',
+    Boolean(dictee?.aAudio) && /retrouverez/i.test(confirmationDictee),
+    confirmationDictee || 'aucune confirmation',
+  );
+  verifier(
+    'le geste « Je m’arrête là » se désarme après la capture qui l’emploie',
+    (await page.locator('.bouton--reprise').getAttribute('aria-pressed')) === 'false',
+  );
+
+  // La transcription tourne sur l'appareil ; puis l'analyse passe sur la note, et ne
+  // doit en tirer aucun élément.
+  for (let essai = 0; essai < 120; essai += 1) {
+    await page.waitForTimeout(500);
+    const etat = await page
+      .locator(`.journal__ligne[data-capture="${dictee?.id}"]`)
+      .getAttribute('data-etat', { timeout: 2000 })
+      .catch(() => null);
+    if (etat === 'transcrite' || etat === 'a-reprendre') break;
+  }
+  await page.evaluate(() => window.__zenote.traiterFileAnalyse());
+  const dicteeApres = (await notesDeReprise()).find((n) => n.id === dictee?.id);
+  verifier(
+    'la note dictée est transcrite, marquée analysée, et n’a produit aucun élément',
+    Boolean(dicteeApres?.analysee) && (await elementsDe(dictee?.id)) === 0,
+    `${dicteeApres?.texte || '(texte non reconnu)'} — ${await elementsDe(dictee?.id)} élément(s)`,
+  );
+
+  // Une note écrite : le scénario de la spec, mot pour mot.
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    window.__journal.length = 0;
+  });
+  await page.locator('.bouton--reprise').click();
+  await page.locator('.zone-ecrite').fill('reprendre au paragraphe 3 du budget, sinon le chantier est bloqué');
+  await page.locator('.bloc-ecrit .bouton--plein').click();
+  let confirmationNote = '';
+  for (let essai = 0; essai < 40 && !/retrouverez/i.test(confirmationNote); essai += 1) {
+    await page.waitForTimeout(100);
+    confirmationNote = await page.locator('.message').innerText().catch(() => '');
+  }
+  const journalReprise = await page.evaluate(() => window.__journal);
+  const rangEcrite = journalReprise.findIndex((e) => e.quoi === 'capture-durable');
+  const rangConfirmee = journalReprise.findIndex((e) => e.quoi === 'confirmation');
+  verifier(
+    'la note de reprise est confirmée comme une capture : écrite d’abord, confirmée ensuite',
+    /retrouverez/i.test(confirmationNote) &&
+      rangEcrite !== -1 &&
+      rangConfirmee !== -1 &&
+      rangEcrite < rangConfirmee,
+    `${confirmationNote} — écriture n°${rangEcrite}, confirmation n°${rangConfirmee}`,
+  );
+
+  await page.evaluate(() => window.__zenote.traiterFileAnalyse());
+  const noteEcrite = (await notesDeReprise()).find((n) => /paragraphe 3/.test(n.texte));
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1200);
+  const entreesDeLaNote = await page.locator('.entree', { hasText: /paragraphe 3/i }).count();
+  verifier(
+    'aucun élément n’est tiré de la note de reprise pour la Revue',
+    Boolean(noteEcrite?.analysee) && entreesDeLaNote === 0 && (await elementsDe(noteEcrite?.id)) === 0,
+    `${entreesDeLaNote} entrée(s) en Revue, note analysée : ${noteEcrite?.analysee}`,
+  );
+
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(800);
+  verifier(
+    'juste après l’avoir posée, la note ne s’affiche pas : on n’est pas revenu',
+    (await page.locator('.reprise').count()) === 0,
+  );
+
+  // Le retour : la note date d'hier, l'application est rouverte. La plus récente seule
+  // s'affiche, l'autre reste une capture ordinaire.
+  await page.evaluate(
+    async ([idEcrite, idDictee, ecrite, dictee]) => {
+      await window.__zenote.majCapture(idEcrite, { reprise: { poseeLe: ecrite, reprisLe: null } });
+      await window.__zenote.majCapture(idDictee, { reprise: { poseeLe: dictee, reprisLe: null } });
+    },
+    [noteEcrite?.id, dictee?.id, hierA(10, 2), hierA(9, 30)],
+  );
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(900);
+
+  const cartesReprise = await page.locator('.reprise').count();
+  const carte = page.locator('.reprise').first();
+  const texteCarte = cartesReprise > 0 ? await carte.innerText() : '';
+  verifier(
+    'au retour, Maintenant affiche « Où vous en étiez » avec la note citée et son heure de pose',
+    cartesReprise === 1 &&
+      /Où vous en étiez/.test(texteCarte) &&
+      texteCarte.includes('« reprendre au paragraphe 3 du budget, sinon le chantier est bloqué »') &&
+      /posée hier à 10 h 02/.test(texteCarte),
+    texteCarte.replace(/\s+/g, ' ').slice(0, 160) || 'aucune carte',
+  );
+  verifier(
+    'et seule la plus récente des deux notes est affichée',
+    cartesReprise === 1 && !/couvreur/i.test(texteCarte),
+    `${cartesReprise} carte(s)`,
+  );
+  const enTete = await page.evaluate(() => {
+    const carte = document.querySelector('.reprise');
+    const suivante = document.querySelector('.proposition, .creneau');
+    return carte && suivante
+      ? Boolean(carte.compareDocumentPosition(suivante) & Node.DOCUMENT_POSITION_FOLLOWING)
+      : Boolean(carte);
+  });
+  verifier('la carte est en tête de Maintenant', enTete);
+
+  // « C'est reparti » : la carte disparaît, la note reste retrouvable.
+  await carte.locator('.reprise__reparti').click();
+  await page.waitForTimeout(700);
+  verifier('« C’est reparti » retire la carte', (await page.locator('.reprise').count()) === 0);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(800);
+  verifier(
+    'et elle ne revient pas, ni ne fait ressortir la note plus ancienne',
+    (await page.locator('.reprise').count()) === 0,
+  );
+  await page.locator('.retrait__lien[data-ecran="recherche"]').click();
+  await page.waitForTimeout(400);
+  await page.locator('.quete--mots .quete__champ').fill('paragraphe budget');
+  await page.locator('.quete--mots button[type="submit"]').click();
+  await page.waitForTimeout(800);
+  verifier(
+    'la note reprise reste retrouvable par la recherche',
+    (await page.locator(`.citation[data-capture="${noteEcrite?.id}"]`).count()) === 1,
+    (await page.locator('.citation__extrait').allInnerTexts()).join(' | ') || 'aucune citation',
+  );
+
+  // « Garder pour la Revue » : une note avec audio (posée comme la dictée la pose),
+  // dont la carte offre l'enregistrement, devient une capture ordinaire.
+  const idNoteGardee = await page.evaluate(async (poseeLe) => {
+    const capture = await window.__zenote.capturer({
+      texte: 'Relancer le géomètre pour le bornage avant ce soir, sinon le chantier est bloqué.',
+      source: 'VOCALE',
+      etatTranscription: 'OK',
+      audio: new Blob([new Uint8Array([26, 69, 223, 163])], { type: 'audio/webm' }),
+      reprise: true,
+    });
+    await window.__zenote.majCapture(capture.id, { reprise: { poseeLe, reprisLe: null } });
+    await window.__zenote.traiterFileAnalyse();
+    return capture.id;
+  }, hierA(11, 0));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(900);
+  const carteAudio = page.locator('.reprise');
+  verifier(
+    'la carte offre l’audio de la note quand il existe',
+    (await carteAudio.count()) === 1 && (await carteAudio.locator('audio').count()) === 1,
+  );
+  await carteAudio.locator('.reprise__revue').click();
+  await page.waitForTimeout(1500);
+  verifier('« Garder pour la Revue » retire la carte', (await page.locator('.reprise').count()) === 0);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  const entreeGardee = await page
+    .locator('.entree', { hasText: /géomètre/i })
+    .first()
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  verifier(
+    'et ses éléments apparaissent en Revue, comme ceux d’une capture ordinaire',
+    entreeGardee && (await elementsDe(idNoteGardee)) >= 1,
+    `${await elementsDe(idNoteGardee)} élément(s)`,
+  );
+
+  // --- Vider sa tête le soir --------------------------------------------------------
+  // Spec `delestage-du-soir` — « Invite du soir facultative » et « Dépôt digne de
+  // confiance ». L'heure du soir est celle de l'horloge du navigateur (`page.clock`),
+  // sur une page à part : rien n'attend qu'il soit vraiment vingt-deux heures, et
+  // l'horloge simulée ne touche pas au reste du parcours.
+  const instantSoir = (jour, heures, minutes = 0) => new Date(2026, 8, jour, heures, minutes);
+  const pageSoir = await contexte.newPage();
+  const erreursSoir = [];
+  pageSoir.on('pageerror', (e) => erreursSoir.push(String(e)));
+  await pageSoir.clock.install({ time: instantSoir(29, 22, 10) });
+  await pageSoir.goto(`${adresse}/`, { waitUntil: 'networkidle' });
+  await pageSoir.locator('.ecran--capture').waitFor({ state: 'visible', timeout: 15_000 });
+  await pageSoir.waitForTimeout(600);
+  const inviteVisible = () => pageSoir.locator('.invite-soir:visible').count();
+  const rouvrirCapture = async () => {
+    await pageSoir.reload({ waitUntil: 'networkidle' });
+    await pageSoir.locator('.ecran--capture').waitFor({ state: 'visible', timeout: 15_000 });
+    await pageSoir.waitForTimeout(600);
+  };
+
+  verifier(
+    'réglage éteint par défaut : aucune invite du soir à 22 h 10',
+    (await pageSoir.evaluate(() => new Date().getHours())) === 22 && (await inviteVisible()) === 0,
+    `heure simulée ${await pageSoir.evaluate(() => new Date().toTimeString().slice(0, 5))}`,
+  );
+
+  // Le bloc de réglage : éteint et à 21 h 00 sur une installation neuve.
+  await pageSoir.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await pageSoir.locator('.bloc--delestage').waitFor({ state: 'visible', timeout: 15_000 });
+  const caseSoir = pageSoir.locator('.bloc--delestage input[name="delestage-soir"]');
+  verifier(
+    'le réglage « Vider sa tête le soir » est éteint, proposé pour 21 h 00',
+    !(await caseSoir.isChecked()) &&
+      (await pageSoir.locator('.bloc--delestage input[type="time"]').inputValue()) === '21:00',
+  );
+  await caseSoir.check();
+  await pageSoir.waitForTimeout(400);
+  const reglagesSoir = () => pageSoir.evaluate(() => window.__zenote.lireReglages());
+  verifier(
+    'allumé, il retient l’interrupteur et l’heure',
+    (await reglagesSoir()).delestageSoir === true && (await reglagesSoir()).delestageHeure === '21:00',
+  );
+
+  // Invite dans la soirée : sur l'écran de capture, avec la consigne de précision.
+  await pageSoir.locator('.nav__lien[data-onglet="capturer"]').click();
+  await pageSoir.locator('.invite-soir').waitFor({ state: 'visible', timeout: 15_000 });
+  const texteInvite = await pageSoir.locator('.invite-soir').innerText();
+  verifier(
+    'à 22 h 10, l’invite apparaît sur l’écran de capture avec la consigne de précision',
+    /quoi, pour qui, quand/i.test(texteInvite) && /pas ce soir/i.test(texteInvite),
+    texteInvite.replace(/\s+/g, ' ').slice(0, 140),
+  );
+  verifier(
+    'sans reproche ni compte de soirées manquées',
+    !/\d+\s+soir|manqu|oubli|retard|encore/i.test(texteInvite),
+  );
+
+  // Jamais ailleurs.
+  let invitesAilleurs = 0;
+  for (const ecran of ['revue', 'maintenant']) {
+    await pageSoir.locator(`.nav__lien[data-onglet="${ecran}"]`).click();
+    await pageSoir.waitForTimeout(500);
+    invitesAilleurs += await pageSoir.locator('.invite-soir').count();
+  }
+  for (const ecran of ['recherche', 'personnes', 'reglages']) {
+    await pageSoir.locator(`.retrait__lien[data-ecran="${ecran}"]`).click();
+    await pageSoir.waitForTimeout(500);
+    invitesAilleurs += await pageSoir.locator('.invite-soir').count();
+  }
+  verifier('l’invite n’apparaît sur aucun autre écran', invitesAilleurs === 0, `${invitesAilleurs} ailleurs`);
+
+  // « Pas ce soir » : retirée, y compris après minuit, mais pas la soirée suivante.
+  await pageSoir.locator('.nav__lien[data-onglet="capturer"]').click();
+  await pageSoir.locator('.invite-soir').waitFor({ state: 'visible', timeout: 15_000 });
+  await pageSoir.locator('.invite-soir__pas-ce-soir').click();
+  await pageSoir.waitForTimeout(400);
+  const retiree = (await inviteVisible()) === 0;
+  await rouvrirCapture();
+  const retireeAuRechargement = (await inviteVisible()) === 0;
+  await pageSoir.clock.setSystemTime(instantSoir(30, 0, 20));
+  await rouvrirCapture();
+  const retireeApresMinuit =
+    (await pageSoir.evaluate(() => new Date().getDate())) === 30 && (await inviteVisible()) === 0;
+  verifier(
+    '« Pas ce soir » retire l’invite, au rechargement comme après minuit',
+    retiree && retireeAuRechargement && retireeApresMinuit,
+    `retirée ${retiree}, rechargée ${retireeAuRechargement}, après minuit ${retireeApresMinuit}`,
+  );
+  await pageSoir.clock.setSystemTime(instantSoir(30, 21, 30));
+  await rouvrirCapture();
+  verifier(
+    'et elle revient à la soirée suivante, sans rien avoir compté',
+    (await inviteVisible()) === 1,
+  );
+
+  // Liste du lendemain déposée : capture ordinaire, confirmée « lâchable », en Revue.
+  await pageSoir.locator('.invite-soir__deposer').click();
+  await pageSoir
+    .locator('.zone-ecrite')
+    .fill('Demain matin avant dix heures, appeler Karim pour le devis du toit, sinon le chantier est bloqué.');
+  await pageSoir.evaluate(() => {
+    window.__journal.length = 0;
+  });
+  await pageSoir.locator('.bloc-ecrit .bouton--plein').click();
+  let confirmationSoir = '';
+  for (let essai = 0; essai < 40 && !/lâcher/i.test(confirmationSoir); essai += 1) {
+    await pageSoir.waitForTimeout(100);
+    confirmationSoir = await pageSoir.locator('.message').innerText().catch(() => '');
+  }
+  const journalSoir = await pageSoir.evaluate(() => window.__journal);
+  const rangEcriteSoir = journalSoir.findIndex((e) => e.quoi === 'capture-durable');
+  const rangConfirmeeSoir = journalSoir.findIndex((e) => e.quoi === 'confirmation');
+  verifier(
+    'la liste déposée est confirmée « Écrit. Vous pouvez le lâcher jusqu’à demain. », écrite d’abord',
+    confirmationSoir === "Écrit. Vous pouvez le lâcher jusqu'à demain." &&
+      rangEcriteSoir !== -1 &&
+      rangConfirmeeSoir !== -1 &&
+      rangEcriteSoir < rangConfirmeeSoir,
+    `${confirmationSoir} — écriture n°${rangEcriteSoir}, confirmation n°${rangConfirmeeSoir}`,
+  );
+  await pageSoir.waitForTimeout(500);
+  verifier('l’invite se retire une fois la liste déposée', (await inviteVisible()) === 0);
+  await rouvrirCapture();
+  await pageSoir.clock.setSystemTime(instantSoir(30, 23, 55));
+  await rouvrirCapture();
+  const revueSoir = await pageSoir.evaluate(() => window.__zenote.lireReglages());
+  verifier(
+    'elle ne réapparaît pas ce soir-là',
+    (await inviteVisible()) === 0 && revueSoir.delestageVuLe === '2026-09-30',
+    `vue le ${revueSoir.delestageVuLe}`,
+  );
+  const reglagesBruts = await pageSoir.evaluate(async () => JSON.stringify(await window.__zenote.lireReglages()));
+  verifier(
+    'et les réglages ne portent aucun texte de la note',
+    !/Karim|devis|chantier/i.test(reglagesBruts),
+  );
+
+  // Le lendemain matin : les éléments de la liste sont en Revue, comme ceux de toute capture.
+  await pageSoir.clock.setSystemTime(instantSoir(31, 8, 0));
+  await pageSoir.goto(`${adresse}/#revue`, { waitUntil: 'networkidle' });
+  const entreeSoir = await pageSoir
+    .locator('.entree', { hasText: /appeler Karim pour le devis du toit/i })
+    .first()
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  verifier('les éléments de la liste sont en Revue le lendemain', entreeSoir);
+  verifier('aucune erreur JavaScript pendant la soirée simulée', erreursSoir.length === 0, erreursSoir.slice(0, 2).join(' | '));
+  // Le parcours suivant ne doit pas hériter d'une invite allumée sur l'horloge réelle.
+  await pageSoir.evaluate(() => window.__zenote.ecrireReglage('delestageSoir', false));
+  await pageSoir.close();
+
+  // --- Premier geste --------------------------------------------------------------
+  // Spec `premier-geste` — « Tâche floue », « Tâche déjà concrète », « Geste laissé
+  // vide » et « Geste fait ». Les deux tâches portent une conséquence (« sinon le
+  // chantier est bloqué ») et une échéance du jour : la Revue ne montre que les douze
+  // entrées les plus lourdes, et Maintenant trois — un test sans conséquence ne
+  // verrait jamais sa carte.
+  const elementsParTexte = (motif) =>
+    page.evaluate(
+      async (source) =>
+        (await window.__zenote.listerElements()).filter((e) => new RegExp(source, 'i').test(e.texte)),
+      motif.source,
+    );
+  await page.evaluate(async () => {
+    await window.__zenote.capturer({
+      texte: 'Il faut avancer sur le budget 2027 avant ce soir, sinon le chantier est bloqué.',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.capturer({
+      texte: 'Appeler le prestataire pour le devis du parking avant ce soir, sinon le chantier est bloqué.',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await window.__zenote.traiterFileAnalyse();
+  });
+
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  const entreeFloue = page.locator('.entree', { hasText: /budget 2027/i }).first();
+  const entreeConcrete = page.locator('.entree', { hasText: /devis du parking/i }).first();
+  const lesDeuxVisibles = await Promise.all(
+    [entreeFloue, entreeConcrete].map((entree) =>
+      entree
+        .waitFor({ state: 'visible', timeout: 15_000 })
+        .then(() => true)
+        .catch(() => false),
+    ),
+  );
+  verifier('les deux tâches de l’essai sont en Revue', lesDeuxVisibles.every(Boolean), lesDeuxVisibles.join(' / '));
+
+  // Tâche floue : la zone de plan demande un premier geste, avant les déclencheurs.
+  await entreeFloue.locator('.bouton--accepter').click();
+  await page.waitForTimeout(400);
+  const gesteFloue = entreeFloue.locator('.geste__etiquette');
+  const champFloue = entreeFloue.locator('.geste__champ');
+  const ordreFloue = await entreeFloue.evaluate((entree) => {
+    const geste = entree.querySelector('.geste');
+    const plan = entree.querySelector('.bouton--plan');
+    return Boolean(geste && plan && geste.compareDocumentPosition(plan) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+  verifier(
+    'une tâche floue (« avancer sur… ») : la zone de plan demande un premier geste, avant les déclencheurs',
+    (await gesteFloue.isVisible()) && /Premier geste \(deux minutes\)/.test(await gesteFloue.innerText()) && ordreFloue,
+  );
+  verifier(
+    'le champ est vide : le système ne rédige jamais le geste',
+    (await champFloue.inputValue()) === '',
+  );
+  await champFloue.fill("ouvrir le tableur et relire l'onglet charges");
+  await entreeFloue.locator('.bouton--plan').first().click();
+  await page.waitForTimeout(800);
+  const [elementFlou] = await elementsParTexte(/budget 2027/);
+  verifier(
+    'le geste saisi est enregistré comme action du plan',
+    elementFlou?.planAction === "ouvrir le tableur et relire l'onglet charges" &&
+      elementFlou?.verdict === 'ACCEPTE',
+    String(elementFlou?.planAction),
+  );
+
+  // Tâche concrète : aucune demande, un lien discret pour en préciser un.
+  await entreeConcrete.locator('.bouton--accepter').click();
+  await page.waitForTimeout(400);
+  const champConcrete = entreeConcrete.locator('.geste__etiquette');
+  const lienPreciser = entreeConcrete.locator('.geste__preciser');
+  verifier(
+    'une tâche déjà concrète : aucun premier geste demandé, un lien discret permet d’en préciser un',
+    !(await champConcrete.isVisible()) && (await lienPreciser.isVisible()),
+  );
+  await lienPreciser.click();
+  verifier(
+    'le lien ouvre le même champ',
+    (await champConcrete.isVisible()) && !(await lienPreciser.isVisible()),
+  );
+
+  // Geste laissé vide : le plan reste le texte de la tâche.
+  await entreeConcrete.locator('.bouton--plan').first().click();
+  await page.waitForTimeout(800);
+  const [elementConcret] = await elementsParTexte(/devis du parking/);
+  verifier(
+    'geste laissé vide : l’action du plan est le texte de la tâche',
+    elementConcret?.verdict === 'ACCEPTE' && elementConcret?.planAction === elementConcret?.texte,
+    String(elementConcret?.planAction),
+  );
+
+  // Maintenant : le geste est la chose à faire, la tâche dessous.
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  const carteFloue = page.locator('.proposition', { hasText: /budget 2027/i }).first();
+  const carteVisible = await carteFloue
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const texteCarteFloue = carteVisible ? await carteFloue.innerText() : '';
+  verifier(
+    'Maintenant affiche « Commencer par » le geste, avec le texte de la tâche',
+    carteVisible &&
+      /Commencer par : « ouvrir le tableur et relire l'onglet charges »/.test(texteCarteFloue) &&
+      /budget 2027/.test(texteCarteFloue),
+    texteCarteFloue.replace(/\s+/g, ' ').slice(0, 200) || 'aucune carte',
+  );
+  const carteConcrete = page.locator('.proposition', { hasText: /devis du parking/i }).first();
+  verifier(
+    'et rien de tel sur une tâche sans premier geste',
+    !(await carteConcrete.locator('.proposition__geste').count()) &&
+      !(await carteConcrete.locator('.bouton--geste-fait').count()),
+  );
+
+  // Geste fait : la tâche reste active, le geste suivant se note s'il existe.
+  await carteFloue.locator('.bouton--geste-fait').click();
+  await page.waitForTimeout(700);
+  const apresGeste = page.locator('.proposition', { hasText: /budget 2027/i }).first();
+  const [elementApresGeste] = await elementsParTexte(/budget 2027/);
+  verifier(
+    'geste fait : la tâche reste active, et un champ facultatif propose le geste suivant',
+    (await apresGeste.count()) === 1 &&
+      !elementApresGeste?.faitLe &&
+      (await apresGeste.locator('.geste-suite input').isVisible()) &&
+      /Et ensuite/.test(await apresGeste.locator('.geste-suite').innerText()) &&
+      (await apresGeste.locator('.proposition__geste').count()) === 0,
+    `faitLe : ${elementApresGeste?.faitLe ?? 'absent'}`,
+  );
+  await apresGeste.locator('.geste-suite input').fill('envoyer le résumé à Sophie');
+  await apresGeste.locator('.geste-suite__noter').click();
+  await page.waitForTimeout(700);
+  const apresSuite = page.locator('.proposition', { hasText: /budget 2027/i }).first();
+  const [elementApresSuite] = await elementsParTexte(/budget 2027/);
+  verifier(
+    'le geste suivant devient « Commencer par », sans clore la tâche',
+    /Commencer par : « envoyer le résumé à Sophie »/.test(await apresSuite.innerText()) &&
+      !elementApresSuite?.faitLe &&
+      elementApresSuite?.gestesFaits?.length === 1,
+    String(elementApresSuite?.planAction),
+  );
+  // Et le geste suivant est facultatif : « Plus tard » laisse la tâche telle quelle.
+  await apresSuite.locator('.bouton--geste-fait').click();
+  await page.waitForTimeout(600);
+  await page
+    .locator('.proposition', { hasText: /budget 2027/i })
+    .first()
+    .locator('.geste-suite__plus-tard')
+    .click();
+  await page.waitForTimeout(600);
+  const [elementApresPlusTard] = await elementsParTexte(/budget 2027/);
+  verifier(
+    'sans geste suivant, la tâche garde son texte pour action et reste active',
+    (await page.locator('.geste-suite').count()) === 0 &&
+      elementApresPlusTard?.planAction === elementApresPlusTard?.texte &&
+      !elementApresPlusTard?.faitLe,
+  );
+  await page
+    .locator('.proposition', { hasText: /budget 2027/i })
+    .first()
+    .locator('.bouton--accepter')
+    .click();
+  await page.waitForTimeout(700);
+  const [elementClos] = await elementsParTexte(/budget 2027/);
+  verifier('la tâche n’est close que par « C’est fait »', Boolean(elementClos?.faitLe));
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un

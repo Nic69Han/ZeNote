@@ -50,6 +50,7 @@ import {
 } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import { zonePremierGeste } from './premier-geste.ts';
 import { identifiant } from '../analyse/index.ts';
 import { avisRepli, completerRevue, origineLisible } from '../analyse/origine.ts';
 import { apprendre } from '../services/lexique.ts';
@@ -1501,7 +1502,12 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
         }
         if (actionnable(e.type) && !e.planDeclencheur) {
           zonePlan.hidden = false;
-          (zonePlan.querySelector('button') as HTMLButtonElement | null)?.focus();
+          // Le champ du premier geste quand il est demandé, sinon le premier déclencheur.
+          (
+            zonePlan.querySelector('.geste__etiquette:not([hidden]) input, .bouton--plan') as
+              | HTMLElement
+              | null
+          )?.focus();
         } else {
           void decider(e, { verdict: 'ACCEPTE' }, 'Accepté.');
         }
@@ -1521,21 +1527,26 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       }),
     );
 
+    // Spec `premier-geste` — « Premier geste demandé pour une tâche floue » : le champ
+    // vient avant les déclencheurs, et laissé vide le plan reste le texte de la tâche.
+    const geste = zonePremierGeste(e);
+
     zonePlan.append(
       el('p', {
         class: 'plan__question',
         texte: 'Quand, ou à quel signal ? Une tâche sans plan reste une charge.',
       }),
+      geste.noeud,
       ...declencheurs(e, capture).map(({ libelle, valeur }) =>
         bouton(libelle, 'bouton--plan', () => {
           void decider(
             e,
-            { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte, planPoseLe: maintenantLocal() },
+            { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: geste.action(), planPoseLe: maintenantLocal() },
             `Accepté — ${valeur}.`,
           );
         }),
       ),
-      champLibrePlan(e),
+      champLibrePlan(e, geste.action),
     );
 
     zoneAjustement.append(formulaireAjustement(e));
@@ -1747,7 +1758,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     return liste;
   }
 
-  function champLibrePlan(e: ElementJson): HTMLElement {
+  function champLibrePlan(e: ElementJson, action: () => string = () => e.texte): HTMLElement {
     const champ = el('input', {
       class: 'champ',
       type: 'text',
@@ -1763,7 +1774,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
         if (!valeur) return;
         void decider(
           e,
-          { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte, planPoseLe: maintenantLocal() },
+          { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: action(), planPoseLe: maintenantLocal() },
           `Accepté — ${valeur}.`,
         );
       },

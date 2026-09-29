@@ -27,6 +27,8 @@ import {
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
 import { deduit, deduitDe, dit, marqueDeduit, passageExact } from './provenance.ts';
+import { gesteDeProposition } from './premier-geste.ts';
+import { carteReprise, noteARendre } from './reprise.ts';
 
 /**
  * Les éléments écartés le sont pour la session en cours seulement : écarter n'est ni
@@ -97,6 +99,9 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
         }),
     );
 
+    // Lue avant de vider l'écran : aucune attente entre `vider` et l'ajout du contenu.
+    const noteReprise = await noteARendre();
+
     vider(racine);
     const section = el(
       'section',
@@ -104,6 +109,10 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
       el('h1', { id: 'titre-maintenant', class: 'ecran__titre', texte: 'Maintenant' }),
       el('p', { class: 'ecran__sous-titre', texte: 'Trois choses. Pas une de plus.' }),
     );
+
+    // Spec `reprise` — « Retour après une réunion » : la note posée avant de
+    // s'arrêter passe en tête, avant même le créneau.
+    if (noteReprise) section.append(carteReprise(noteReprise, lecteurs, () => void rendre()));
 
     if (protege) {
       section.append(carteCreneau(protege, sources.get(protege.captureId)));
@@ -244,6 +253,9 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
     const intro = element?.issuDeReunion ? 'le compte rendu dit' : undefined;
     const fixeALaMain = element?.corrigeParHumain === true;
 
+    // Spec `premier-geste` — « Premier geste affiché au moment d'agir » : le geste est la
+    // chose à faire, la tâche reste dessous.
+    const geste = gesteDeProposition(element, () => void rendre());
     return el(
       'li',
       { class: 'proposition', 'data-poids': p.poidsEffectif },
@@ -258,6 +270,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
           fixeALaMain ? null : marqueDeduit(),
         ),
       ),
+      geste.commencerPar,
       el('p', { class: 'proposition__texte' }, dit(passage, { intro })),
       // La raison dit ce qui se passe si ce n'est pas fait, jamais un score.
       el('p', { class: 'proposition__raison' }, raisonEnDeuxMorceaux(p, passage, fixeALaMain, intro)),
@@ -271,6 +284,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
           texte: "C'est fait",
           onclick: () => void marquerFait(p),
         }),
+        geste.boutonFait,
         el('button', {
           class: 'bouton bouton--discret',
           type: 'button',
@@ -292,6 +306,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
           },
         }),
       ),
+      geste.suite,
     );
   }
 

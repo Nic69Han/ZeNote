@@ -20,7 +20,14 @@ import {
   VERSION_FORMAT_EXPORT,
   type ExportZeNote,
 } from '../src/services/export.ts';
-import { enregistrerCapture, ecrireReglage, majCapture, toutEffacer } from '../src/stockage/depot.ts';
+import {
+  elementsDeCapture,
+  enregistrerCapture,
+  ecrireReglage,
+  majCapture,
+  majElement,
+  toutEffacer,
+} from '../src/stockage/depot.ts';
 import { analyserCapture, capturer } from '../src/services/pipeline.ts';
 import { oublier, retenir } from '../src/services/recherches.ts';
 
@@ -286,5 +293,78 @@ describe('les recherches passées voyagent avec l’export', () => {
     const { reglages } = await relire();
     expect(reglages.vitesseEcoute).toBe(1.5);
     expect(reglages.raccourcirSilences).toBe(true);
+  });
+});
+
+describe('la note de reprise voyage avec l’export', () => {
+  it('emporte le marquage d’une note de reprise, et rien pour une capture ordinaire', async () => {
+    const note = await capturer({
+      texte: 'reprendre au paragraphe 3 du budget',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+      reprise: true,
+    });
+    const ordinaire = await capturer({ texte: 'appeler Karim', source: 'ECRITE', etatTranscription: 'OK' });
+
+    const exporte = await construireExport();
+    const parId = new Map(exporte.captures.map((c) => [c.id, c]));
+    expect(parId.get(note.id)?.reprise).toEqual({ poseeLe: note.creeLe, reprisLe: null });
+    expect(parId.get(ordinaire.id)?.reprise).toBeNull();
+    expect(Object.keys(exporte.champs.captures)).toContain('reprise');
+  });
+
+  it('dit quand la note a été reprise, et la garde retrouvable', async () => {
+    const note = await capturer({
+      texte: 'reprendre au paragraphe 3 du budget',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+      reprise: true,
+    });
+    await majCapture(note.id, { reprise: { poseeLe: note.creeLe, reprisLe: '2026-09-29T11:20:00.000Z' } });
+
+    const exporte = JSON.parse(await exporterJson());
+    const exportee = exporte.captures.find((c: { id: string }) => c.id === note.id);
+    expect(exportee.reprise.reprisLe).toBe('2026-09-29T11:20:00.000Z');
+    expect(exportee.texte).toBe('reprendre au paragraphe 3 du budget');
+  });
+
+  it('relit une capture ancienne, sans le champ, comme une capture ordinaire', async () => {
+    await enregistrerCapture({
+      id: 'cap-ancienne',
+      creeLe: '2026-01-05T09:00:00.000Z',
+      source: 'ECRITE',
+      texte: 'note d’avant',
+      etatTranscription: 'OK',
+      dureeMs: null,
+      audio: null,
+      incomplete: false,
+      analysee: true,
+    });
+    const exporte = await construireExport();
+    expect(exporte.captures[0].reprise).toBeNull();
+  });
+});
+
+describe('le premier geste voyage avec l’export', () => {
+  it('emporte l’action du plan et les gestes faits, et les documente', async () => {
+    const capture = await capturer({
+      texte: 'Il faut avancer sur le budget 2027, sinon le chantier est bloqué.',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+    });
+    await analyserCapture(capture, JOUR);
+    const [element] = await elementsDeCapture(capture.id);
+    await majElement(element.id, {
+      planAction: 'envoyer le résumé à Sophie',
+      gestesFaits: ['ouvrir le tableur et relire l’onglet charges'],
+    });
+
+    const exporte = await construireExport();
+    const exporte1 = exporte.elements.find((e) => e.id === element.id);
+    expect(exporte1?.planAction).toBe('envoyer le résumé à Sophie');
+    expect(exporte1?.gestesFaits).toEqual(['ouvrir le tableur et relire l’onglet charges']);
+    expect(Object.keys(exporte.champs.elements)).toEqual(
+      expect.arrayContaining(['planAction', 'gestesFaits']),
+    );
   });
 });
