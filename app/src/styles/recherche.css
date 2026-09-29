@@ -177,3 +177,145 @@
 .ecartee__detail {
   flex: 1 1 12rem;
 }
+
+/* ------------------------------------------------ les recherches passées */
+/* Sous les champs, discrètes : une aide pour reposer une question, pas un écran de
+   plus. Chaque ligne relance d'un appui et s'oublie d'un autre, à la taille d'un doigt. */
+
+.recentes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.recentes__entete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.recentes__titre {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--encre-tres-douce);
+}
+
+.recentes__liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.recente {
+  display: flex;
+  align-items: stretch;
+  gap: 0.3rem;
+}
+
+.recente__relancer {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--cible);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  background: var(--fond-carte);
+  color: var(--encre);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recente__requete {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.recente__mode {
+  flex: none;
+  color: var(--encre-tres-douce);
+  font-size: 0.78rem;
+}
+
+.recente__oublier,
+.recentes__tout {
+  min-height: var(--cible);
+  padding: 0.3rem 0.7rem;
+  border: 0;
+  background: transparent;
+  color: var(--encre-douce);
+  font: inherit;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.recentes__tout {
+  min-height: 2.5rem;
+}
+
+.recente__relancer:focus-visible,
+.recente__oublier:focus-visible,
+.recentes__tout:focus-visible {
+  outline: 2px solid var(--encre);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------- situer les résultats dans le temps */
+
+.frise {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0 0.5rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border-left: 2px solid var(--trait-fort);
+}
+
+.frise__jour {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  font-size: 0.84rem;
+  color: var(--encre-douce);
+}
+
+.frise__date {
+  flex: none;
+  min-width: 3.6rem;
+  font-weight: 600;
+  color: var(--encre);
+}
+
+/* Un jour cité se distingue par un trait plein, pas seulement par sa couleur. */
+.frise__jour[data-cite='true'] .frise__date {
+  border-bottom: 2px solid var(--temoin);
+}
+
+.frise__repere {
+  color: var(--encre);
+}
+
+.frise__citations {
+  color: var(--encre-tres-douce);
+  font-size: 0.78rem;
+}
+
+.citation__repere {
+  color: var(--calme);
+  font-size: 0.86rem;
+  font-weight: 600;
+}

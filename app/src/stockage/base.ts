@@ -31,13 +31,23 @@ export const NOM_BASE = 'zenote';
  * dossiers : les laisser en clair — même comme simples clés d'un magasin — ouvrirait
  * dans la base le trou que le chiffrement ferme partout ailleurs.
  */
-export const VERSION_BASE = 3;
+/**
+ * Version 4 : les recherches passées.
+ *
+ * Les questions déjà posées se reposent souvent, et se posent souvent mal la seconde
+ * fois : les retenir épargne de chercher ce qu'on avait déjà trouvé. Elles suivent
+ * le même chemin que le lexique — une seule ligne, scellée en entier — parce qu'une
+ * question est aussi parlante qu'une note : « licenciement de Karim » se lit en clair
+ * comme n'importe quelle phrase dictée.
+ */
+export const VERSION_BASE = 4;
 
 export const MAGASIN_CAPTURES = 'captures';
 export const MAGASIN_ELEMENTS = 'elements';
 export const MAGASIN_REGLAGES = 'reglages';
 export const MAGASIN_MORCEAUX = 'morceaux';
 export const MAGASIN_LEXIQUE = 'lexique';
+export const MAGASIN_RECHERCHES = 'recherches';
 
 let ouverture: Promise<IDBDatabase> | null = null;
 
@@ -64,6 +74,10 @@ export function ouvrir(): Promise<IDBDatabase> {
         if (!base.objectStoreNames.contains(MAGASIN_LEXIQUE)) {
           // Une seule ligne, dont la valeur est scellée : voir [VERSION_BASE].
           base.createObjectStore(MAGASIN_LEXIQUE, { keyPath: 'id' });
+        }
+        if (!base.objectStoreNames.contains(MAGASIN_RECHERCHES)) {
+          // Une seule ligne, dont la valeur est scellée : voir [VERSION_BASE].
+          base.createObjectStore(MAGASIN_RECHERCHES, { keyPath: 'id' });
         }
         if (!base.objectStoreNames.contains(MAGASIN_MORCEAUX)) {
           const morceaux = base.createObjectStore(MAGASIN_MORCEAUX, { keyPath: 'id' });

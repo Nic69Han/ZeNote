@@ -172,6 +172,7 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
         etatTranscription: 'ABSENTE',
         audio: audio.blob,
         dureeMs: audio.dureeMs,
+        reunion: true,
       });
       retourEcrite(reglages.sonConfirmation);
       afficherEtat('CONFIRME', 'Réunion enregistrée. La transcription suit.');

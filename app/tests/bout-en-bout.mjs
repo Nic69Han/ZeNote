@@ -2324,6 +2324,336 @@ try {
     await page.evaluate((c) => window.__zenote.supprimerCapture(c), id);
   }
 
+  // --- Écouter vite, situer par des repères, retrouver ce qu'on a cherché ----------
+  // Change `ecoute-et-retrouvailles`. Trois promesses qui se vérifient dans un vrai
+  // navigateur : le lecteur règle bien sa vitesse (`playbackRate`) et saute réellement
+  // les pauses d'un vrai fichier décodé ; une citation est située par une décision de
+  // l'utilisateur ; une question déjà posée se relance d'un appui et s'oublie.
+  {
+    const ouvrirRecherche = async () => {
+      await page.locator('.retrait__lien[data-ecran="recherche"]').click();
+      await page.waitForTimeout(500);
+    };
+    const chercher = async (question) => {
+      await page.locator('.quete--mots .quete__champ').fill(question);
+      await page.locator('.quete--mots button[type="submit"]').click();
+      await page.waitForTimeout(800);
+    };
+    const recentes = () => page.locator('.recente__requete').allInnerTexts();
+
+    // Un vrai fichier WAV : une seconde de voix, deux secondes et demie de silence,
+    // une seconde de voix. `decodeAudioData` du navigateur le décode pour de bon.
+    // La Revue n'en montre que les douze entrées les plus lourdes : la note porte une
+    // conséquence, comme celles du compte rendu importé plus haut.
+    await page.evaluate(async () => {
+      const f = 8000;
+      const segments = [[1, true], [2.5, false], [1, true]];
+      const n = segments.reduce((total, [duree]) => total + Math.round(duree * f), 0);
+      const tampon = new ArrayBuffer(44 + n * 2);
+      const v = new DataView(tampon);
+      const ecrire = (decalage, texte) => {
+        for (let i = 0; i < texte.length; i += 1) v.setUint8(decalage + i, texte.charCodeAt(i));
+      };
+      ecrire(0, 'RIFF');
+      v.setUint32(4, 36 + n * 2, true);
+      ecrire(8, 'WAVE');
+      ecrire(12, 'fmt ');
+      v.setUint32(16, 16, true);
+      v.setUint16(20, 1, true);
+      v.setUint16(22, 1, true);
+      v.setUint32(24, f, true);
+      v.setUint32(28, f * 2, true);
+      v.setUint16(32, 2, true);
+      v.setUint16(34, 16, true);
+      ecrire(36, 'data');
+      v.setUint32(40, n * 2, true);
+      let position = 44;
+      for (const [duree, voix] of segments) {
+        for (let i = 0; i < Math.round(duree * f); i += 1) {
+          const valeur = voix ? Math.round(0.5 * 32767 * Math.sin((2 * Math.PI * 440 * i) / f)) : 0;
+          v.setInt16(position, valeur, true);
+          position += 2;
+        }
+      }
+      await window.__zenote.capturer({
+        texte: 'Confirmer le devis du toiturier avant mardi, sinon le chantier est bloqué.',
+        source: 'VOCALE',
+        etatTranscription: 'OK',
+        audio: new Blob([tampon], { type: 'audio/wav' }),
+        dureeMs: 4500,
+      });
+      await window.__zenote.traiterFileAnalyse();
+    });
+
+    /** Une empreinte des octets de l'audio stocké, lue dans la base sans passer par l'application. */
+    const empreinteAudio = () =>
+      page.evaluate(async () => {
+        const base = await new Promise((ok, ko) => {
+          const r = indexedDB.open('zenote');
+          r.onsuccess = () => ok(r.result);
+          r.onerror = () => ko(r.error);
+        });
+        const lignes = await new Promise((ok, ko) => {
+          const d = base.transaction('captures', 'readonly').objectStore('captures').getAll();
+          d.onsuccess = () => ok(d.result);
+          d.onerror = () => ko(d.error);
+        });
+        const ligne = lignes.find((l) => /toiturier/.test(l.texte ?? ''));
+        const octets = new Uint8Array(await ligne.audio.arrayBuffer());
+        let empreinte = 2166136261;
+        for (const o of octets) empreinte = Math.imul(empreinte ^ o, 16777619) >>> 0;
+        return `${octets.length} octets, empreinte ${empreinte}`;
+      });
+    const audioAvant = await empreinteAudio();
+
+    // Dans la Revue : les trois vitesses, et 1,5× lu dans la page.
+    await page.locator('.nav__lien[data-onglet="capturer"]').click();
+    await page.waitForTimeout(300);
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(1000);
+    const groupeToiturier = page.locator('.groupe', { hasText: 'toiturier' }).first();
+    const vuToiturier = await groupeToiturier
+      .waitFor({ state: 'visible', timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+    verifier('la note vocale à écouter arrive en Revue', vuToiturier);
+
+    const repliToiturier = groupeToiturier.locator('details.source').first();
+    await repliToiturier.locator('summary').click();
+    await page.waitForTimeout(400);
+    const vitessesProposees = await repliToiturier.locator('.lecteur__vitesse').allInnerTexts();
+    verifier(
+      'le lecteur propose 1×, 1,5× et 2×',
+      vitessesProposees.join(' ') === '1× 1,5× 2×',
+      vitessesProposees.join(' '),
+    );
+    const vitesseAvant = await repliToiturier.locator('audio').evaluate((a) => a.playbackRate);
+
+    await repliToiturier.locator('.lecteur__vitesse[data-vitesse="1.5"]').click();
+    const lueRevue = await repliToiturier
+      .locator('audio')
+      .evaluate((a) => ({ vitesse: a.playbackRate, hauteur: a.preservesPitch }));
+    verifier(
+      'Écoute à 1,5× : la lecture se fait à une fois et demie la vitesse, voix non déformée',
+      vitesseAvant === 1 && lueRevue.vitesse === 1.5 && lueRevue.hauteur === true,
+      `${vitesseAvant}× puis ${lueRevue.vitesse}×, hauteur préservée : ${lueRevue.hauteur}`,
+    );
+
+    // Un autre écran : l'écoute suivante démarre à 1,5×.
+    await ouvrirRecherche();
+    await chercher('toiturier');
+    const repliRecherche = page.locator('.citation details.source').first();
+    await repliRecherche.locator('summary').click();
+    await page.waitForTimeout(500);
+    const vitesseRecherche = await repliRecherche.locator('audio').evaluate((a) => a.playbackRate);
+    verifier(
+      'l’écoute suivante, sur un autre écran, démarre à 1,5×',
+      vitesseRecherche === 1.5,
+      `${vitesseRecherche}×`,
+    );
+
+    // Et après un rechargement : la vitesse est dans les réglages, pas seulement en mémoire.
+    await page.reload({ waitUntil: 'networkidle' });
+    await ouvrirRecherche();
+    await chercher('toiturier');
+    await page.locator('.citation details.source summary').first().click();
+    await page.waitForTimeout(800);
+    const vitesseRechargee = await page
+      .locator('.citation details.source audio')
+      .first()
+      .evaluate((a) => a.playbackRate);
+    verifier(
+      'la vitesse choisie survit à un rechargement',
+      vitesseRechargee === 1.5,
+      `${vitesseRechargee}×`,
+    );
+
+    // Silences : d'abord éteints, la lecture traverse la pause ; puis raccourcis, elle la saute.
+    const lecteurRecherche = page.locator('.citation details.source .lecteur').first();
+    const lire = (attenteMs) =>
+      lecteurRecherche.locator('audio').evaluate(async (audio, attente) => {
+        audio.pause();
+        audio.currentTime = 0;
+        await audio.play().catch(() => {});
+        await new Promise((ok) => setTimeout(ok, attente));
+        const mesure = { t: audio.currentTime, fini: audio.ended, joue: !audio.paused || audio.ended };
+        audio.pause();
+        return mesure;
+      }, attenteMs);
+
+    const sansRaccourci = await lire(1700);
+    verifier(
+      'sans raccourcir les silences, la lecture traverse la pause',
+      sansRaccourci.t > 0.5 && sansRaccourci.t < 3 && !sansRaccourci.fini,
+      `${sansRaccourci.t.toFixed(2)} s après 1,7 s d'écoute à 1,5×`,
+    );
+
+    await lecteurRecherche.locator('.lecteur__silences').click();
+    const pretes = await page
+      .waitForFunction(
+        () => document.querySelector('.citation .lecteur')?.getAttribute('data-silences') === 'pret',
+        null,
+        { timeout: 15_000 },
+      )
+      .then(() => true)
+      .catch(() => false);
+    verifier(
+      'l’interrupteur décode l’enregistrement à la demande et trouve la pause',
+      pretes &&
+        (await lecteurRecherche.locator('.lecteur__silences').getAttribute('aria-pressed')) === 'true',
+      (await lecteurRecherche.locator('.lecteur__etat').innerText().catch(() => '')) || 'pas prêt',
+    );
+
+    // Une lecture ordinaire ne fait aucun saut : tout repositionnement observé après le
+    // départ est celui du lecteur. La pause court de 1 s à 3,5 s ; on doit atterrir à
+    // 150 ms de sa fin, soit 3,35 s.
+    const sauts = await lecteurRecherche.locator('audio').evaluate(async (audio) => {
+      audio.pause();
+      audio.currentTime = 0;
+      const vus = [];
+      audio.addEventListener('seeking', () => vus.push(audio.currentTime));
+      await audio.play().catch(() => {});
+      const debutAttente = performance.now();
+      while (!audio.ended && audio.currentTime < 3.6 && performance.now() - debutAttente < 8000) {
+        await new Promise((ok) => setTimeout(ok, 50));
+      }
+      return { vus, t: audio.currentTime, fini: audio.ended };
+    });
+    const atterrissage = sauts.vus.find((position) => position > 3.3 && position < 3.4);
+    verifier(
+      'Pause longue sautée : la lecture passe la pause de deux secondes et demie en 300 ms environ',
+      atterrissage !== undefined,
+      atterrissage !== undefined
+        ? `saut vers ${atterrissage.toFixed(2)} s, pause de 1 s à 3,5 s`
+        : `aucun saut vers 3,35 s (repositionnements : ${sauts.vus.join(', ') || 'aucun'})`,
+    );
+    await lecteurRecherche.locator('audio').evaluate((audio) => audio.pause());
+
+    const audioApres = await empreinteAudio();
+    verifier(
+      'Enregistrement intact : l’audio stocké est identique, octet pour octet',
+      audioAvant === audioApres,
+      audioApres,
+    );
+    // Éteint pour la suite : les lecteurs suivants ne décodent plus rien.
+    await lecteurRecherche.locator('.lecteur__silences').click();
+
+    // --- Repères : une citation située par une décision acceptée -------------------
+    // Dates fixes, loin de tout ce que le parcours a semé : le 12 mars 2025 une
+    // décision acceptée, le 14 une note qui la suit ; en novembre 2024, une note isolée.
+    await page.evaluate(async () => {
+      const base = await new Promise((ok, ko) => {
+        const r = indexedDB.open('zenote');
+        r.onsuccess = () => ok(r.result);
+        r.onerror = () => ko(r.error);
+      });
+      await new Promise((ok, ko) => {
+        const t = base.transaction(['captures', 'elements'], 'readwrite');
+        t.objectStore('captures').put({
+          id: 'c-repere-decision', creeLe: '2025-03-12T10:00:00', source: 'ECRITE',
+          texte: 'On passe au fournisseur B.', etatTranscription: 'OK',
+          dureeMs: null, audio: null, incomplete: false, analysee: true,
+        });
+        t.objectStore('elements').put({
+          id: 'e-repere-decision', captureId: 'c-repere-decision', type: 'DECISION',
+          texte: 'On passe au fournisseur B.', debutCar: 0, finCar: 26,
+          verdict: 'ACCEPTE', corrigeParHumain: false,
+        });
+        t.objectStore('captures').put({
+          id: 'c-repere-suite', creeLe: '2025-03-14T15:00:00', source: 'ECRITE',
+          texte: 'Le ralentisseur devant l’école, à signaler à la mairie.',
+          etatTranscription: 'OK', dureeMs: null, audio: null, incomplete: false, analysee: true,
+        });
+        t.objectStore('captures').put({
+          id: 'c-repere-isolee', creeLe: '2024-11-05T10:00:00', source: 'ECRITE',
+          texte: 'La girouette du toit est tordue.', etatTranscription: 'OK',
+          dureeMs: null, audio: null, incomplete: false, analysee: true,
+        });
+        t.oncomplete = () => ok();
+        t.onerror = () => ko(t.error);
+      });
+    });
+
+    await page.locator('.nav__lien[data-onglet="capturer"]').click();
+    await page.waitForTimeout(300);
+    await ouvrirRecherche();
+    await chercher('ralentisseur');
+    const mentionRepere = await page.locator('.citation__repere').first().innerText().catch(() => '');
+    verifier(
+      'une citation est située par une décision acceptée',
+      /^deux jours après la décision .On passe au fournisseur B\.?./.test(mentionRepere),
+      mentionRepere || 'aucune mention de repère',
+    );
+    const frise = await page.locator('.frise .frise__repere').allInnerTexts();
+    verifier(
+      'la frise compacte montre le repère de la période',
+      frise.some((libelle) => /décision .On passe au fournisseur B/.test(libelle)),
+      frise.join(' | ') || 'aucune frise',
+    );
+
+    await chercher('girouette');
+    const citationIsolee = await page.locator('.citation').count();
+    const reperesIsoles = await page.locator('.citation__repere, .frise').count();
+    verifier(
+      'Aucun repère proche : la citation ne porte aucune mention de repère',
+      citationIsolee === 1 && reperesIsoles === 0,
+      `${citationIsolee} citation(s), ${reperesIsoles} mention(s)`,
+    );
+
+    // --- Recherches passées ---------------------------------------------------------
+    const proposees = await recentes();
+    verifier(
+      'les dernières questions sont proposées sous les champs, la plus récente d’abord',
+      proposees.slice(0, 3).join(' | ') === 'girouette | ralentisseur | toiturier',
+      proposees.join(' | '),
+    );
+
+    await page.locator('.recente__relancer', { hasText: 'ralentisseur' }).click();
+    await page.waitForTimeout(800);
+    const relance = await page.locator('.citation__extrait').allInnerTexts();
+    const champRelance = await page.locator('.quete--mots .quete__champ').inputValue();
+    verifier(
+      'Relancer une recherche : un appui remet la question et relance la recherche',
+      champRelance === 'ralentisseur' && relance.length === 1 && /ralentisseur/.test(relance[0]),
+      `${champRelance} → ${relance.join(' | ') || 'aucune citation'}`,
+    );
+
+    await chercher('  RALENTISSEUR ');
+    const apresDoublon = await recentes();
+    verifier(
+      'Doublon : la même question, à la casse près, n’apparaît qu’une fois, en tête',
+      apresDoublon.filter((q) => /ralentisseur/i.test(q)).length === 1 && /ralentisseur/i.test(apresDoublon[0]),
+      apresDoublon.join(' | '),
+    );
+
+    await page.locator('.recente', { hasText: 'toiturier' }).locator('.recente__oublier').click();
+    await page.waitForTimeout(500);
+    await page.reload({ waitUntil: 'networkidle' });
+    await ouvrirRecherche();
+    const apresOubli = await recentes();
+    verifier(
+      'Oublier une question : elle n’est plus proposée, y compris après rechargement',
+      !apresOubli.some((q) => /toiturier/.test(q)) && apresOubli.some((q) => /ralentisseur/i.test(q)),
+      apresOubli.join(' | '),
+    );
+
+    await page.locator('.recentes__tout').click();
+    await page.waitForTimeout(500);
+    verifier(
+      'Tout oublier vide la liste',
+      (await page.locator('.recente').count()) === 0 && (await page.locator('.recentes').isHidden()),
+      `${await page.locator('.recente').count()} question(s)`,
+    );
+
+    // Une question est laissée en mémoire : la vérification du chiffrement, plus bas,
+    // regarde la base à la recherche d'une question lisible.
+    await chercher('ralentisseur');
+    verifier(
+      'une question posée après « Tout oublier » est retenue de nouveau',
+      (await recentes()).join('|') === 'ralentisseur',
+    );
+  }
+
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies
   // notes ; on chiffre maintenant, et on va lire la base comme le ferait quelqu'un
@@ -2358,6 +2688,33 @@ try {
     `${avantChiffrement.length} caractères lisibles`,
   );
 
+  /** Les questions retenues (change `ecoute-et-retrouvailles`), lues sans passer par l'application. */
+  const recherchesEnClair = () =>
+    page.evaluate(async () => {
+      const base = await new Promise((ok, ko) => {
+        const r = indexedDB.open('zenote');
+        r.onsuccess = () => ok(r.result);
+        r.onerror = () => ko(r.error);
+      });
+      const lignes = await new Promise((ok, ko) => {
+        const d = base.transaction('recherches', 'readonly').objectStore('recherches').getAll();
+        d.onsuccess = () => ok(d.result);
+        d.onerror = () => ko(d.error);
+      });
+      return JSON.stringify(lignes, (_c, v) => {
+        if (v instanceof ArrayBuffer) return new TextDecoder().decode(v);
+        if (ArrayBuffer.isView(v)) return new TextDecoder().decode(v.buffer);
+        return v;
+      });
+    });
+
+  const recherchesAvant = await recherchesEnClair();
+  verifier(
+    'avant chiffrement, les questions retenues se lisent à livre ouvert',
+    /ralentisseur/.test(recherchesAvant),
+    `${recherchesAvant.length} caractères lisibles`,
+  );
+
   await page.locator('.retrait__lien[data-ecran="reglages"]').click();
   await page.waitForTimeout(600);
 
@@ -2384,6 +2741,13 @@ try {
     'après chiffrement, plus une phrase ne se lit dans la base',
     !/couvreur|notaire|planning|pneus/i.test(apresChiffrement),
     `${apresChiffrement.length} caractères, aucun mot des notes`,
+  );
+
+  const recherchesApres = await recherchesEnClair();
+  verifier(
+    'Chiffrement : coffre actif, aucune question retenue ne se lit dans la base',
+    recherchesApres.length > 2 && !/ralentisseur/i.test(recherchesApres),
+    `${recherchesApres.length} caractères, aucune question lisible`,
   );
 
   // Un appareil perdu, c'est une application rouverte : rien en mémoire.
