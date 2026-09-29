@@ -1,0 +1,70 @@
+/*
+ * Écoute accélérée — les commandes sous le lecteur audio.
+ *
+ * Trois vitesses et un interrupteur, à la taille d'un doigt : ça s'utilise en marchant.
+ * Aucune couleur écrite en dur, tout passe par les variables de `base.css`.
+ */
+
+.lecteur__ecoute {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lecteur__vitesses {
+  display: inline-flex;
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+  overflow: hidden;
+}
+
+.lecteur__vitesse,
+.lecteur__silences {
+  min-height: var(--cible);
+  padding: 0.4rem 0.8rem;
+  border: 0;
+  background: transparent;
+  color: var(--encre-douce);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.lecteur__vitesse + .lecteur__vitesse {
+  border-left: 1px solid var(--trait);
+}
+
+.lecteur__silences {
+  border: 1px solid var(--trait);
+  border-radius: var(--rayon);
+}
+
+/* L'état ne repose pas sur la seule couleur : le fond plein et le contour le disent aussi. */
+.lecteur__vitesse[aria-pressed='true'],
+.lecteur__silences[aria-pressed='true'] {
+  background: var(--calme-doux);
+  color: var(--encre);
+  font-weight: 650;
+}
+
+.lecteur__silences[aria-pressed='true'] {
+  border-color: var(--calme);
+}
+
+.lecteur__silences:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.lecteur__vitesse:focus-visible,
+.lecteur__silences:focus-visible {
+  outline: 2px solid var(--encre);
+  outline-offset: 2px;
+}
+
+.lecteur__etat {
+  margin: 0;
+  color: var(--encre-douce);
+  font-size: 0.82rem;
+}
