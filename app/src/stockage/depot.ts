@@ -30,6 +30,7 @@
  */
 
 import type { ElementJson, PassageIncertain } from '../core/regles.ts';
+import type { EtatRetenue } from '../services/retenue.ts';
 import {
   assurerCoffreCharge,
   ouvrirScelle,
@@ -263,6 +264,21 @@ export interface Reglages {
    * le doute se tranche du côté de la vie privée.
    */
   spheresExclues: ('PROFESSIONNEL' | 'PERSONNEL')[];
+  /**
+   * La retenue des suggestions non demandées : combien de présentations ignorées
+   * d'affilée, par sorte. Des compteurs seulement, jamais un mot d'une note — c'est ce
+   * qui permet de les garder ici, dans un magasin non scellé.
+   *
+   * Spec `suggestions-proactives` — « Retenue après suggestions ignorées ».
+   */
+  retenue: EtatRetenue;
+  /**
+   * Le jour où l'écran « La semaine » a été ouvert pour la dernière fois, ou `null`.
+   * Sert à n'inviter qu'une fois par semaine, jamais davantage.
+   *
+   * Spec `retour-semaine` — « Invitation hebdomadaire discrète ».
+   */
+  semaineVueLe: string | null;
 }
 
 export const REGLAGES_PAR_DEFAUT: Reglages = {
@@ -275,6 +291,13 @@ export const REGLAGES_PAR_DEFAUT: Reglages = {
   monNom: '',
   analyseDistante: false,
   spheresExclues: [],
+  // Le même état que `retenueInitiale()`, écrit à plat : ce fichier n'importe que le
+  // type de `services/retenue.ts`, qui importe lui-même le dépôt.
+  retenue: {
+    PASSE_PERTINENT: { ignoreesDAffilee: 0, presentationsSautees: 0 },
+    PISTES_ECHANGE: { ignoreesDAffilee: 0, presentationsSautees: 0 },
+  },
+  semaineVueLe: null,
 };
 
 // ------------------------------------------------- scellement et ouverture
