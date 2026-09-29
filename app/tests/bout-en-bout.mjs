@@ -12,7 +12,9 @@ import { chromium } from 'playwright';
 import { cheminNavigateur } from './navigateur.mjs';
 import { servir } from './servir.mjs';
 
-const PORT = 4178;
+// Réglable, pour que plusieurs copies du dépôt vérifient en même temps sans se
+// disputer le port.
+const PORT = Number(process.env.ZENOTE_PORT ?? 4178);
 
 // Par défaut la vérification porte sur le `dist/` local, servi ici même. En
 // passant ZENOTE_URL, les mêmes constats s'appliquent au site déployé : c'est
