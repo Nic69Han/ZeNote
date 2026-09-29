@@ -9,9 +9,12 @@
 import { ancrer, candidats, identifiant } from '../analyse/index.ts';
 import { analyserADistance, reecrire, type IssueAnalyseDistante } from '../analyse/distante.ts';
 import { peutTransmettre } from '../analyse/transmission.ts';
+import { compteConnecte, marquerDeconnecte } from '../compte/compte.ts';
 import { transcrireAudio, type Transcription } from '../audio/transcripteurLocal.ts';
 import { assurerCoffreCharge } from '../securite/coffre.ts';
+import { consommerRattachement, rattacherDOffice } from '../agenda/rattachement.ts';
 import type {
+  AgendaDeCapture,
   Capture,
   CaptureAEcrire,
   EtatTranscription,
@@ -64,6 +67,11 @@ export interface NouvelleCapture {
    * marquage, et l'analyse n'en tirera aucun élément — spec `reprise`.
    */
   reprise?: boolean;
+  /**
+   * La réunion à laquelle rattacher la capture. Absent : un rattachement préparé par
+   * Maintenant s'il y en a un, sinon d'office selon l'agenda. `null` : aucun.
+   */
+  agenda?: AgendaDeCapture | null;
 }
 
 /**
@@ -85,7 +93,14 @@ export async function capturer(entree: NouvelleCapture): Promise<Capture> {
     ...(entree.reunion ? { reunion: true } : {}),
   };
   if (entree.reprise) capture.reprise = { poseeLe: capture.creeLe, reprisLe: null };
-  return enregistrerCapture(capture);
+  const preparee = entree.agenda === undefined ? consommerRattachement() : entree.agenda;
+  if (preparee) capture.agenda = preparee;
+  const ecrite = await enregistrerCapture(capture);
+  // Le rattachement d'office attend l'écriture : la capture est déjà confirmée quand
+  // on regarde l'agenda (change `agenda-local`, décision 7). Une note de reprise n'est
+  // pas une dépose : c'est un marque-page, elle ne se rattache pas d'office à une réunion.
+  if (entree.agenda === undefined && !preparee && !entree.reprise) void rattacherDOffice(ecrite);
+  return ecrite;
 }
 
 /** L'appel au service d'analyse distante ; remplaçable pour les tests. */
@@ -98,7 +113,8 @@ export type AnalyseDistante = (passages: string[]) => Promise<IssueAnalyseDistan
  * ni aux décisions déjà prises par l'utilisateur.
  *
  * Chemin hybride (change `analyse-typesafe`, décision 1) : l'analyse locale produit
- * toujours l'élément entier. Si la capture peut sortir, le service distant rejuge le
+ * toujours l'élément entier. Si la capture peut sortir — compte connecté, réglage
+ * allumé, capture et sphère permises —, le service distant rejuge le
  * type et la sphère de chaque passage — et rien d'autre — **avant** l'ancrage. Sur
  * toute autre issue qu'un succès, le résultat est celui de l'analyse locale seule.
  */
@@ -106,6 +122,7 @@ export async function analyserCapture(
   capture: Capture,
   jour = aujourdhui(),
   distant: AnalyseDistante = analyserADistance,
+  connecte: () => boolean = compteConnecte,
 ): Promise<number> {
   // Spec `reprise` — « Poser une note de reprise ». Un marque-page n'est pas une liste
   // de tâches : le doubler en Revue ferait lire deux fois la même chose. Elle sort de
@@ -118,12 +135,14 @@ export async function analyserCapture(
   let proposes = candidats(capture.texte, capture.id, jour, capture.dureeMs);
   let repliAnalyse: boolean | undefined;
 
-  if (proposes.length > 0 && peutTransmettre(capture, await lireReglages()).transmettre) {
+  if (proposes.length > 0 && peutTransmettre(capture, await lireReglages(), connecte()).transmettre) {
     // Le passage exact de la source, pas le texte présenté : c'est lui que l'ancrage
     // vérifie, et rien d'autre de la capture ne part.
     const issue = await distant(proposes.map((e) => capture.texte.slice(e.debutCar, e.finCar)));
     proposes = reecrire(proposes, issue);
     repliAnalyse = issue.issue !== 'OK';
+    // Le serveur ne reconnaît plus la session : l'appareil se montre déconnecté.
+    if (issue.issue === 'COMPTE_REQUIS') await marquerDeconnecte();
   }
 
   const { elements } = ancrer(capture.texte, proposes, capture.passagesIncertains ?? []);
@@ -162,6 +181,9 @@ export async function recupererEnregistrements(): Promise<number> {
         audio: assemble.audio,
         dureeMs: assemble.dureeMs,
         incomplete: true,
+        // Récupérée au démarrage, longtemps après : l'heure de l'écriture ne dit rien
+        // de la réunion pendant laquelle on parlait.
+        agenda: null,
       });
       await supprimerMorceaux(id);
       recuperees += 1;

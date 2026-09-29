@@ -32,8 +32,17 @@ import kotlinx.datetime.plus
 /** Le moment où un signal se produit, et ce qu'il faut en dire. */
 sealed interface Echeance {
 
-    /** Le signal est observable : il se produit à cet instant précis. */
-    data class Observable(val quand: LocalDateTime) : Echeance
+    /**
+     * Le signal est observable : il se produit à cet instant précis.
+     *
+     * @param enRetardApres au-delà, le rappel arrive après le signal. Par défaut le
+     *   signal lui-même ; pour une réunion, son début, alors que le rappel est dû un peu
+     *   avant.
+     */
+    data class Observable(
+        val quand: LocalDateTime,
+        val enRetardApres: LocalDateTime = quand,
+    ) : Echeance
 
     /**
      * Le signal n'est pas observable par ce produit. Le rappel s'accroche à la
@@ -42,6 +51,26 @@ sealed interface Echeance {
      * @param explication ce qui est montré à l'utilisateur, en toutes lettres.
      */
     data class Substituee(val explication: String) : Echeance
+
+    /**
+     * Le signal revient à chaque occurrence d'un événement récurrent : « avant le point
+     * du lundi ». Le rappel est dû pendant chaque fenêtre, de peu avant le début jusqu'à
+     * la fin, et attend la suivante entre deux. Change `rappels-recurrents`.
+     */
+    data class Recurrente(val fenetres: List<Fenetre>) : Echeance {
+        init { require(fenetres.isNotEmpty()) { "Un signal récurrent a au moins une occurrence." } }
+
+        /** La fenêtre qui contient [maintenant], ou `null` entre deux occurrences. */
+        fun enCours(maintenant: LocalDateTime): Fenetre? =
+            fenetres.firstOrNull { it.quand <= maintenant && maintenant < it.fin }
+    }
+
+    /** Une occurrence : dû dès [quand], en retard après [enRetardApres], passé à [fin]. */
+    data class Fenetre(
+        val quand: LocalDateTime,
+        val enRetardApres: LocalDateTime,
+        val fin: LocalDateTime,
+    )
 }
 
 object Echeancier {
@@ -53,7 +82,7 @@ object Echeancier {
     val DEBUT_DE_MATINEE: LocalTime = LocalTime(7, 0)
 
     const val SIGNAL_NON_OBSERVABLE: String =
-        "ZeNote ne sait pas encore reconnaître ce signal : l'agenda n'est pas branché, " +
+        "ZeNote ne sait pas encore reconnaître ce signal : aucun agenda n'est importé, " +
             "et la position n'est pas collectée."
 
     /**
@@ -62,8 +91,14 @@ object Echeancier {
      * @param declencheur la formulation telle que l'utilisateur l'a choisie ou écrite.
      * @param poseLe le moment où le plan a été attaché. « Ce soir » dit un soir précis :
      *   celui du jour où on l'a dit, pas celui où on relit.
+     * @param evenements l'agenda connu, s'il y en a un. Vide, rien ne change : les
+     *   signaux de personne et d'événement restent substitués (change `agenda-local`).
      */
-    fun quand(declencheur: String, poseLe: LocalDateTime): Echeance {
+    fun quand(
+        declencheur: String,
+        poseLe: LocalDateTime,
+        evenements: List<EvenementConnu> = emptyList(),
+    ): Echeance {
         val plie = Texte.plier(declencheur)
 
         if (plie.contains("ce soir")) {
@@ -83,6 +118,10 @@ object Echeancier {
             )
         }
 
+        if (evenements.isNotEmpty()) {
+            return SignauxAgenda.reconnaitre(declencheur, poseLe, evenements)
+                ?: Echeance.Substituee(SignauxAgenda.SIGNAL_HORS_AGENDA)
+        }
         return Echeance.Substituee(SIGNAL_NON_OBSERVABLE)
     }
 
@@ -97,6 +136,7 @@ object Echeancier {
     fun estArrive(echeance: Echeance, maintenant: LocalDateTime): Boolean = when (echeance) {
         is Echeance.Substituee -> true
         is Echeance.Observable -> echeance.quand <= maintenant
+        is Echeance.Recurrente -> echeance.enCours(maintenant) != null
     }
 
     private val DATE = Regex("""(\d{4})-(\d{2})-(\d{2})""")

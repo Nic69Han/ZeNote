@@ -21,6 +21,7 @@ import {
 } from '../src/stockage/depot.ts';
 import { capturer } from '../src/services/pipeline.ts';
 import { peutTransmettre } from '../src/analyse/transmission.ts';
+import { compteConnecte } from '../src/compte/compte.ts';
 import { avisRepli, completerRevue, origineLisible, typeAConfirmer } from '../src/analyse/origine.ts';
 import { revueObjets, type ElementJson } from '../src/core/regles.ts';
 
@@ -66,17 +67,25 @@ describe('consentement stocké', () => {
 });
 
 describe('décision de transmettre', () => {
+  it('ne transmet rien sans compte connecté, même réglage allumé et aucun refus', () => {
+    expect(peutTransmettre({ texte: 'préparer le budget du client' }, ALLUMEE, false)).toEqual({
+      transmettre: false,
+      raison: 'COMPTE_REQUIS',
+    });
+    expect(compteConnecte()).toBe(false);
+  });
+
   it('ne transmet rien quand le réglage est éteint, même une capture sans refus', () => {
     expect(
       peutTransmettre({ texte: 'préparer le budget du client', transmissible: undefined }, {
         ...ALLUMEE,
         analyseDistante: false,
-      }),
+      }, true),
     ).toEqual({ transmettre: false, raison: 'ANALYSE_DISTANTE_ETEINTE' });
   });
 
   it('ne transmet pas une capture marquée non transmissible', () => {
-    expect(peutTransmettre({ texte: 'préparer le budget du client', transmissible: false }, ALLUMEE)).toEqual({
+    expect(peutTransmettre({ texte: 'préparer le budget du client', transmissible: false }, ALLUMEE, true)).toEqual({
       transmettre: false,
       raison: 'CAPTURE_NON_TRANSMISSIBLE',
     });
@@ -87,22 +96,22 @@ describe('décision de transmettre', () => {
       peutTransmettre({ texte: 'prendre rendez-vous chez le dentiste pour les enfants' }, {
         ...ALLUMEE,
         spheresExclues: ['PERSONNEL'],
-      }),
+      }, true),
     ).toEqual({ transmettre: false, raison: 'SPHERE_EXCLUE' });
   });
 
   it('tranche le doute vers l’appareil : sphère indécidable et exclusion active, rien ne part', () => {
     expect(
-      peutTransmettre({ texte: 'rappeler Paul jeudi' }, { ...ALLUMEE, spheresExclues: ['PERSONNEL'] }),
+      peutTransmettre({ texte: 'rappeler Paul jeudi' }, { ...ALLUMEE, spheresExclues: ['PERSONNEL'] }, true),
     ).toEqual({ transmettre: false, raison: 'SPHERE_INDECIDABLE' });
   });
 
   it('transmet sinon : réglage allumé, aucun refus, sphère non exclue', () => {
     expect(
-      peutTransmettre({ texte: 'préparer le budget du client' }, { ...ALLUMEE, spheresExclues: ['PERSONNEL'] }),
+      peutTransmettre({ texte: 'préparer le budget du client' }, { ...ALLUMEE, spheresExclues: ['PERSONNEL'] }, true),
     ).toEqual({ transmettre: true });
     // Sans exclusion, une sphère indécidable n'est pas un motif de garder la capture.
-    expect(peutTransmettre({ texte: 'rappeler Paul jeudi' }, ALLUMEE)).toEqual({ transmettre: true });
+    expect(peutTransmettre({ texte: 'rappeler Paul jeudi' }, ALLUMEE, true)).toEqual({ transmettre: true });
   });
 });
 

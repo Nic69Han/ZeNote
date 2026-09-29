@@ -19,6 +19,8 @@ import {
 import { assurerCoffreCharge, etatCoffre, verrouiller } from './securite/coffre.ts';
 import {
   ecrireReglage,
+  elementsDeCapture,
+  lireCapture,
   lireReglages,
   listerCaptures,
   listerElements,
@@ -42,9 +44,13 @@ import { montrerRappels } from './ui/rappels.ts';
 import {
   ABSENCE_AVANT_REPRISE_MS,
   aQuelqueChose,
+  enSilence,
   rappelsDuPointDeRupture,
+  reunionQuiSeTermine,
 } from './services/rappels.ts';
 import { observerReprise } from './services/reprise.ts';
+import { maintenantLocal } from './services/pipeline.ts';
+import { lireInvitationDeLAdresse, rafraichirCompte } from './compte/compte.ts';
 
 type Onglet =
   | 'capturer'
@@ -75,6 +81,9 @@ const TOUS = [...ONGLETS, ...ECRANS_RETRAIT];
 const THEMES: Reglages['theme'][] = ['auto', 'clair', 'sombre'];
 
 async function demarrer(): Promise<void> {
+  // Change `comptes-utilisateurs` : un lien d'invitation s'ouvre sur « Vos données »,
+  // et son code quitte l'adresse avant tout rendu.
+  lireInvitationDeLAdresse();
   const reglages = await lireReglages();
   appliquerTheme(reglages.theme);
 
@@ -203,7 +212,11 @@ async function demarrer(): Promise<void> {
     }
   }
 
-  window.addEventListener('hashchange', () => void afficher());
+  window.addEventListener('hashchange', () => {
+    // Un lien d'invitation ouvert dans un onglet déjà ouvert ne recharge pas la page.
+    lireInvitationDeLAdresse();
+    void afficher();
+  });
 
   // L'ouverture est aussi le moment où la note « Où vous en étiez » se rend (spec
   // `reprise`) : notée avant le premier écran, pour que Maintenant, s'il s'ouvre en
@@ -215,6 +228,9 @@ async function demarrer(): Promise<void> {
   // vaut mieux que laisser le micro ouvert et l'enregistrement par terre.
   window.addEventListener('pagehide', () => demonterEcran?.());
 
+  // L'état du compte se lit sans retarder le premier écran : la capture n'attend
+  // jamais le réseau. D'ici là, l'appareil se tient pour déconnecté, et rien ne part.
+  void rafraichirCompte();
   await afficher();
 
   // Ce qu'un arrêt brutal a laissé en chemin devient une capture, avant tout le
@@ -229,6 +245,27 @@ async function demarrer(): Promise<void> {
   // Ouvrir l'application est une reprise : c'est le point de rupture que le produit
   // sait observer, et donc le moment où les rappels arrivent.
   void presenterRappels();
+
+  // Change `agenda-local` : la fin d'une réunion de l'agenda est un autre point de
+  // rupture. On le guette chaque minute, application ouverte et visible — une page
+  // fermée ne se réveille pas —, et on ne le présente qu'une fois par réunion.
+  const finsPresentees = new Set<string>();
+  // Change `rappels-silence-critique`, décision 4 : la fin de la plage de silence se
+  // guette de même. Ce qu'elle a retenu est présenté à sa sortie, application ouverte.
+  let etaitEnSilence = enSilence((await lireReglages()).silence, maintenantLocal());
+  window.setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    void reunionQuiSeTermine().then((id) => {
+      if (!id || finsPresentees.has(id)) return;
+      finsPresentees.add(id);
+      void presenterRappels();
+    });
+    void lireReglages().then((r) => {
+      const maintenant = enSilence(r.silence, maintenantLocal());
+      if (etaitEnSilence && !maintenant) void presenterRappels();
+      etaitEnSilence = maintenant;
+    });
+  }, 60_000);
 
   /**
    * Le coffre se referme quand l'application reste en arrière-plan.
@@ -246,6 +283,7 @@ async function demarrer(): Promise<void> {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+      void rafraichirCompte();
       window.clearTimeout(verrouEnAttente);
       verrouEnAttente = undefined;
       const absence = quitteeA === undefined ? 0 : Date.now() - quitteeA;
@@ -302,11 +340,14 @@ declare global {
       ecrireReglage: typeof ecrireReglage;
       /** Retirer une capture et ses éléments, pour qu'un parcours ne pèse pas sur le suivant. */
       supprimerCapture: typeof supprimerCapture;
+      /** Lire les éléments d'une capture, et en décider sans passer par la Revue. */
+      elementsDeCapture: typeof elementsDeCapture;
+      majElement: typeof majElement;
+      lireCapture: typeof lireCapture;
       /**
        * Poser une date de fait ou un verdict sur un élément, et relire éléments et
        * réglages : de quoi composer une semaine passée sans attendre sept jours.
        */
-      majElement: typeof majElement;
       listerElements: typeof listerElements;
       listerCaptures: typeof listerCaptures;
       lireReglages: typeof lireReglages;
@@ -320,7 +361,9 @@ window.__zenote = {
   majCapture,
   ecrireReglage,
   supprimerCapture,
+  elementsDeCapture,
   majElement,
+  lireCapture,
   listerElements,
   listerCaptures,
   lireReglages,

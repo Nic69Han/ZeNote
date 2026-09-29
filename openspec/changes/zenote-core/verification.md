@@ -21,8 +21,9 @@ code depuis ici :
 
 - **surfaces natives** — Android et Windows ne sont pas construits ; la surface
   livrée est l'application web installable ;
-- **agenda** — aucune lecture d'agenda n'est branchée, donc aucun signal de réunion,
-  de créneau ou de charge de journée ;
+- **agenda** — levée depuis par la change `agenda-local` : un agenda `.ics` s'importe
+  et se lit sur l'appareil. Restent hors de portée d'une page web l'appareil courant
+  et la répétition avant chaque occurrence (voir les lignes « partiel ») ;
 - **analyse distante** — il n'y a pas de serveur ZeNote, donc ni transmission, ni
   interrupteur de transmission, ni synchronisation entre appareils.
 
@@ -81,7 +82,7 @@ code depuis ici :
 | Rejet d'une proposition | tenu | `bout-en-bout`. |
 | Correction apprise | tenu | `RevueTest` : une correction humaine n'est pas écrasée par une ré-analyse. |
 
-## memoire — 13 scénarios · 11 tenus, 2 partiels
+## memoire — 13 scénarios · 12 tenus, 1 partiel
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
@@ -97,9 +98,9 @@ code depuis ici :
 | Fiche personne | tenu | `bout-en-bout` : chaque ligne renvoie à sa capture, et rien ne se renseigne à la main. |
 | Déduction de la sphère | tenu | `spheres.test.ts`. |
 | Filtrage à la restitution | tenu | `spheres.test.ts` et `bout-en-bout` : rien n'est déplacé ni dupliqué. |
-| Fusion de doublons | partiel | `MemoireTest` couvre fusion, renommage, séparation et annulation dans le cœur. Aucun écran ne les propose. |
+| Fusion de doublons | tenu | `MemoireTest` dans le cœur ; sur la surface, change `fusion-personnes` : « Même personne que… » réunit deux fiches, « Annuler » ou « Séparer » les rend, la fusion tient à la ré-analyse et reste scellée par le coffre (`personnes.test.ts`, bout-en-bout « Deux fiches réunies », « Fusion annulée »). Renommer et séparer une fiche au-delà d'une fusion restent au cœur seul. |
 
-## priorisation — 12 scénarios · 9 tenus, 3 non tenus
+## priorisation — 12 scénarios · 11 tenus, 1 partiel
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
@@ -109,28 +110,28 @@ code depuis ici :
 | Justification lisible | tenu | `bout-en-bout` : chaque proposition dit la conséquence retenue. |
 | Créneau tenu | tenu | `CreneauProtegeTest`, `creneau.test.ts`, `bout-en-bout`. |
 | Renoncement explicite | tenu | `bout-en-bout` : compté sans un mot de reproche. |
-| Créneau court | non tenu | Demande l'agenda (tâche 5.4). |
-| Contexte inadapté | non tenu | Demande l'agenda et l'appareil courant (tâche 5.4). |
-| Journée dense | non tenu | Demande la charge observée dans l'agenda (tâche 5.5). |
+| Créneau court | tenu | Change `agenda-local` : `AgendaMaintenantTest`, `regles-agenda.test.ts`, `bout-en-bout` sous horloge figée. |
+| Contexte inadapté | partiel | Le volet durée est tenu (`AgendaMaintenantTest` : un élément trop long ou de durée inconnue n'est pas proposé, et revient ensuite). Le volet appareil ne l'est pas : aucun élément ne dit de quel appareil il a besoin, et le deviner d'un mot serait inventer. |
+| Journée dense | tenu | Change `agenda-local` : `AgendaMaintenantTest`, `bout-en-bout`. |
 | Élément écarté | tenu | `arevoir.test.ts`, `bout-en-bout`. |
 | Rejets répétés | tenu | `ARevoirTest`, `bout-en-bout` : le compte survit au rechargement. |
 | Tâche dormante | tenu | `ARevoirTest` : seuil selon le poids. |
 
-## rappels — 11 scénarios · 5 tenus, 2 partiels, 4 non tenus
+## rappels — 11 scénarios · 11 tenus
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
-| Rappel lié à une personne | non tenu | Demande l'agenda pour savoir que la réunion commence. |
+| Rappel lié à une personne | tenu | Change `agenda-local` : `SignauxAgendaTest` (homonymes compris), `RappelsAgendaTest`, `bout-en-bout`. |
 | Déclencheur de lieu ramené à un déclencheur disponible | tenu | `EcheancierTest`, `bout-en-bout` : le rappel dit à quel signal il était accroché et pourquoi il arrive autrement. |
-| Rappel lié à un événement récurrent | non tenu | Agenda. |
+| Rappel lié à un événement récurrent | tenu | Change `rappels-recurrents` : dû avant chaque occurrence connue (de 5 min avant à 30 min après la fin), retenu pendant, rien entre deux ; « au prochain » vise une fois (`RappelsRecurrentsTest`, `regles-agenda.test.ts`). |
 | Signal préféré à l'heure | tenu | `EcheancierTest`. |
-| Report à la fin de la réunion | non tenu | Agenda. |
-| Rappel critique immédiat | partiel | `FileOpportunite` traite le critique dans le cœur, et `RappelsTest` le couvre. La surface ne marque aucun rappel comme critique : rien ne court-circuite donc la file en pratique. |
+| Report à la fin de la réunion | tenu | Change `agenda-local` : `RappelsAgendaTest`, `bout-en-bout` (retenu pendant, livré en retard après). |
+| Rappel critique immédiat | tenu | Change `rappels-silence-critique`. Marqué dans « Ajuster », ou poids fort échu : présenté sans attendre, réunion et plage de silence comprises (`RappelsSilenceCritiqueTest`, `silence-critique.test.ts`, bout-en-bout « Critique pendant la plage de silence »). |
 | Plusieurs rappels simultanés | tenu | `RappelsTest`, `bout-en-bout` : une bande unique, groupée. |
-| Briefing avant réunion | non tenu | Agenda. |
+| Briefing avant réunion | tenu | Change `agenda-local` : `MomentsReunionTest` ; le bandeau « avant » de Maintenant le présente, chaque ligne renvoyant à sa capture. |
 | Aucun élément à rappeler | tenu | `rappels.test.ts`. |
 | Rappel ignoré trois fois | tenu | `bout-en-bout` : escalade en Revue avec ses trois sorties. |
-| Plage de silence respectée | partiel | Le cœur retient les rappels non critiques pendant une plage de silence (`RappelsTest`). La surface n'en déclare aucune : aucune plage n'est donc appliquée. |
+| Plage de silence respectée | tenu | Change `rappels-silence-critique`. Plage quotidienne déclarée dans « Vos données » ; le non critique est retenu puis présenté à sa fin, ou à la reprise suivante (`RappelsSilenceCritiqueTest`, bout-en-bout « Rappel retenu pendant la nuit », « Rappel présenté à la fin de la plage »). Application fermée, rien ne sonne : c'est déjà le cas hors plage. |
 
 ## revue — 12 scénarios · 12 tenus
 
@@ -161,34 +162,34 @@ code depuis ici :
 | Élément passé pertinent proposé | tenu | `passe.test.ts`, `bout-en-bout`. |
 | Suggestion ignorable | tenu | `bout-en-bout` : rien à fermer, et la capture n'a pas attendu. |
 
-## reunions — 9 scénarios · 5 tenus, 4 non tenus
+## reunions — 9 scénarios · 9 tenus
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
-| Dépose proposée | non tenu | Demande de savoir qu'une réunion commence : agenda (tâche 6.1). |
-| Reprise après réunion | non tenu | Agenda (tâche 6.1). |
-| Capture post-réunion contextualisée | non tenu | Agenda (tâche 6.2). |
-| Proposition non intrusive | non tenu | Agenda (tâche 6.2). |
+| Dépose proposée | tenu | Change `agenda-local` : `MomentsReunionTest`, `bout-en-bout`. |
+| Reprise après réunion | tenu | Change `agenda-local` : `MomentsReunionTest`, `bout-en-bout`. |
+| Capture post-réunion contextualisée | tenu | Change `agenda-local` : `MomentsReunionTest`, `agenda-rattachement.test.ts`, `bout-en-bout`. |
+| Proposition non intrusive | tenu | Change `agenda-local` : `MomentsReunionTest`, `bout-en-bout`. |
 | Compte rendu importé | tenu | `reunion.test.ts`, `bout-en-bout` : engagements d'un côté, attentes de l'autre. |
 | Aucun élément inventé | tenu | `reunion.test.ts` : l'ancrage écarte ce qui ne se rattache pas. |
 | Engagement extrait à confirmer | tenu | `bout-en-bout` : marqué « à confirmer », aucun rappel possible avant. |
 | Enregistrement explicite | tenu | `bout-en-bout` : voyant visible, y compris après changement d'écran. |
 | Aucun enregistrement implicite | tenu | `bout-en-bout` : aucun voyant au repos ; aucun chemin n'ouvre le micro sans geste. |
 
-## donnees — 10 scénarios · 6 tenus, 1 partiel, 3 non tenus
+## donnees — 10 scénarios · 8 tenus, 2 non tenus
 
 | Scénario | État | Ce qui le couvre, ou ce qui manque |
 | --- | --- | --- |
 | Utilisation complète hors ligne | tenu | `bout-en-bout` : tout le parcours sans une requête sortante. |
 | Appareil perdu | tenu | `coffre.test.ts`, `bout-en-bout` : après chiffrement, pas un mot des notes dans la base. |
-| Capture marquée privée | non tenu | Il n'y a pas d'analyse distante, donc rien à en exclure (tâche 7.1). L'interrupteur serait un bouton qui ne commande rien. |
-| Sphère personnelle exclue | non tenu | Même cause. |
+| Capture marquée privée | tenu | Change `analyse-typesafe` : une capture marquée « Ne pas envoyer à l'analyse » ne part pas, reste consultable, et se dit « analysée sur l'appareil » (`analyse-distante.test.ts`, `pipeline.test.ts`, `bout-en-bout`). |
+| Sphère personnelle exclue | tenu | Change `analyse-typesafe` : une sphère exclue ne part jamais, et le doute se tranche vers l'appareil (`analyse-distante.test.ts` « tranche le doute », `pipeline.test.ts` « garde sur l'appareil une capture de sphère exclue »). |
 | Export complet | tenu | `export.test.ts` : tout sort, et ce qui ne sort pas est dit. |
 | Suppression d'une capture | tenu | `suppression.test.ts` : la capture, son audio et ses éléments partent, et rien d'autre. |
 | Fenêtre d'annulation | tenu | `suppression.test.ts` et `bout-en-bout` : trente secondes pour se raviser, et la bande disparaît avec la fenêtre. Fermer l'application la ferme aussi — limite assumée. |
 | Modification concurrente | non tenu | Demande la synchronisation entre appareils (tâche 3.8). |
 | Capture prioritaire | non tenu | Même cause : il n'y a pas de synchronisation pendant laquelle capturer. |
-| Service d'analyse indisponible | partiel | Le moteur de transcription indisponible est traité et dit (`pipeline.test.ts`, écran de Revue). Un service **distant** d'analyse n'existe pas, donc son indisponibilité n'est pas un cas réel. |
+| Service d'analyse indisponible | tenu | Changes `analyse-typesafe` et `comptes-utilisateurs` : hors ligne, délai dépassé, service sans clé, sans compte, quota atteint ou réponse invalide, la capture est analysée sur l'appareil, et le repli est dit une fois en Revue (`analyse-distante-client.test.ts`, `pipeline.test.ts`, `analyse-distante.test.ts` « avisRepli »). La transcription indisponible est traitée à part (`pipeline.test.ts`). |
 
 ---
 
@@ -196,7 +197,7 @@ code depuis ici :
 
 | | Tenus | Partiels | Non tenus |
 | --- | --- | --- | --- |
-| **112 scénarios** | **88** | **7** | **17** |
+| **112 scénarios** | **103** | **4** | **5** |
 
 ## Ce que ce tableau dit, et ce qu'il ne dit pas
 

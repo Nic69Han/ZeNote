@@ -48,6 +48,21 @@ import {
   type TypeGardien,
 } from '../securite/coffre.ts';
 import { annoncer, el, vider } from './dom.ts';
+import {
+  RefusCompte,
+  compteConnecte,
+  creerCompte,
+  invitationEnAttente,
+  inviter,
+  oublierInvitation,
+  rafraichirCompte,
+  seConnecter,
+  seDeconnecter,
+  supprimerCompte,
+  type EtatCompte,
+} from '../compte/compte.ts';
+import { AgendaIllisible, lireAgenda } from '../agenda/ics.ts';
+import { effacerAgenda, etatAgenda, importerAgenda, type EtatAgenda } from '../stockage/agenda.ts';
 
 /** Empreinte de la construction servie, injectée par Vite. */
 const VERSION: string =
@@ -69,7 +84,7 @@ interface Fait {
  * déléguée au navigateur, et l'application ne peut, depuis son propre code, ni
  * observer ni empêcher ce que celui-ci envoie.
  */
-function faits(coffre: EtatCoffre, analyseDistante: boolean): Fait[] {
+function faits(coffre: EtatCoffre, analyseDistante: boolean, connecte = false): Fait[] {
   return [
   // Change `analyse-typesafe` — tâche 4.1 : ce bloc dit vrai dans les deux états du
   // réglage. Allumé, la sortie du texte vient en tête, parce que c'est d'abord ce
@@ -93,14 +108,26 @@ function faits(coffre: EtatCoffre, analyseDistante: boolean): Fait[] {
           'compare des mots, ici, dans cet onglet. L’analyse distante, qui enverrait le texte ' +
           'des passages à un modèle, est éteinte : aucun texte ne sort.',
       },
-  {
-    rassurant: true,
-    titre: 'Aucun compte, aucun stockage distant, aucune mesure d’audience.',
-    detail:
-      'Tout vit dans IndexedDB, la base de données du navigateur, sur cet appareil. Rien ' +
-      'n’est déposé sur un serveur ZeNote : le service d’analyse distante, quand il est ' +
-      'allumé, juge des passages et n’en garde rien.',
-  },
+  // Change `comptes-utilisateurs` : connecté, le serveur sait qu'un compte existe, et
+  // l'écran dit exactement ce qu'il en garde.
+  connecte
+    ? {
+        rassurant: true,
+        titre: 'Un compte ZeNote existe. Vos notes, elles, restent ici.',
+        detail:
+          'Le serveur de ZeNote garde de votre compte un identifiant tiré au hasard, la clé ' +
+          'publique de votre clé d’accès, sa date de création, vos sessions et un compteur ' +
+          'd’analyses par jour. Aucune adresse, aucun nom, aucune note : tout le reste vit ' +
+          'dans la base du navigateur, sur cet appareil.',
+      }
+    : {
+        rassurant: true,
+        titre: 'Aucun compte, aucun stockage distant, aucune mesure d’audience.',
+        detail:
+          'Tout vit dans IndexedDB, la base de données du navigateur, sur cet appareil. Rien ' +
+          'n’est déposé sur un serveur ZeNote : le service d’analyse distante, quand il est ' +
+          'allumé, juge des passages et n’en garde rien.',
+      },
   coffre === 'ABSENT'
     ? {
         rassurant: false,
@@ -182,6 +209,9 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
     const texte = serialiser(donnees);
     const appareilPossible = await gardienAppareilPossible();
     const reglages = await lireReglages();
+    const agenda = await etatAgenda();
+    // Relu ici plutôt qu'au démarrage : cet écran n'est pas sur le chemin de la capture.
+    const compte = await rafraichirCompte();
 
     vider(vue);
     const section = el(
@@ -192,12 +222,16 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
         class: 'ecran__sous-titre',
         texte: 'Ce qui reste ici, ce qui sort, et comment tout reprendre.',
       }),
-      blocPerimetre(coffre, reglages.analyseDistante),
+      // Sans compte, rien ne part, quel que soit le réglage enregistré : le bloc le dit.
+      blocPerimetre(coffre, reglages.analyseDistante && compte.connecte, compte.connecte),
+      blocAgenda(agenda),
+      blocCompte(compte),
       blocAnalyseDistante(reglages),
       blocChiffrement(coffre, appareilPossible, donnees),
       blocCreneau(reglages),
       blocSuggestions(reglages),
       blocDelestage(reglages),
+      blocSilence(reglages),
       blocExport(donnees, texte),
       blocEffacement(donnees),
       blocDictee(),
@@ -319,6 +353,63 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
           'ouvrir une rétablit aussitôt le rythme normal.',
       }),
       liste,
+    );
+  }
+
+  // ------------------------------------------------------ la plage de silence
+
+  /**
+   * Les heures où seuls les rappels critiques passent.
+   *
+   * Change `rappels-silence-critique`. Éteinte par défaut : une plage que personne
+   * n'a choisie retiendrait des rappels sans qu'on sache pourquoi. Elle peut passer
+   * minuit ; ce qu'elle retient est présenté à sa fin, ou à la reprise suivante.
+   */
+  function blocSilence(reglages: Reglages): HTMLElement {
+    const champ = (valeur: string, etiquette: string): HTMLInputElement =>
+      el('input', { class: 'champ', type: 'time', value: valeur, 'aria-label': etiquette }) as HTMLInputElement;
+    const debut = champ(reglages.silence?.debut ?? '', 'Début de la plage de silence');
+    const fin = champ(reglages.silence?.fin ?? '', 'Fin de la plage de silence');
+
+    const enregistrer = (): void => {
+      void (async () => {
+        if (!debut.value || !fin.value || debut.value === fin.value) {
+          await ecrireReglage('silence', null);
+          annoncer(debut.value && fin.value ? 'Début et fin identiques : plage éteinte.' : 'Plage de silence éteinte.');
+          return;
+        }
+        await ecrireReglage('silence', { debut: debut.value, fin: fin.value });
+        annoncer(`Plage de silence de ${debut.value} à ${fin.value}.`);
+      })();
+    };
+    debut.addEventListener('change', enregistrer);
+    fin.addEventListener('change', enregistrer);
+
+    return el(
+      'section',
+      { class: 'bloc bloc--silence' },
+      el('h2', { class: 'bloc__titre', texte: 'Plage de silence' }),
+      el('p', {
+        class: 'bloc__texte',
+        texte:
+          'Des heures où aucun rappel ne vous interrompt, sauf ceux marqués critiques. Ce ' +
+          'qui arrive pendant attend la fin de la plage.',
+      }),
+      el('label', { class: 'champ__etiquette' }, 'De', debut),
+      el('label', { class: 'champ__etiquette' }, 'À', fin),
+      el('button', {
+        class: 'bouton bouton--discret',
+        type: 'button',
+        texte: 'Éteindre la plage',
+        onclick: () => {
+          void (async () => {
+            debut.value = '';
+            fin.value = '';
+            await ecrireReglage('silence', null);
+            annoncer('Plage de silence éteinte.');
+          })();
+        },
+      }),
     );
   }
 
@@ -675,9 +766,9 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
 
   // ------------------------------------------------ ce qui quitte l'appareil
 
-  function blocPerimetre(coffre: EtatCoffre, analyseDistante: boolean): HTMLElement {
+  function blocPerimetre(coffre: EtatCoffre, analyseDistante: boolean, connecte: boolean): HTMLElement {
     const liste = el('ul', { class: 'faits' });
-    for (const fait of faits(coffre, analyseDistante)) {
+    for (const fait of faits(coffre, analyseDistante, connecte)) {
       liste.append(
         el(
           'li',
@@ -700,6 +791,260 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
     );
   }
 
+  // ----------------------------------------------------------------- l'agenda
+
+  /**
+   * L'agenda, importé depuis un fichier `.ics` et lu ici.
+   *
+   * Change `agenda-local` ; spec `agenda` — « Import d'un agenda sur l'appareil »,
+   * « Conservation et effacement », « Fraîcheur de l'agenda dite ». Rien ne part : le
+   * fichier est lu dans cet onglet, et seules ses réunions sont gardées. L'écran dit
+   * ce qui a été compris, ce qui ne l'a pas été, et jusqu'à quand l'agenda est connu.
+   */
+  function blocAgenda(etat: EtatAgenda | null): HTMLElement {
+    const retour = el('p', { class: 'agenda__retour', role: 'status' });
+    const champ = el('input', {
+      type: 'file',
+      accept: '.ics,text/calendar',
+      class: 'agenda__fichier',
+      'aria-label': 'Fichier d’agenda (.ics)',
+    }) as HTMLInputElement;
+
+    champ.addEventListener('change', () => {
+      const fichier = champ.files?.[0];
+      if (!fichier) return;
+      void (async () => {
+        try {
+          const lecture = lireAgenda(await fichier.text());
+          const importe = await importerAgenda(lecture);
+          const message = resumeImport(importe);
+          annoncer(message);
+          await rendre();
+          const apres = vue.querySelector('.agenda__retour');
+          if (apres) apres.textContent = message;
+        } catch (erreur) {
+          retour.dataset.ton = 'echec';
+          retour.textContent =
+            erreur instanceof AgendaIllisible
+              ? 'Ce fichier n’a pas été compris comme un agenda. L’agenda précédent reste en place.'
+              : 'L’agenda n’a pas pu être enregistré. Si vos notes sont chiffrées, déverrouillez-les puis réessayez.';
+          annoncer(retour.textContent);
+        } finally {
+          champ.value = '';
+        }
+      })();
+    });
+
+    const etatTexte = etat
+      ? el(
+          'p',
+          { class: 'bloc__texte agenda__etat' },
+          `Importé le ${dateLisible(etat.importeLe)}. Connu jusqu’au ${jourLisible(etat.couvreJusqua)} : ` +
+            `${accord(etat.occurrences, 'réunion ou événement', 'réunions ou événements')}.`,
+        )
+      : el('p', {
+          class: 'bloc__texte agenda__etat',
+          texte: 'Aucun agenda importé : ZeNote fonctionne sans, comme avant.',
+        });
+
+    return el(
+      'section',
+      { class: 'bloc bloc--agenda', 'aria-labelledby': 'titre-agenda' },
+      el('h2', { id: 'titre-agenda', class: 'bloc__titre', texte: 'Agenda' }),
+      el('p', {
+        class: 'bloc__texte',
+        texte:
+          'Exportez votre agenda en fichier .ics (Google Agenda : Paramètres, Importer et exporter ; ' +
+          'Outlook : Enregistrer le calendrier), puis importez-le ici. Il est lu sur cet appareil et ' +
+          'n’est envoyé nulle part. Il sert à ne proposer que ce qui tient avant votre prochaine ' +
+          'réunion, et à préparer puis vider vos réunions.',
+      }),
+      etatTexte,
+      el('label', { class: 'bouton agenda__importer' }, etat ? 'Réimporter un agenda' : 'Importer un agenda', champ),
+      retour,
+      etat
+        ? el('button', {
+            class: 'bouton bouton--discret agenda__effacer',
+            type: 'button',
+            texte: 'Effacer l’agenda',
+            onclick: () => {
+              void (async () => {
+                await effacerAgenda();
+                annoncer('Agenda effacé. Vos notes n’ont pas changé.');
+                await rendre();
+              })();
+            },
+          })
+        : null,
+      el('p', {
+        class: 'bloc__texte agenda__limite',
+        texte:
+          'Il n’est aussi frais que votre dernier import : réimportez-le quand il change. Et les ' +
+          'propositions de réunion n’apparaissent que si ZeNote est ouverte à ce moment-là.',
+      }),
+    );
+  }
+
+  /** Ce que l'import a compris, et ce qu'il n'a pas compris, en une phrase. */
+  function resumeImport(etat: EtatAgenda): string {
+    const parties = [
+      `Agenda importé : ${accord(etat.occurrences, 'occurrence connue', 'occurrences connues')} jusqu’au ${jourLisible(etat.couvreJusqua)}, ` +
+        `${accord(etat.lus, 'événement lu', 'événements lus')}.`,
+    ];
+    if (etat.recurrencesNonComprises > 0) {
+      parties.push(
+        `${accord(etat.recurrencesNonComprises, 'répétition non comprise', 'répétitions non comprises')} : ` +
+          'seule la première occurrence est gardée.',
+      );
+    }
+    for (const { raison, nombre } of etat.ecartes) parties.push(`Écarté (${raison}) : ${nombre}.`);
+    return parties.join(' ');
+  }
+
+  function dateLisible(iso: string): string {
+    return new Date(iso).toLocaleString('fr-FR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function jourLisible(local: string): string {
+    return new Date(`${local.slice(0, 10)}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+  }
+
+  // ---------------------------------------------------------------- le compte
+
+  /**
+   * Le compte ZeNote : le créer sur invitation, s'y connecter, en sortir, le supprimer,
+   * inviter quelqu'un.
+   *
+   * Change `comptes-utilisateurs`, décision 10. Aucune identité n'est demandée : une clé
+   * d'accès de l'appareil suffit, distincte de celle du coffre. Le compte ne sert qu'à
+   * l'analyse distante ; les notes restent ici quoi qu'on en fasse.
+   */
+  function blocCompte(compte: EtatCompte): HTMLElement {
+    const retour = el('p', { class: 'bloc__texte compte__retour', role: 'status' });
+    const agir = (geste: () => Promise<unknown>, reussi: string) => {
+      void (async () => {
+        try {
+          await geste();
+          oublierInvitation();
+          annoncer(reussi);
+          await rendre();
+        } catch (e) {
+          retour.textContent = e instanceof RefusCompte ? e.message : 'Le geste n’a pas abouti.';
+          annoncer(retour.textContent);
+        }
+      })();
+    };
+    const avertissement = el('p', {
+      class: 'fait__detail',
+      texte:
+        'Sans ses clés d’accès, un compte ne se récupère pas : on en crée un autre sur une ' +
+        'nouvelle invitation. Vos notes, elles, restent ici.',
+    });
+
+    if (!compte.connecte) {
+      const code = el('input', {
+        class: 'champ',
+        type: 'text',
+        autocomplete: 'off',
+        'aria-label': 'Code d’invitation',
+        placeholder: 'Code d’invitation',
+        value: invitationEnAttente() ?? '',
+      }) as HTMLInputElement;
+      return el(
+        'section',
+        { class: 'bloc bloc--compte', 'aria-labelledby': 'titre-compte' },
+        el('h2', { id: 'titre-compte', class: 'bloc__titre', texte: 'Compte' }),
+        el('p', {
+          class: 'bloc__texte compte__etat',
+          texte: invitationEnAttente()
+            ? 'Vous avez reçu une invitation. Créez votre compte avec la clé d’accès de cet appareil.'
+            : 'Aucun compte sur cet appareil. Un compte ne sert qu’à l’analyse distante, et ne se crée que sur invitation.',
+        }),
+        el('button', {
+          class: 'bouton',
+          type: 'button',
+          texte: 'Se connecter',
+          onclick: () => agir(seConnecter, 'Connecté.'),
+        }),
+        el('label', { class: 'champ__etiquette' }, 'J’ai une invitation', code),
+        el('button', {
+          class: invitationEnAttente() ? 'bouton bouton--plein' : 'bouton',
+          type: 'button',
+          texte: 'Créer mon compte',
+          onclick: () => agir(() => creerCompte(code.value.trim()), 'Compte créé. Vous êtes connecté.'),
+        }),
+        avertissement,
+        retour,
+      );
+    }
+
+    const confirmation = el(
+      'div',
+      { class: 'compte__confirmation', hidden: true, role: 'group', 'aria-label': 'Supprimer le compte' },
+      el('p', {
+        class: 'fait__detail',
+        texte:
+          'Le serveur oubliera ce compte, ses clés et ses sessions. Vos notes, sur cet ' +
+          'appareil, ne sont pas touchées. Cela ne s’annule pas.',
+      }),
+      el('button', {
+        class: 'bouton bouton--danger',
+        type: 'button',
+        texte: 'Supprimer définitivement',
+        onclick: () => agir(supprimerCompte, 'Compte supprimé.'),
+      }),
+    );
+    const lien = el('p', { class: 'bloc__texte compte__invitation', hidden: true });
+    return el(
+      'section',
+      { class: 'bloc bloc--compte', 'aria-labelledby': 'titre-compte' },
+      el('h2', { id: 'titre-compte', class: 'bloc__titre', texte: 'Compte' }),
+      el('p', {
+        class: 'bloc__texte compte__etat',
+        texte: compte.role === 'ADMINISTRATEUR' ? 'Connecté, administrateur.' : 'Connecté.',
+      }),
+      compte.role === 'ADMINISTRATEUR'
+        ? el('button', {
+            class: 'bouton',
+            type: 'button',
+            texte: 'Inviter quelqu’un',
+            onclick: () => {
+              void (async () => {
+                try {
+                  const { lien: adresse, expire } = await inviter();
+                  lien.hidden = false;
+                  lien.textContent =
+                    `Lien à usage unique, valable jusqu’au ${new Date(expire).toLocaleDateString('fr-FR')} ` +
+                    `— il ne sera plus montré : ${adresse}`;
+                  annoncer('Invitation créée.');
+                } catch (e) {
+                  retour.textContent = e instanceof RefusCompte ? e.message : 'L’invitation n’a pas pu être créée.';
+                }
+              })();
+            },
+          })
+        : null,
+      lien,
+      el('button', {
+        class: 'bouton',
+        type: 'button',
+        texte: 'Se déconnecter',
+        onclick: () => agir(seDeconnecter, 'Déconnecté. L’analyse distante est éteinte.'),
+      }),
+      el('button', {
+        class: 'bouton bouton--discret',
+        type: 'button',
+        texte: 'Supprimer mon compte…',
+        onclick: () => {
+          confirmation.hidden = false;
+        },
+      }),
+      confirmation,
+      avertissement,
+      retour,
+    );
+  }
+
   // ------------------------------------------------------ l'analyse distante
 
   /**
@@ -712,6 +1057,8 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
    * exclusion est posée (voir `peutTransmettre`), et le texte le dit.
    */
   function blocAnalyseDistante(reglages: Reglages): HTMLElement {
+    // Réservée à un utilisateur connecté : sans compte, ni interrupteur ni confirmation.
+    const connecte = compteConnecte();
     const exclues = new Set(reglages.spheresExclues);
     const choix = (sphere: 'PROFESSIONNEL' | 'PERSONNEL', libelle: string): HTMLElement => {
       const case_ = el('input', {
@@ -736,10 +1083,24 @@ export async function montrerReglages(vue: HTMLElement): Promise<void> {
       'section',
       { class: 'bloc bloc--analyse-distante', 'aria-labelledby': 'titre-analyse-distante' },
       el('h2', { id: 'titre-analyse-distante', class: 'bloc__titre', texte: 'Analyse distante' }),
-      interrupteurAnalyseDistante(reglages.analyseDistante),
+      connecte
+        ? interrupteurAnalyseDistante(reglages.analyseDistante)
+        : el(
+            'div',
+            { class: 'analyse-distante' },
+            el('p', {
+              class: 'analyse-distante__etat',
+              texte: 'Analyse sur un service distant : réservée aux comptes.',
+            }),
+          ),
       el('p', {
         class: 'bloc__texte',
-        texte: reglages.analyseDistante
+        texte: !connecte
+          ? 'L’analyse distante demande d’être connecté avec un compte ZeNote (bloc « Compte » ' +
+            'ci-dessus) : sans compte, aucune note ne sort de l’appareil. Ces choix vaudront une ' +
+            'fois connecté — une note dont la sphère ne se reconnaît pas restera alors ici, elle ' +
+            'aussi, dès qu’une case est cochée.'
+          : reglages.analyseDistante
           ? 'L’analyse distante est allumée. Les notes cochées ci-dessous ne partent jamais ; ' +
             'une note dont la sphère ne se reconnaît pas non plus, dès qu’une case est cochée.'
           : 'L’analyse distante est éteinte : aucune note ne sort de l’appareil. Ces choix ' +

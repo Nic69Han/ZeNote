@@ -52,7 +52,8 @@ describe('chaque issue de l’appel', () => {
     expect(envois).toHaveLength(1);
     expect(envois[0].url).toBe(POINT_ANALYSE);
     expect(JSON.parse(String(envois[0].init.body))).toEqual({ passages: PASSAGES });
-    expect(envois[0].init.credentials).toBe('omit');
+    // Le cookie de session part avec, et lui seul : la page ne sait pas le lire.
+    expect(envois[0].init.credentials).toBe('same-origin');
   });
 
   it('hors ligne : ne tente rien', async () => {
@@ -80,6 +81,16 @@ describe('chaque issue de l’appel', () => {
       issue: 'DELAI_DEPASSE',
     });
     expect(Date.now() - debut).toBeLessThan(1000);
+  });
+
+  it('429 : quota atteint, repli local', async () => {
+    const { f } = reseau(async () => json(429, { motif: 'quota-atteint', portee: 'jour' }));
+    expect(await analyserADistance(PASSAGES, { fetch: f, enLigne })).toEqual({ issue: 'QUOTA_ATTEINT' });
+  });
+
+  it.each([401, 403])('%i : compte requis', async (statut) => {
+    const { f } = reseau(async () => json(statut, { motif: 'authentification-requise' }));
+    expect(await analyserADistance(PASSAGES, { fetch: f, enLigne })).toEqual({ issue: 'COMPTE_REQUIS' });
   });
 
   it('503 : service non configuré', async () => {
@@ -141,6 +152,8 @@ describe('seul un succès réécrit', () => {
   it.each<IssueAnalyseDistante>([
     { issue: 'HORS_LIGNE' },
     { issue: 'DELAI_DEPASSE' },
+    { issue: 'COMPTE_REQUIS' },
+    { issue: 'QUOTA_ATTEINT' },
     { issue: 'NON_CONFIGURE' },
     { issue: 'INDISPONIBLE', statut: 502 },
     { issue: 'REPONSE_INVALIDE' },

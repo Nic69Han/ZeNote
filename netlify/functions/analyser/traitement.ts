@@ -159,7 +159,23 @@ export interface ClientTypeSafe {
 /** Une ligne de journal : des nombres et des motifs, jamais un passage. */
 export type Journal = (evenement: Record<string, string | number>) => void;
 
+/**
+ * L'utilisateur connecté à l'origine de la requête, ou `null`.
+ *
+ * Obligatoire : sans compte identifié, la fonction refuse avant de créer le client et
+ * avant de lire le corps. Rien ne part vers le fournisseur pour un appelant anonyme.
+ */
+export type Identification = (requete: Request) => string | null | Promise<string | null>;
+
+/**
+ * La limite d'appels du compte : `null` pour accepter (et compter), sinon le refus.
+ * Change `comptes-utilisateurs`, décision 8.
+ */
+export type ControleQuota = (compteId: string) => Promise<{ portee: 'jour' | 'mois'; reessayerDans: number } | null>;
+
 export interface Dependances {
+  identifier: Identification;
+  quota: ControleQuota;
   /** `null` quand aucune clé n'est configurée. */
   creerClient: () => ClientTypeSafe | null;
   choix: FabriqueChoix;
@@ -171,13 +187,14 @@ export interface Dependances {
 
 // ---------------------------------------------------------------- la requête
 
-function repondre(statut: number, corps: unknown): Response {
+function repondre(statut: number, corps: unknown, entetes: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(corps), {
     status: statut,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
       // Une analyse ne se met jamais en cache : ni chez l'hébergeur, ni en route.
       'Cache-Control': 'no-store',
+      ...entetes,
     },
   });
 }
@@ -236,10 +253,35 @@ export async function traiter(requete: Request, dependances: Dependances): Promi
     return repondre(405, { motif: 'methode-refusee' });
   }
 
+  // Le compte d'abord : un appelant anonyme ne coûte rien, pas même la lecture de
+  // son corps, et ne découvre pas si une clé est configurée.
+  let utilisateur: string | null;
+  try {
+    utilisateur = await dependances.identifier(requete);
+  } catch {
+    utilisateur = null;
+  }
+  if (!utilisateur) {
+    journal({ evenement: 'analyse-refusee', motif: 'authentification-requise' });
+    return repondre(401, { motif: 'authentification-requise' }, { 'WWW-Authenticate': 'Bearer realm="zenote"' });
+  }
+
   const client = dependances.creerClient();
   if (!client) {
     journal({ evenement: 'analyse-refusee', motif: 'non-configure' });
     return repondre(503, { motif: 'non-configure' });
+  }
+
+  // Compté avant l'appel, qui est facturé même quand sa réponse est rejetée. Le corps
+  // n'est toujours pas lu : un refus pour quota ne coûte rien.
+  const refusQuota = await dependances.quota(utilisateur);
+  if (refusQuota) {
+    journal({ evenement: 'analyse-refusee', motif: 'quota-atteint', portee: refusQuota.portee });
+    return repondre(
+      429,
+      { motif: 'quota-atteint', portee: refusQuota.portee },
+      { 'Retry-After': String(refusQuota.reessayerDans) },
+    );
   }
 
   let corps: unknown;

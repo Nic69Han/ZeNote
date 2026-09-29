@@ -76,11 +76,20 @@ data class EvenementConnu(
     val lieu: String? = null,
     val participants: List<String> = emptyList(),
     val recurrent: Boolean = false,
+    /**
+     * Un événement « toute la journée » — congé, anniversaire, salon. Il est connu,
+     * mais n'est jamais une réunion : il ne raccourcit aucun créneau et ne termine
+     * aucune séquence.
+     */
+    val journeeEntiere: Boolean = false,
 ) {
     init {
         require(id.isNotBlank()) { "Un événement d'agenda sans identifiant n'est pas rattachable." }
         require(fin > debut) { "Un événement d'agenda finit après avoir commencé." }
     }
+
+    /** Une réunion, au sens des règles de temps : un événement minuté. */
+    val estReunion: Boolean get() = !journeeEntiere
 }
 
 /** Un déclencheur de substitution, avec ce qui est dit à l'utilisateur pour l'expliquer. */

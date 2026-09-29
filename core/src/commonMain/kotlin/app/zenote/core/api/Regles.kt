@@ -8,6 +8,7 @@ import app.zenote.core.memoire.ResolutionReferences
 import app.zenote.core.memoire.TypeEntite
 import app.zenote.core.model.CaptureId
 import app.zenote.core.model.Deduit
+import app.zenote.core.model.Duree
 import app.zenote.core.model.ElementDerive
 import app.zenote.core.model.ElementId
 import app.zenote.core.model.ElementResolu
@@ -19,15 +20,21 @@ import app.zenote.core.model.TypeElement
 import app.zenote.core.model.Verdict
 import app.zenote.core.priorisation.ContexteMaintenant
 import app.zenote.core.priorisation.CreneauProtege
+import app.zenote.core.priorisation.Disponibilites
 import app.zenote.core.priorisation.Priorisation
+import app.zenote.core.priorisation.Proposition
 import app.zenote.core.rappels.Declencheur
 import app.zenote.core.rappels.Echeance
 import app.zenote.core.rappels.Echeancier
+import app.zenote.core.rappels.EvenementConnu
 import app.zenote.core.rappels.FileOpportunite
 import app.zenote.core.rappels.Livraison
+import app.zenote.core.rappels.MomentsReunion
+import app.zenote.core.rappels.PlageSilence
 import app.zenote.core.rappels.PointDeRupture
 import app.zenote.core.rappels.Rappel
 import app.zenote.core.rappels.RappelId
+import app.zenote.core.rappels.Rattache
 import app.zenote.core.recherche.RechercheLocale
 import app.zenote.core.revue.ARevoir
 import app.zenote.core.revue.Arriere
@@ -44,10 +51,12 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Les règles du produit, exposées aux surfaces par un contrat JSON.
@@ -75,18 +84,43 @@ object Regles {
         val propositions = Priorisation.maintenant(
             elements = elements.map { it.versResolu() },
             contexte = ContexteMaintenant(LocalDate.parse(aujourdhui)),
-        ).map { p ->
-            PropositionJson(
-                elementId = p.element.id.value,
-                texte = p.element.texte,
-                raison = p.raison,
-                raisonDite = p.raisonDite,
-                raisonDeduite = p.raisonDeduite,
-                poidsEffectif = p.poidsEffectif.name,
-                urgence = p.urgence.name,
-            )
-        }
+        ).map { versPropositionJson(it) }
         return json.encodeToString(ListSerializer(PropositionJson.serializer()), propositions)
+    }
+
+    /**
+     * La vue Maintenant selon le temps que l'agenda laisse.
+     *
+     * Sans événement, le résultat est celui de [maintenant]. Change `agenda-local`,
+     * décision 5.
+     *
+     * @param elementsJson tableau d'[ElementJson]
+     * @param contexteJson un [ContexteMaintenantJson]
+     * @return un [MaintenantJson]
+     */
+    fun maintenantAvecContexte(elementsJson: String, contexteJson: String): String {
+        val contexte = json.decodeFromString(ContexteMaintenantJson.serializer(), contexteJson)
+        val maintenant = LocalDateTime.parse(contexte.maintenant)
+        val disponibilite = Disponibilites.a(
+            maintenant = maintenant.toInstant(TimeZone.UTC),
+            evenements = evenementsConnus(contexte.evenements),
+        )
+        val resultat = Priorisation.maintenantSelon(
+            elements = decoder(elementsJson).map { it.versResolu() },
+            contexte = ContexteMaintenant(maintenant.date),
+            disponibilite = disponibilite,
+        )
+        return json.encodeToString(
+            MaintenantJson.serializer(),
+            MaintenantJson(
+                propositions = resultat.propositions.map { versPropositionJson(it) },
+                raison = resultat.raison,
+                ecartes = resultat.ecartes,
+                minutesAvantReunion = disponibilite.minutesAvantReunion,
+                prochaineReunion = disponibilite.prochaineReunion,
+                creneauProtegeSuspendu = resultat.creneauProtegeSuspendu,
+            ),
+        )
     }
 
     /**
@@ -211,7 +245,13 @@ object Regles {
      * @param suivisJson tableau de [SuiviRappelJson]
      * @return un [RappelsDuMomentJson]
      */
-    fun rappels(elementsJson: String, maintenant: String, suivisJson: String): String {
+    fun rappels(
+        elementsJson: String,
+        maintenant: String,
+        suivisJson: String,
+        evenementsJson: String = "[]",
+        silencesJson: String = "[]",
+    ): String {
         val instant = LocalDateTime.parse(maintenant)
         // La file raisonne en `Instant` ; elle ne fait que comparer les siens entre
         // eux. Les lire tous dans le même fuseau suffit donc, et évite de faire entrer
@@ -222,20 +262,42 @@ object Regles {
             .decodeFromString(ListSerializer(SuiviRappelJson.serializer()), suivisJson)
             .associateBy { it.elementId }
 
+        // Change `agenda-local`, décision 6 : l'agenda rend observables la fin d'une
+        // réunion et les signaux « je vois X », « avant tel événement ». Sans lui, rien
+        // ne change ci-dessous.
+        val evenements = evenementsConnus(
+            json.decodeFromString(ListSerializer(EvenementJson.serializer()), evenementsJson),
+        )
+        val reunions = Disponibilites.reunions(evenements)
+        val reunionEnCours = reunions.firstOrNull { it.debut <= a && a < it.fin }
+        val finRecente = reunions.lastOrNull { it.fin <= a && a - it.fin < FENETRE_FIN_DE_REUNION }
+
         // Seuls les éléments acceptés qui portent un plan sont des rappels : le plan
         // est ce qui transforme une note en quelque chose qui doit revenir.
-        val candidats = decoder(elementsJson)
+        val bruts = decoder(elementsJson).associateBy { it.id }
+        val candidats = bruts.values
             .map { it.versResolu() }
             .filter { it.verdict == Verdict.ACCEPTE && it.plan != null }
             .sortedBy { it.id.value }
 
-        val file = FileOpportunite()
+        // Change `rappels-silence-critique`, décision 1 : les plages arrivent déjà
+        // concrètes, en heure locale ; le cœur ne connaît pas le réglage.
+        val silences = json
+            .decodeFromString(ListSerializer(PlageSilenceJson.serializer()), silencesJson)
+            .map { LocalDateTime.parse(it.debut) to LocalDateTime.parse(it.fin) }
+            .filter { (debut, fin) -> fin > debut }
+        val silenceEnCours = silences.firstOrNull { (debut, fin) -> debut <= instant && instant < fin }
+
+        val file = FileOpportunite(
+            silences.map { (debut, fin) -> PlageSilence(debut.toInstant(TimeZone.UTC), fin.toInstant(TimeZone.UTC)) },
+        )
         val rappels = candidats.map { element ->
             element to Rappel(
                 id = RappelId(element.id.value),
                 elementId = element.id,
                 texte = element.plan!!.action.ifBlank { element.texte },
                 declencheur = Declencheur.Transition(PointDeRupture.REPRISE_APPAREIL),
+                critique = estCritique(bruts.getValue(element.id.value), instant.date.toString()),
             )
         }
 
@@ -247,35 +309,55 @@ object Regles {
 
         val substitutions = mutableMapOf<String, String>()
         val retards = mutableSetOf<String>()
+        val immediats = mutableListOf<Rappel>()
         for ((element, rappel) in rappels) {
             val suivi = suivis[element.id.value] ?: continue
             val echeance = Echeancier.quand(
                 declencheur = element.plan!!.declencheur,
                 poseLe = LocalDateTime.parse(suivi.planPoseLe),
+                evenements = evenements,
             )
             if (!Echeancier.estArrive(echeance, instant)) continue
 
             when (echeance) {
                 is Echeance.Substituee -> substitutions[element.id.value] = echeance.explication
-                is Echeance.Observable -> if (echeance.quand < instant) retards += element.id.value
+                is Echeance.Observable -> if (echeance.enRetardApres < instant) retards += element.id.value
+                is Echeance.Recurrente ->
+                    if (echeance.enCours(instant)!!.enRetardApres < instant) retards += element.id.value
             }
-            file.deposer(rappel, a)
+            // Décision 3 : un critique n'entre pas dans la file, il est livré tel quel.
+            val livraison = file.deposer(rappel, a)
+            if (livraison is Livraison.Immediate) immediats += livraison.rappel
         }
 
-        val notification = file.vider(PointDeRupture.REPRISE_APPAREIL, a)
+        // Pendant une réunion, rien de non critique n'est livré : ce qui est devenu
+        // actionnable attend sa fin, où son retard sera dit (spec `rappels` — « Report à
+        // la fin de la réunion »). Une plage de silence retient de même, dans `vider`.
+        val point = if (finRecente != null) PointDeRupture.FIN_DE_REUNION else PointDeRupture.REPRISE_APPAREIL
+        val retenusParSilence = silenceEnCours != null && reunionEnCours == null
+        val retenus = if (reunionEnCours != null || retenusParSilence) file.enAttente().size else 0
+        val notification = if (reunionEnCours != null) null else file.vider(point, a)
         val parId = candidats.associateBy { it.id.value }
+        // Une seule notification : les critiques d'abord, puis la file vidée.
+        val livres = immediats + notification?.rappels.orEmpty()
+        val titre = when (livres.size) {
+            0 -> ""
+            1 -> livres.single().texte
+            else -> "${livres.size} choses à voir maintenant"
+        }
 
         return json.encodeToString(
             RappelsDuMomentJson.serializer(),
             RappelsDuMomentJson(
-                titre = notification?.titre ?: "",
-                rappels = notification?.rappels.orEmpty().map { r ->
+                titre = titre,
+                rappels = livres.map { r ->
                     RappelLivreJson(
                         elementId = r.elementId.value,
                         texte = r.texte,
                         declencheur = parId[r.elementId.value]?.plan?.declencheur ?: "",
                         substitution = substitutions[r.elementId.value] ?: "",
                         enRetard = r.elementId.value in retards,
+                        critique = r.critique,
                     )
                 },
                 escalades = file.escalades().map { e ->
@@ -286,9 +368,30 @@ object Regles {
                         options = e.options.map { it.name },
                     )
                 },
+                point = when {
+                    notification != null -> notification.point.name
+                    immediats.isNotEmpty() -> point.name
+                    else -> ""
+                },
+                reunionEnCours = reunionEnCours?.titre,
+                retenus = retenus,
+                silenceJusqua = if (retenusParSilence) silenceEnCours!!.second.toString() else null,
             ),
         )
     }
+
+    /**
+     * Change `rappels-silence-critique`, décision 2 : critique quand l'utilisateur l'a
+     * marqué, ou quand un poids fort arrive à échéance — la « conséquence immédiate »
+     * de la spec, sans rien deviner de plus.
+     *
+     * @param jour date locale `AAAA-MM-JJ` de l'instant
+     */
+    private fun estCritique(element: ElementJson, jour: String): Boolean =
+        element.critique || (element.poids == "FORT" && element.echeance != null && element.echeance <= jour)
+
+    /** Après la fin d'une réunion, ce temps durant lequel on est encore à sa sortie. */
+    private val FENETRE_FIN_DE_REUNION = 30.minutes
 
     /**
      * L'ancrage : ne garde que les éléments dont le passage se relit vraiment dans le
@@ -623,24 +726,7 @@ object Regles {
             .associateBy { it.id }
         val dtos = decoder(elementsJson)
         val resolus = dtos.map { it.versResolu() }
-
-        val memoire = Memoire()
-        for (dto in dtos.sortedBy { it.id }) {
-            val qui = dto.interlocuteur?.takeIf { it.isNotBlank() } ?: continue
-            val capture = captures[dto.captureId] ?: continue
-            val entite = memoire.observer(
-                type = TypeEntite.PERSONNE,
-                nom = qui,
-                mention = Mention(
-                    captureId = CaptureId(dto.captureId),
-                    a = Instant.parse(capture.creeLe),
-                    extrait = dto.texte,
-                    elementId = ElementId(dto.id),
-                ),
-                sphere = dto.sphere?.let { Sphere.valueOf(it) },
-            )
-            memoire.rattacher(ElementId(dto.id), entite.id)
-        }
+        val memoire = memoireDe(captures, dtos)
 
         val fiches = memoire.entites()
             .sortedWith(
@@ -666,6 +752,102 @@ object Regles {
             }
 
         return json.encodeToString(ListSerializer(FicheJson.serializer()), fiches)
+    }
+
+    /**
+     * La mémoire des personnes, reconstruite depuis les captures et les éléments. Rien
+     * n'est stocké : elle ne peut pas contredire les notes dont elle sort.
+     */
+    private fun memoireDe(captures: Map<String, CaptureJson>, dtos: List<ElementJson>): Memoire {
+        val memoire = Memoire()
+        for (dto in dtos.sortedBy { it.id }) {
+            val qui = dto.interlocuteur?.takeIf { it.isNotBlank() } ?: continue
+            val capture = captures[dto.captureId] ?: continue
+            val entite = memoire.observer(
+                type = TypeEntite.PERSONNE,
+                nom = qui,
+                mention = Mention(
+                    captureId = CaptureId(dto.captureId),
+                    a = Instant.parse(capture.creeLe),
+                    extrait = dto.texte,
+                    elementId = ElementId(dto.id),
+                ),
+                sphere = dto.sphere?.let { Sphere.valueOf(it) },
+            )
+            memoire.rattacher(ElementId(dto.id), entite.id)
+        }
+        return memoire
+    }
+
+    /**
+     * Les moments de réunion à proposer : après la dernière réunion finie (reprise de
+     * la dépose, vidage), avant la prochaine (briefing, dépose).
+     *
+     * Change `agenda-local`, décision 7 ; spec `agenda` — « Moments de réunion ».
+     *
+     * @param evenementsJson tableau d'[EvenementJson]
+     * @param maintenant heure locale `AAAA-MM-JJTHH:MM`
+     * @param capturesJson tableau de [CaptureJson], pour la mémoire du briefing
+     * @param elementsJson tableau d'[ElementJson]
+     * @param rattachesJson tableau de [RattacheJson] — dépôts et captures déjà
+     *   rattachés à une réunion
+     * @return un [MomentsJson]
+     */
+    fun momentsDeReunion(
+        evenementsJson: String,
+        maintenant: String,
+        capturesJson: String,
+        elementsJson: String,
+        rattachesJson: String,
+    ): String {
+        val a = LocalDateTime.parse(maintenant).toInstant(TimeZone.UTC)
+        val captures = json
+            .decodeFromString(ListSerializer(CaptureJson.serializer()), capturesJson)
+            .associateBy { it.id }
+        val dtos = decoder(elementsJson)
+        val rattaches = json
+            .decodeFromString(ListSerializer(RattacheJson.serializer()), rattachesJson)
+            .mapNotNull { r ->
+                runCatching {
+                    Rattache(r.captureId, r.evenementId, r.depose, r.texte, LocalDateTime.parse(r.creeLe).toInstant(TimeZone.UTC))
+                }.getOrNull()
+            }
+
+        val moments = MomentsReunion.a(
+            maintenant = a,
+            evenements = evenementsConnus(
+                json.decodeFromString(ListSerializer(EvenementJson.serializer()), evenementsJson),
+            ),
+            memoire = memoireDe(captures, dtos),
+            elements = dtos.map { it.versResolu() },
+            rattaches = rattaches,
+        ).map { m ->
+            MomentReunionJson(
+                type = m.type.name,
+                evenementId = m.evenement.id,
+                titre = m.evenement.titre,
+                debut = m.evenement.debut.toLocalDateTime(TimeZone.UTC).toString(),
+                fin = m.evenement.fin.toLocalDateTime(TimeZone.UTC).toString(),
+                participants = m.evenement.participants,
+                precedentes = m.precedentes.map { it.titre },
+                minutes = m.minutes,
+                proposerDepose = m.proposerDepose,
+                briefing = m.briefing?.let { b ->
+                    BriefingJson(ouverts = b.ouverts.map { versLigne(it) }, decide = b.decide.map { versLigne(it) })
+                },
+                depose = m.depose?.let { d ->
+                    RattacheJson(
+                        captureId = d.captureId,
+                        evenementId = d.evenementId,
+                        depose = true,
+                        texte = d.texte,
+                        creeLe = d.creeLe.toLocalDateTime(TimeZone.UTC).toString(),
+                    )
+                },
+                proposerVidage = m.proposerVidage,
+            )
+        }
+        return json.encodeToString(MomentsJson.serializer(), MomentsJson(moments))
     }
 
     private fun versLigne(ligne: app.zenote.core.memoire.LigneFiche): LigneFicheJson =
@@ -701,6 +883,36 @@ object Regles {
 
     private fun decoder(elementsJson: String): List<ElementJson> =
         json.decodeFromString(ListSerializer(ElementJson.serializer()), elementsJson)
+
+    private fun versPropositionJson(p: Proposition): PropositionJson = PropositionJson(
+        elementId = p.element.id.value,
+        texte = p.element.texte,
+        raison = p.raison,
+        raisonDite = p.raisonDite,
+        raisonDeduite = p.raisonDeduite,
+        poidsEffectif = p.poidsEffectif.name,
+        urgence = p.urgence.name,
+    )
+
+    /**
+     * Les événements tels que le cœur les lit. Un événement mal formé — fin avant le
+     * début, date illisible — est ignoré : il ne doit pas faire tomber tout un écran.
+     */
+    private fun evenementsConnus(evenements: List<EvenementJson>): List<EvenementConnu> =
+        evenements.mapNotNull { e ->
+            runCatching {
+                EvenementConnu(
+                    id = e.id,
+                    titre = e.titre,
+                    debut = LocalDateTime.parse(e.debut).toInstant(TimeZone.UTC),
+                    fin = LocalDateTime.parse(e.fin).toInstant(TimeZone.UTC),
+                    lieu = e.lieu,
+                    participants = e.participants,
+                    recurrent = e.recurrent,
+                    journeeEntiere = e.journeeEntiere,
+                )
+            }.getOrNull()
+        }
 
     /**
      * Vrai quand cet élément ne vient que de passages mal entendus.
@@ -773,6 +985,17 @@ object Regles {
             plan = planDeclencheur?.let { d ->
                 planAction?.let { a -> Deduit(Plan(d, a), 1.0, "plan posé en Revue") }
             },
+            // Une durée que ce cœur ne connaît pas est traitée comme inconnue, pas comme
+            // une erreur : une surface plus récente ne doit pas faire tomber le classement.
+            duree = duree
+                ?.let { nom -> Duree.entries.firstOrNull { it.name == nom } }
+                ?.let { palier ->
+                    Deduit(
+                        palier,
+                        (dureeConfiance ?: 1.0).coerceIn(0.0, 1.0),
+                        dureeIndice?.takeIf { it.isNotBlank() } ?: "fourni",
+                    )
+                },
         )
         return ElementResolu(
             id = ElementId(id),
@@ -789,6 +1012,8 @@ object Regles {
             aConfirmer = aConfirmer(),
             corrigeParHumain = corrigeParHumain,
             indicePoids = if (corrigeParHumain && poids != null) "poids fixé à la main" else poidsIndice,
+            duree = derive.duree?.valeur,
+            dureeSure = derive.duree?.sûr ?: false,
         )
     }
 }

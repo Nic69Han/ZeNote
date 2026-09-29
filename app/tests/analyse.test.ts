@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   analyser,
+  estimerDuree,
   evaluerPoids,
   repererInterlocuteur,
   typerPassage,
@@ -199,5 +200,50 @@ describe('origine et confiance du type', () => {
     expect(relu.typeConfiance).toBeUndefined();
     // Le cœur l'accepte toujours : les champs sont facultatifs de bout en bout.
     expect(filtrerAncrageObjets('Appeler Marc avant vendredi.', [relu], []).retenus).toHaveLength(1);
+  });
+});
+
+describe('durée estimée (change agenda-local)', () => {
+  it('scénario « Durée déduite » — « envoyer le devis à Marc » est court, et dit pourquoi', () => {
+    expect(estimerDuree('envoyer le devis à Marc')).toEqual({
+      duree: 'COURTE',
+      confiance: 0.8,
+      indice: '« envoyer »',
+    });
+    expect(estimerDuree('Répondre à Sophie')?.indice).toBe('« répondre »');
+    expect(estimerDuree('préparer le budget du comité')?.duree).toBe('LONGUE');
+  });
+
+  it('le plus long l’emporte quand deux verbes se croisent', () => {
+    expect(estimerDuree('rédiger puis envoyer le rapport')?.duree).toBe('LONGUE');
+  });
+
+  it('une durée dite prime sur le verbe', () => {
+    expect(estimerDuree('préparer la salle, dix minutes')).toMatchObject({ duree: 'COURTE', confiance: 0.9 });
+    expect(estimerDuree('appeler le client, compter 20 minutes')?.duree).toBe('MOYENNE');
+    expect(estimerDuree('relire le contrat, deux heures au moins')?.duree).toBe('LONGUE');
+  });
+
+  it('une heure de rendez-vous n’est pas une durée', () => {
+    expect(estimerDuree('rappeler Marc à 15 heures')).toMatchObject({ duree: 'COURTE', indice: '« rappeler »' });
+    expect(estimerDuree('voir Paul vers 10 heures')).toBeNull();
+  });
+
+  it('scénario « Durée inconnue » — rien ne permet de l’estimer, elle reste inconnue', () => {
+    expect(estimerDuree('voir avec Paul pour le stand')).toBeNull();
+    const { elements } = analyser('Voir avec Paul pour le stand.', 'cap-1', JOUR);
+    expect(elements[0].duree ?? null).toBeNull();
+  });
+
+  it('seul ce qui se fait a une durée, et elle traverse l’ancrage', () => {
+    const { elements } = analyser(
+      'Envoyer le devis à Marc avant vendredi. Le taux de marge est à douze pour cent.',
+      'cap-1',
+      JOUR,
+    );
+    const tache = elements.find((e) => e.type === 'TACHE');
+    const info = elements.find((e) => e.type === 'INFORMATION');
+    expect(tache).toMatchObject({ duree: 'COURTE', dureeConfiance: 0.8, dureeIndice: '« envoyer »' });
+    expect(info?.duree ?? null).toBeNull();
   });
 });

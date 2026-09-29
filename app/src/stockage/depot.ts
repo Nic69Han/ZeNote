@@ -42,6 +42,7 @@ import {
 import {
   MAGASIN_CAPTURES,
   MAGASIN_ELEMENTS,
+  MAGASIN_EVENEMENTS,
   MAGASIN_LEXIQUE,
   MAGASIN_MORCEAUX,
   MAGASIN_RECHERCHES,
@@ -116,6 +117,14 @@ export interface ElementStocke extends ElementJson {
    * Ce champ n'est jamais passé aux règles.
    */
   gestesFaits?: string[];
+  /**
+   * Le nom que portait `interlocuteur` avant une fusion de fiches, ou absent.
+   *
+   * Change `fusion-personnes`. C'est la marque qui permet de séparer ensuite ce que
+   * la fusion a réuni, et rien d'autre. Scellé avec le reste de l'élément : aucun nom
+   * n'est gardé en clair ailleurs.
+   */
+  interlocuteurAvantFusion?: string | null;
 }
 
 /** Les suivis d'élément, tels que le cœur les attend. */
@@ -245,6 +254,12 @@ export interface Capture {
    * Absent sur toute capture ordinaire, et sur toute capture d'avant ce champ.
    */
   reprise?: NoteDeReprise;
+  /**
+   * La réunion à laquelle cette capture se rattache, quand l'agenda en connaît une :
+   * faite pendant, juste après, ou proposée avant (une dépose). Change `agenda-local`.
+   * Elle survit à l'effacement de l'agenda : c'est un fait sur la capture.
+   */
+  agenda?: AgendaDeCapture | null;
 }
 
 /**
@@ -256,6 +271,15 @@ export interface Capture {
 export interface NoteDeReprise {
   poseeLe: string;
   reprisLe?: string | null;
+}
+
+/** Ce qu'une capture retient de la réunion à laquelle elle se rattache. */
+export interface AgendaDeCapture {
+  evenementId: string;
+  titre: string;
+  participants: string[];
+  /** `true` pour une dépose : ce que l'on quittait, noté juste avant la réunion. */
+  depose?: boolean;
 }
 
 /**
@@ -359,6 +383,13 @@ export interface Reglages {
    * toujours la même soirée, donc la même invite (voir `services/delestage.ts`).
    */
   delestageVuLe: string | null;
+  /**
+   * La plage de silence quotidienne, en `HH:MM`, ou `null` pour l'éteindre.
+   *
+   * Change `rappels-silence-critique`. Elle peut passer minuit (22:00–07:00). Pendant
+   * elle, seuls les rappels critiques sont présentés.
+   */
+  silence: { debut: string; fin: string } | null;
 }
 
 export const REGLAGES_PAR_DEFAUT: Reglages = {
@@ -383,6 +414,7 @@ export const REGLAGES_PAR_DEFAUT: Reglages = {
   delestageSoir: false,
   delestageHeure: '21:00',
   delestageVuLe: null,
+  silence: null,
 };
 
 // ------------------------------------------------- scellement et ouverture
@@ -649,8 +681,9 @@ export async function supprimerCapture(id: string): Promise<void> {
  * Remplace intégralement la couche dérivée d'une capture.
  *
  * Les décisions humaines déjà prises sont conservées : un élément dont le verdict
- * n'est plus `EN_ATTENTE`, ou corrigé à la main, survit à la ré-analyse. Savoir
- * lesquels demande de les ouvrir, donc le coffre.
+ * n'est plus `EN_ATTENTE`, ou corrigé à la main, survit à la ré-analyse, et le même
+ * passage n'est pas reproposé à côté. Savoir lesquels demande de les ouvrir, donc le
+ * coffre.
  */
 export async function remplacerElements(
   captureId: string,
@@ -661,12 +694,21 @@ export async function remplacerElements(
   );
 
   const aSupprimer: string[] = [];
+  /** Les passages que tient déjà une décision humaine : `debut:fin`. */
+  const tenus = new Set<string>();
   for (const brut of bruts) {
     const ancien = await depuisStockageElement(brut);
     if (ancien.verdict === 'EN_ATTENTE' && !ancien.corrigeParHumain) aSupprimer.push(ancien.id);
+    else tenus.add(`${ancien.debutCar}:${ancien.finCar}`);
   }
   const aEcrire: ElementBrut[] = [];
-  for (const nouveau of nouveaux) aEcrire.push(await versStockageElement(nouveau));
+  for (const nouveau of nouveaux) {
+    // Le même passage, déjà décidé ou corrigé : le reproposer en ferait un doublon
+    // qui défait la correction à l'écran (une fiche fusionnée qui revient, une durée
+    // fixée à la main concurrencée par l'estimée).
+    if (tenus.has(`${nouveau.debutCar}:${nouveau.finCar}`)) continue;
+    aEcrire.push(await versStockageElement(nouveau));
+  }
 
   await transaction([MAGASIN_ELEMENTS], 'readwrite', ([elements]) => {
     for (const id of aSupprimer) elements.delete(id);
@@ -916,16 +958,18 @@ export async function toutEffacer(): Promise<void> {
       MAGASIN_REGLAGES,
       MAGASIN_MORCEAUX,
       MAGASIN_LEXIQUE,
+      MAGASIN_EVENEMENTS,
       MAGASIN_RECHERCHES,
     ],
     'readwrite',
-    ([captures, elements, reglages, morceaux, lexique, recherches]) => {
+    ([captures, elements, reglages, morceaux, lexique, evenements, recherches]) => {
       captures.clear();
       elements.clear();
       reglages.clear();
       morceaux.clear();
       lexique.clear();
       recherches.clear();
+      evenements.clear();
     },
   );
 }

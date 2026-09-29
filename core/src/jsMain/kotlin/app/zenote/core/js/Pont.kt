@@ -3,7 +3,7 @@ package app.zenote.core.js
 import app.zenote.core.api.Regles
 
 /**
- * Le pont vers le navigateur. Quinze fonctions, un contrat JSON, aucun état.
+ * Le pont vers le navigateur. Des fonctions pures, un contrat JSON, aucun état.
  *
  * La PWA détient les données (IndexedDB) et appelle ces règles ; les applications
  * natives appelleront les mêmes, en JVM. C'est ce qui garantit qu'un même jeu de
@@ -16,6 +16,13 @@ object ZeNoteRegles {
     /** Vue Maintenant : `[ElementJson]` + date ISO → `[PropositionJson]`. */
     fun maintenant(elementsJson: String, aujourdhui: String): String =
         Regles.maintenant(elementsJson, aujourdhui)
+
+    /**
+     * Vue Maintenant selon l'agenda : `[ElementJson]` + `ContexteMaintenantJson` →
+     * `MaintenantJson`. Sans événement, mêmes propositions que [maintenant].
+     */
+    fun maintenantAvecContexte(elementsJson: String, contexteJson: String): String =
+        Regles.maintenantAvecContexte(elementsJson, contexteJson)
 
     /** File de Revue : `[ElementJson]` + date ISO → `RevueJson`. */
     fun revue(elementsJson: String, aujourdhui: String): String =
@@ -83,6 +90,42 @@ object ZeNoteRegles {
         Regles.rappels(elementsJson, maintenant, suivisJson)
 
     /**
+     * Rappels avec l'agenda : comme [rappels], plus `[EvenementJson]`. La fin d'une
+     * réunion devient un point de rupture, et rien de non critique n'est livré pendant.
+     */
+    fun rappelsAvecAgenda(
+        elementsJson: String,
+        maintenant: String,
+        suivisJson: String,
+        evenementsJson: String,
+    ): String = Regles.rappels(elementsJson, maintenant, suivisJson, evenementsJson)
+
+    /**
+     * Rappels avec l'agenda et les plages de silence : comme [rappelsAvecAgenda], plus
+     * `[PlageSilenceJson]`. Les critiques passent sans attendre, silence compris.
+     */
+    fun rappelsAvecContexte(
+        elementsJson: String,
+        maintenant: String,
+        suivisJson: String,
+        evenementsJson: String,
+        silencesJson: String,
+    ): String = Regles.rappels(elementsJson, maintenant, suivisJson, evenementsJson, silencesJson)
+
+    /**
+     * Moments de réunion : `[EvenementJson]` + heure locale + `[CaptureJson]` +
+     * `[ElementJson]` + `[RattacheJson]` → `MomentsJson`. Briefing et dépose avant,
+     * reprise et vidage après.
+     */
+    fun momentsDeReunion(
+        evenementsJson: String,
+        maintenant: String,
+        capturesJson: String,
+        elementsJson: String,
+        rattachesJson: String,
+    ): String = Regles.momentsDeReunion(evenementsJson, maintenant, capturesJson, elementsJson, rattachesJson)
+
+    /**
      * Références à résoudre : `[CaptureJson]` + `[ElementJson]` → `[ResolutionJson]`.
      *
      * La mémoire est reconstruite à chaque appel depuis ce que la surface détient :
@@ -133,10 +176,11 @@ object ZeNoteRegles {
     /**
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
-     * Passée à « 14 » avec les omissions (`omissions`) et la raison d'une proposition
-     * séparée en `raisonDite` / `raisonDeduite`. Une surface qui attend cette version
-     * et en trouve une plus ancienne parle à un cœur sans cette fonction, et doit le
-     * dire au lieu de planter à l'appel.
+     * Passée à « 14 » avec l'agenda (`maintenantAvecContexte`, `rappelsAvecAgenda`,
+     * `momentsDeReunion`), puis à « 15 » avec les omissions (`omissions`) et la raison
+     * d'une proposition séparée en `raisonDite` / `raisonDeduite`. Une surface qui
+     * attend cette version et en trouve une plus ancienne parle à un cœur sans ces
+     * fonctions, et doit le dire au lieu de planter à l'appel.
      */
-    val version: String = "14"
+    val version: String = "15"
 }

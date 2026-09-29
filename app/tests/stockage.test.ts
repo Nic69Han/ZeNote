@@ -158,9 +158,23 @@ describe('éléments', () => {
       elementDe({ id: 'a' }),
       elementDe({ id: 'b', verdict: 'ACCEPTE' }),
     ]);
-    await remplacerElements('cap-1', [elementDe({ id: 'c' })]);
+    await remplacerElements('cap-1', [elementDe({ id: 'c', debutCar: 14, finCar: 30 })]);
     const restants = (await elementsDeCapture('cap-1')).map((e) => e.id).sort();
     expect(restants).toEqual(['b', 'c']);
+  });
+
+  it('ne repropose pas un passage que l’humain a déjà décidé ou corrigé', async () => {
+    await remplacerElements('cap-1', [
+      elementDe({ id: 'decide', verdict: 'ACCEPTE' }),
+      elementDe({ id: 'corrige', debutCar: 14, finCar: 30, corrigeParHumain: true }),
+    ]);
+    await remplacerElements('cap-1', [
+      elementDe({ id: 'double-1' }),
+      elementDe({ id: 'double-2', debutCar: 14, finCar: 30 }),
+      elementDe({ id: 'neuf', debutCar: 31, finCar: 40 }),
+    ]);
+    const restants = (await elementsDeCapture('cap-1')).map((e) => e.id).sort();
+    expect(restants).toEqual(['corrige', 'decide', 'neuf']);
   });
 
   it('applique une décision humaine qui prime sur la déduction', async () => {
@@ -315,7 +329,7 @@ describe('suppression d’une capture', () => {
   });
 });
 
-describe('montée de version 3 → 4', () => {
+describe('montée de version 3 → 5', () => {
   /** Supprime la base, connexion ouverte comprise : le test repart d'un appareil vierge. */
   async function repartirDeZero(): Promise<void> {
     (await ouvrir()).close();
@@ -374,17 +388,18 @@ describe('montée de version 3 → 4', () => {
     base.close();
   }
 
-  it('passe la base en version 4', () => {
-    expect(VERSION_BASE).toBe(4);
+  it('passe la base en version 5', () => {
+    expect(VERSION_BASE).toBe(5);
   });
 
-  it('crée le magasin des recherches et garde tout ce qui existait', async () => {
+  it('crée les magasins des recherches et de l’agenda, et garde tout ce qui existait', async () => {
     await repartirDeZero();
     await baseVersion3();
 
     const base = await ouvrir();
-    expect(base.version).toBe(4);
+    expect(base.version).toBe(5);
     expect([...base.objectStoreNames]).toContain(MAGASIN_RECHERCHES);
+    expect([...base.objectStoreNames]).toContain('evenements');
     // Rien n'a été recréé : les magasins d'avant sont ceux d'avant.
     for (const magasin of ['captures', 'elements', 'reglages', 'lexique', 'morceaux']) {
       expect([...base.objectStoreNames]).toContain(magasin);
@@ -401,7 +416,7 @@ describe('montée de version 3 → 4', () => {
     await retenir('devis fournisseur', 'MOTS');
     expect((await lireRecherches()).map((r) => r.requete)).toEqual(['devis fournisseur']);
 
-    // Rouvrir une base déjà en version 4 ne remonte rien et ne perd rien.
+    // Rouvrir une base déjà en version 5 ne remonte rien et ne perd rien.
     reinitialiserOuverture();
     expect((await lireCapture('cap-v3'))?.id).toBe('cap-v3');
     expect((await lireRecherches()).map((r) => r.requete)).toEqual(['devis fournisseur']);

@@ -49,6 +49,16 @@ data class ElementJson(
     val interlocuteurConfiance: Double? = null,
     /** PROFESSIONNEL, PERSONNEL */
     val sphere: String? = null,
+    /**
+     * COURTE, MOYENNE, LONGUE — le temps que l'élément demande, ou absent s'il est
+     * inconnu. Change `agenda-local` : c'est ce qui décide si un élément tient dans le
+     * temps restant avant la prochaine réunion.
+     */
+    val duree: String? = null,
+    /** Confiance de la durée, de 0 à 1. 1 = fixée à la main. */
+    val dureeConfiance: Double? = null,
+    /** Ce qui a fait estimer cette durée, affichable tel quel. */
+    val dureeIndice: String? = null,
     val planDeclencheur: String? = null,
     val planAction: String? = null,
     /** EN_ATTENTE, ACCEPTE, UN_JOUR, REJETE */
@@ -72,6 +82,12 @@ data class ElementJson(
      * comme ferme reviendrait à se faire engager par un document.
      */
     val issuDeReunion: Boolean = false,
+    /**
+     * `true` quand l'utilisateur a marqué l'élément critique. Change
+     * `rappels-silence-critique` : son rappel passe alors sans attendre un point de
+     * rupture, plage de silence et réunion comprises.
+     */
+    val critique: Boolean = false,
 )
 
 /**
@@ -141,6 +157,102 @@ data class OmissionElementJson(
     val manques: List<ManqueJson>,
 )
 
+/**
+ * Un événement d'agenda tel que la surface le passe au cœur.
+ *
+ * Déjà développé (une ligne par occurrence) et en heure locale de l'appareil : le
+ * cœur n'a ni fuseau à connaître ni règle de récurrence à rejouer. Change
+ * `agenda-local`, décisions 1 et 2.
+ */
+@Serializable
+data class EvenementJson(
+    val id: String,
+    val titre: String,
+    /** Début, en heure locale `AAAA-MM-JJTHH:MM`. */
+    val debut: String,
+    /** Fin, en heure locale `AAAA-MM-JJTHH:MM`. */
+    val fin: String,
+    val lieu: String? = null,
+    val participants: List<String> = emptyList(),
+    val recurrent: Boolean = false,
+    val journeeEntiere: Boolean = false,
+)
+
+/** Le moment présent et l'agenda connu, pour la vue Maintenant. */
+@Serializable
+data class ContexteMaintenantJson(
+    /** Heure locale `AAAA-MM-JJTHH:MM`. */
+    val maintenant: String,
+    val evenements: List<EvenementJson> = emptyList(),
+)
+
+/**
+ * La vue Maintenant selon l'agenda.
+ *
+ * [raison] est vide quand aucune contrainte ne s'applique. [ecartes] dit combien
+ * d'éléments ne tiennent pas : zéro proposition avec des écartés, c'est « rien qui
+ * tienne », pas « rien à faire ».
+ */
+@Serializable
+data class MaintenantJson(
+    val propositions: List<PropositionJson>,
+    val raison: String = "",
+    val ecartes: Int = 0,
+    val minutesAvantReunion: Int? = null,
+    val prochaineReunion: String? = null,
+    val creneauProtegeSuspendu: Boolean = false,
+)
+
+/**
+ * Une capture déjà rattachée à une réunion, telle que la surface la connaît.
+ *
+ * @param depose `true` pour une dépose faite juste avant la réunion.
+ * @param creeLe en heure locale `AAAA-MM-JJTHH:MM`.
+ */
+@Serializable
+data class RattacheJson(
+    val captureId: String,
+    val evenementId: String,
+    val depose: Boolean = false,
+    val texte: String = "",
+    val creeLe: String,
+)
+
+/** Ce qui est ouvert et décidé avec les participants d'une réunion. */
+@Serializable
+data class BriefingJson(
+    val ouverts: List<LigneFicheJson> = emptyList(),
+    val decide: List<LigneFicheJson> = emptyList(),
+)
+
+/**
+ * Un moment de réunion à proposer : `AVANT` (briefing, dépose) ou `APRES` (reprise de
+ * la dépose, vidage). Change `agenda-local`, décision 7.
+ */
+@Serializable
+data class MomentReunionJson(
+    /** AVANT ou APRES. */
+    val type: String,
+    val evenementId: String,
+    val titre: String,
+    /** Heure locale `AAAA-MM-JJTHH:MM`. */
+    val debut: String,
+    val fin: String,
+    val participants: List<String> = emptyList(),
+    /** Pour APRES : les titres des réunions enchaînées avant celle-ci. */
+    val precedentes: List<String> = emptyList(),
+    /** Minutes avant le début (AVANT) ou depuis la fin (APRES). */
+    val minutes: Int,
+    val proposerDepose: Boolean = false,
+    val briefing: BriefingJson? = null,
+    /** Pour APRES : la dépose faite avant, rendue telle quelle. */
+    val depose: RattacheJson? = null,
+    val proposerVidage: Boolean = false,
+)
+
+@Serializable
+data class MomentsJson(val moments: List<MomentReunionJson> = emptyList())
+
 @Serializable
 data class EntreeRevueJson(
     val element: ElementJson,
@@ -205,6 +317,18 @@ data class RappelLivreJson(
     val substitution: String = "",
     /** `true` si le signal s'était produit avant ce point de rupture. Un constat. */
     val enRetard: Boolean = false,
+    /** `true` pour un rappel critique : présenté sans attendre, silence et réunion comprises. */
+    val critique: Boolean = false,
+)
+
+/**
+ * Une plage de silence, en heure locale `AAAA-MM-JJTHH:MM`. La surface la tire de son
+ * réglage quotidien ; le cœur n'en connaît que les bornes.
+ */
+@Serializable
+data class PlageSilenceJson(
+    val debut: String,
+    val fin: String,
 )
 
 /** Un rappel qui ne se représente plus à l'identique, et que la Revue reprend. */
@@ -228,6 +352,22 @@ data class RappelsDuMomentJson(
     val titre: String = "",
     val rappels: List<RappelLivreJson> = emptyList(),
     val escalades: List<EscaladeJson> = emptyList(),
+    /**
+     * Le point de rupture qui livre : `REPRISE_APPAREIL`, ou `FIN_DE_REUNION` quand une
+     * réunion de l'agenda vient de se terminer. Vide quand rien n'est livré.
+     */
+    val point: String = "",
+    /**
+     * Le titre de la réunion en cours, quand l'agenda en connaît une : les rappels non
+     * critiques attendent alors sa fin, et [retenus] dit combien.
+     */
+    val reunionEnCours: String? = null,
+    val retenus: Int = 0,
+    /**
+     * La fin de la plage de silence en cours, en heure locale `AAAA-MM-JJTHH:MM`,
+     * quand elle retient les rappels non critiques ; [retenus] dit alors combien.
+     */
+    val silenceJusqua: String? = null,
 )
 
 @Serializable

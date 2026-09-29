@@ -119,6 +119,29 @@ téléversement expédie le répertoire courant tel quel, sans tenir compte de `
 emporterait `app/node_modules` — des dépendances compilées pour la machine de développement,
 sur quoi la construction chez l'hébergeur échoue.
 
+### Les comptes et l'analyse distante
+
+L'appli marche entièrement sans compte. Un compte ZeNote ne sert qu'à l'analyse distante
+(TypeSafe), et ne porte aucune note. Il se crée par une clé d'accès de l'appareil, sur
+invitation : ni e-mail ni mot de passe. Côté serveur, Netlify Blobs garde l'identifiant du
+compte, ses clés publiques, ses sessions et des compteurs.
+
+Variables d'environnement de l'hébergeur :
+
+| Variable | Rôle |
+| --- | --- |
+| `ZENOTE_CODE_FONDATEUR` | Code qui crée le premier compte, administrateur. Sans lui, aucun compte ne peut naître. À tirer au hasard, puis à retirer une fois le compte créé. |
+| `ZENOTE_QUOTA_JOUR` | Analyses par compte et par jour (30 par défaut). `0` suspend toute analyse sans redéploiement. |
+| `ZENOTE_PLAFOND_MOIS` | Analyses par mois, tous comptes confondus (1000 par défaut). |
+| `TYPESAFE_API_KEY` | La clé du fournisseur. Sans elle, le service répond « non configuré » et l'analyse reste locale. |
+
+Mise en service :
+1. Poser `ZENOTE_CODE_FONDATEUR` sur Netlify, puis redéployer.
+2. Dans « Vos données » → « Compte », saisir ce code puis « Créer mon compte ».
+3. Retirer la variable.
+4. L'analyse distante reste éteinte jusqu'à ce que vous l'allumiez, connecté, après avoir lu ce qui part.
+5. « Inviter quelqu'un » crée un lien à usage unique, valable sept jours.
+
 ## Où sont les décisions
 
 La spécification produit complète, ses dix capacités et le tableau reliant chaque mécanique à
@@ -221,8 +244,9 @@ npx skills add typesafe-ai/skills --skill typesafe-ai
 La skill s'active quand une fonctionnalité réclame un jugement sémantique typé — router une
 requête, classer des candidats, extraire une valeur, vérifier une affirmation — plutôt qu'un
 prompt LLM suivi d'un parsing maison. Les docs vivantes
-(<https://docs.typesafe.ai/llms.txt>) font foi. Aucune clé API TypeSafe n'est configurée dans
-le projet à ce jour ; une intégration réelle devra garder ses identifiants côté serveur.
+(<https://docs.typesafe.ai/llms.txt>) font foi. La clé, `TYPESAFE_API_KEY`, ne vit que dans
+l'environnement de l'hébergeur, et le service n'y fait appel que pour un compte connecté,
+sous quota (voir « Les comptes et l'analyse distante »).
 
 ## Le cœur métier
 

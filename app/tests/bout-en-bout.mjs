@@ -11,6 +11,7 @@
 import { chromium } from 'playwright';
 import { cheminNavigateur } from './navigateur.mjs';
 import { servir } from './servir.mjs';
+import { fonctionsLocales } from './fonctions-locales.mjs';
 
 // Réglable, pour que plusieurs copies du dépôt vérifient en même temps sans se
 // disputer le port.
@@ -27,27 +28,35 @@ function verifier(intitule, condition, detail = '') {
   console.log(`${condition ? '  ok  ' : ' ÉCHEC'} ${intitule}${detail ? ` — ${detail}` : ''}`);
 }
 
-// Le point d'analyse distante, simulé : il répond comme la fonction sans clé tant
-// qu'on ne lui demande pas de juger. Contre un site publié (CIBLE), c'est la vraie
-// fonction qui répond, et seuls les contrôles qui n'en dépendent pas s'appliquent.
-const simulation = {
-  mode: 'non-configure',
-  analyser(corps) {
-    if (this.mode !== 'repondre') return { statut: 503, corps: { motif: 'non-configure' } };
+// Les vraies fonctions `compte` et `analyser`, avec des magasins en mémoire (change
+// `comptes-utilisateurs`). Seul le fournisseur TypeSafe est simulé : en mode
+// « repondre », il juge ; sinon il n'existe pas, et la fonction répond comme sans clé.
+// Sans session, elle refuse de toute façon, avant de le consulter. Contre un site
+// publié (CIBLE), ce sont les fonctions de l'hébergeur qui répondent.
+const CODE_FONDATEUR = 'fondateur-verification-bout-en-bout';
+const simulation = { mode: 'refuser' };
+const fournisseurSimule = {
+  async systemOne({ questions }) {
     return {
-      statut: 200,
-      corps: {
-        modele: 'simulation',
-        reponses: corps.passages.map(() => ({
-          type: 'TACHE',
-          typeConfiance: 0.9,
-          sphere: 'PROFESSIONNEL',
-          sphereConfiance: 0.9,
-        })),
-      },
+      model: 'simulation',
+      usage: { input_tokens: 1, output_tokens: 1 },
+      answers: Object.fromEntries(
+        Object.keys(questions).map((q) => [
+          q,
+          q.startsWith('type_') ? { choice: 'TACHE', confidence: 0.9 } : { choice: 'PROFESSIONNEL', confidence: 0.9 },
+        ]),
+      ),
     };
   },
 };
+const fonctions = CIBLE
+  ? null
+  : await fonctionsLocales({
+      origine: `http://localhost:${PORT}`,
+      codeFondateur: CODE_FONDATEUR,
+      fournisseur: () => (simulation.mode === 'repondre' ? fournisseurSimule : null),
+    });
+if (fonctions) simulation.fonctions = fonctions;
 const serveur = CIBLE ? null : await servir(PORT, simulation);
 const adresse = CIBLE ?? `http://localhost:${PORT}`;
 console.log(`Vérification sur ${adresse}`);
@@ -118,6 +127,20 @@ await contexte.addInitScript(() => {
   });
 });
 
+// Spec `donnees` et tâche 7.1 de `zenote-core` : aucune permission de localisation
+// n'est demandée. Chaque appel à la géolocalisation est compté, dès avant la page.
+await contexte.addInitScript(() => {
+  window.__appelsGeolocalisation = 0;
+  const geo = navigator.geolocation;
+  if (!geo) return;
+  for (const methode of ['getCurrentPosition', 'watchPosition']) {
+    const origine = geo[methode].bind(geo);
+    geo[methode] = (...args) => {
+      window.__appelsGeolocalisation++;
+      return origine(...args);
+    };
+  }
+});
 const page = await contexte.newPage();
 
 // Un authentificateur virtuel : l'équivalent d'une empreinte digitale, piloté par le
@@ -125,7 +148,7 @@ const page = await contexte.newPage();
 // vérifiable sur aucune machine sans doigt.
 const cdp = await contexte.newCDPSession(page);
 await cdp.send('WebAuthn.enable');
-await cdp.send('WebAuthn.addVirtualAuthenticator', {
+const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
   options: {
     protocol: 'ctap2',
     ctap2Version: 'ctap2_1',
@@ -148,6 +171,14 @@ const analyses = [];
 page.on('request', (r) => {
   if (new URL(r.url()).pathname === '/api/analyser') {
     analyses.push({ methode: r.method(), corps: r.postData() ?? '' });
+  }
+});
+// Change `comptes-utilisateurs` : les requêtes de compte partent vers la même origine,
+// et aucune ne doit porter de contenu de note.
+const requetesCompte = [];
+page.on('request', (r) => {
+  if (new URL(r.url()).pathname.startsWith('/api/compte/')) {
+    requetesCompte.push({ methode: r.method(), chemin: new URL(r.url()).pathname, corps: r.postData() ?? '' });
   }
 });
 page.on('request', (r) => {
@@ -678,6 +709,9 @@ try {
   await page.waitForTimeout(900);
 
   const escalade = page.locator('.escalades__ligne').first();
+  // La Revue se rend en plusieurs lectures (agenda compris) : on attend la ligne
+  // plutôt qu'un délai fixe, qui finit toujours par être trop court quelque part.
+  await escalade.waitFor({ state: 'attached', timeout: 5000 }).catch(() => {});
   verifier(
     'il remonte en Revue au lieu de disparaître',
     (await page.locator('.escalades__ligne').count()) >= 1,
@@ -805,45 +839,26 @@ try {
   await page.getByRole('checkbox', { name: /notes personnelles/i }).uncheck();
   await page.waitForTimeout(300);
 
-  // Change `analyse-typesafe`, tâche 4.1 : allumer sans confirmer laisse éteint.
-  await page.getByRole('button', { name: /allumer l’analyse distante/i }).click();
-  const explication = await page.locator('.analyse-distante__confirmation').innerText();
+  // L'analyse distante est réservée à un utilisateur connecté avec un compte, et
+  // ZeNote n'a pas encore de comptes : ni interrupteur, ni confirmation, et le bloc
+  // dit pourquoi.
+  const blocDistant = await page.locator('.bloc--analyse-distante').innerText();
   verifier(
-    'allumer l’analyse distante dit d’abord ce qui part, vers qui, et ce qui ne part jamais',
-    /Ce qui part/.test(explication) && /TypeSafe/.test(explication) && /Ce qui ne part jamais/.test(explication),
-  );
-  await page.locator('.nav__lien[data-onglet="revue"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
-  await page.waitForTimeout(600);
-  verifier(
-    'sans confirmation, l’analyse distante reste éteinte',
-    /éteinte/.test(await page.locator('.analyse-distante__etat').innerText()) &&
-      /L’analyse se fait sur cet appareil/.test(await page.locator('.faits').innerText()),
-  );
-  await page.getByRole('button', { name: /allumer l’analyse distante/i }).click();
-  await page.getByRole('button', { name: /^allumer$/i }).click();
-  await page.waitForTimeout(600);
-  verifier(
-    'confirmée, elle s’allume, et « Ce qui quitte l’appareil » le dit en tête',
-    /allumée/.test(await page.locator('.analyse-distante__etat').innerText()) &&
-      /Le texte de vos notes part/.test(await page.locator('.faits .fait__titre').first().innerText()),
-  );
-  await page.getByRole('button', { name: /éteindre l’analyse distante/i }).click();
-  await page.waitForTimeout(600);
-  verifier(
-    'et s’éteint d’un geste',
-    /éteinte/.test(await page.locator('.analyse-distante__etat').innerText()),
+    'sans compte, l’analyse distante ne se propose pas, et le bloc dit qu’elle demande un compte',
+    /réservée aux comptes/.test(blocDistant) &&
+      /connecté avec un compte ZeNote/.test(blocDistant) &&
+      (await page.getByRole('button', { name: /allumer l’analyse distante/i }).count()) === 0,
+    blocDistant,
   );
   await page.locator('.nav__lien[data-onglet="revue"]').click();
   await page.waitForTimeout(600);
 
-  // --- L'analyse distante ------------------------------------------------------
-  // Change `analyse-typesafe`, tâche 4.2. Réglage éteint, rien ne part. Allumé, rien
-  // ne part pour une capture gardée ; pour les autres, un seul `POST /api/analyser`
-  // de l'origine, qui ne porte que des passages.
+  // --- L'analyse distante, sans compte ------------------------------------------
+  // Même un réglage allumé par une version précédente ne fait rien partir : sans
+  // compte connecté, aucune requête vers `/api/analyser`, l'analyse se fait ici, et
+  // ce n'est pas un repli à signaler.
   verifier(
-    'réglage éteint, aucune requête d’analyse n’est partie',
+    'aucune requête d’analyse n’est partie',
     analyses.length === 0,
     analyses.map((a) => a.methode).join(' | ') || 'aucune',
   );
@@ -851,75 +866,12 @@ try {
   // Ces captures ne servent qu'ici : elles sont retirées à la fin de la section,
   // pour ne pas allonger la file que les vérifications suivantes comptent.
   const capturesDistantes = [];
-  const gardeeId = await page.evaluate(async () => {
-    await window.__zenote.ecrireReglage('analyseDistante', true);
-    const capture = await window.__zenote.capturer({
-      texte: 'Rendez-vous chez l’ophtalmologue pour Léa.',
-      source: 'ECRITE',
-      etatTranscription: 'OK',
-    });
-    await window.__zenote.majCapture(capture.id, { transmissible: false });
-    await window.__zenote.traiterFileAnalyse();
-    return capture.id;
-  });
-  capturesDistantes.push(gardeeId);
-  verifier('réglage allumé, une capture gardée ne part pas', analyses.length === 0);
-
   simulation.mode = 'repondre';
-  const phraseDistante = 'Préparer le budget du client pour le comité. Appeler Marc demain matin.';
-  capturesDistantes.push(
-    await page.evaluate(async (texte) => {
-      const capture = await window.__zenote.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK' });
-      await window.__zenote.traiterFileAnalyse();
-      return capture.id;
-    }, phraseDistante),
-  );
-  const envoi = analyses[0];
-  let corpsEnvoye = null;
-  try {
-    corpsEnvoye = JSON.parse(envoi?.corps ?? '');
-  } catch {
-    corpsEnvoye = null;
-  }
-  verifier(
-    'réglage allumé, une seule requête part, vers POST /api/analyser de l’origine',
-    analyses.length === 1 && envoi.methode === 'POST',
-    `${analyses.length} requête(s)`,
-  );
-  verifier(
-    'et elle ne porte que des passages de la note — ni audio, ni date, ni identifiant',
-    corpsEnvoye !== null &&
-      Object.keys(corpsEnvoye).join() === 'passages' &&
-      corpsEnvoye.passages.length > 0 &&
-      corpsEnvoye.passages.every((p) => typeof p === 'string' && phraseDistante.includes(p)) &&
-      !/\d{4}-\d{2}-\d{2}|cap-|el-|audio/i.test(envoi.corps),
-    envoi?.corps ?? 'rien',
-  );
-  if (!CIBLE) {
-    await page.locator('.nav__lien[data-onglet="maintenant"]').click();
-    await page.waitForTimeout(300);
-    await page.locator('.nav__lien[data-onglet="revue"]').click();
-    await page.waitForTimeout(900);
-    const origineDistante = await page
-      .locator('.entree', { hasText: /budget du client pour le comité/i })
-      .locator('.entree__indice')
-      .first()
-      .innerText()
-      .catch(() => '');
-    verifier(
-      'l’élément jugé à distance le dit',
-      /Origine : service d’analyse distant \(simulation\)/.test(origineDistante),
-      origineDistante || 'origine absente',
-    );
-  }
-
-  // Le repli : le service ne répond pas, la note est analysée ici, la Revue le dit
-  // une fois, et chaque élément garde son origine.
-  simulation.mode = 'non-configure';
   capturesDistantes.push(
     await page.evaluate(async () => {
+      await window.__zenote.ecrireReglage('analyseDistante', true);
       const capture = await window.__zenote.capturer({
-        texte: 'Relire le contrat du fournisseur avant la réunion.',
+        texte: 'Préparer le budget du client pour le comité. Appeler Marc demain matin.',
         source: 'ECRITE',
         etatTranscription: 'OK',
       });
@@ -927,37 +879,40 @@ try {
       return capture.id;
     }),
   );
+  verifier(
+    'réglage allumé mais sans compte, aucune note ne part',
+    analyses.length === 0,
+    `${analyses.length} requête(s)`,
+  );
   await page.locator('.nav__lien[data-onglet="maintenant"]').click();
   await page.waitForTimeout(300);
   await page.locator('.nav__lien[data-onglet="revue"]').click();
   await page.waitForTimeout(900);
-  const avis = await page.locator('.avis-repli').allInnerTexts();
-  verifier(
-    'un repli de l’analyse distante est dit une seule fois en Revue',
-    avis.length === 1 && /1 note a été analysée sur l’appareil/.test(avis[0]),
-    avis.join(' | ') || 'aucun avis',
-  );
   const origine = await page
-    .locator('.entree', { hasText: /contrat du fournisseur/i })
+    .locator('.entree', { hasText: /budget du client pour le comité/i })
     .locator('.entree__indice')
     .first()
     .innerText()
     .catch(() => '');
   verifier(
-    'et l’élément dit d’où vient son analyse',
+    'l’élément est analysé sur l’appareil',
     /Origine : analyse sur l’appareil/.test(origine),
     origine || 'origine absente',
   );
-  await page.evaluate(() => window.__zenote.ecrireReglage('analyseDistante', false));
-  const avantExtinction = analyses.length;
-  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
-  await page.waitForTimeout(300);
-  await page.locator('.nav__lien[data-onglet="revue"]').click();
-  await page.waitForTimeout(600);
   verifier(
-    'réglage éteint, analyser sur l’appareil n’est plus un repli à signaler',
+    'et ce n’est pas un repli à signaler',
     (await page.locator('.avis-repli').count()) === 0,
   );
+  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await page.waitForTimeout(600);
+  verifier(
+    '« Ce qui quitte l’appareil » dit toujours que l’analyse se fait ici',
+    /L’analyse se fait sur cet appareil/.test(await page.locator('.faits').innerText()),
+  );
+  simulation.mode = 'refuser';
+  await page.evaluate(() => window.__zenote.ecrireReglage('analyseDistante', false));
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(600);
   await page.evaluate(async (ids) => {
     for (const id of ids) await window.__zenote.supprimerCapture(id);
   }, capturesDistantes);
@@ -1643,6 +1598,55 @@ try {
     echanges > 0,
     `${echanges} échange(s) cité(s)`,
   );
+
+  {
+  // --- Deux fiches pour une même personne ----------------------------------------
+  // Change `fusion-personnes` : « Zoé » dictée, « Zoé Martin » écrite. Les réunir, puis
+  // se raviser, depuis l'écran.
+  const capturesZoe = await page.evaluate(async () => {
+    const z = window.__zenote;
+    const ids = [];
+    for (const [texte, qui] of [
+      ['Envoyer le planning à Zoé.', 'Zoé'],
+      ['Rappeler Zoé Martin pour le contrat.', 'Zoé Martin'],
+    ]) {
+      const c = await z.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', agenda: null });
+      ids.push(c.id);
+      await z.traiterFileAnalyse();
+      for (const e of await z.elementsDeCapture(c.id)) await z.majElement(e.id, { interlocuteur: qui, verdict: 'ACCEPTE' });
+    }
+    return ids;
+  });
+  const nomsDeFiches = () => page.locator('.fiche').evaluateAll((l) => l.map((f) => f.getAttribute('data-nom')));
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.retrait__lien[data-ecran="personnes"]').click();
+  await page.waitForTimeout(1200);
+  const ficheZoe = page.locator('.fiche[data-nom="Zoé"]');
+  await ficheZoe.locator('.fusion__resume').click();
+  await ficheZoe.locator('select').selectOption('Zoé Martin');
+  await ficheZoe.getByRole('button', { name: /réunir les deux fiches/i }).click();
+  await page.waitForTimeout(900);
+  const apresFusion = await nomsDeFiches();
+  const reunie = await page.locator('.fiche[data-nom="Zoé Martin"] .fiche__ouvert .fiche__texte').allInnerTexts();
+  verifier(
+    'scénario « Deux fiches réunies » — une seule fiche, avec ce qui traîne des deux',
+    !apresFusion.includes('Zoé') && apresFusion.includes('Zoé Martin') &&
+      reunie.some((t) => /planning/.test(t)) && reunie.some((t) => /contrat/.test(t)),
+    `${apresFusion.join(', ')} — ${reunie.join(' · ')}`,
+  );
+  await page.locator('.fusion__avis').getByRole('button', { name: /annuler/i }).click();
+  await page.waitForTimeout(900);
+  const apresAnnulation = await nomsDeFiches();
+  verifier(
+    'scénario « Fusion annulée » — les deux fiches reviennent',
+    apresAnnulation.includes('Zoé') && apresAnnulation.includes('Zoé Martin') && (await page.locator('.fusion__separer').count()) === 0,
+    apresAnnulation.join(', '),
+  );
+  await page.evaluate(async (ids) => {
+    for (const id of ids) await window.__zenote.supprimerCapture(id);
+  }, capturesZoe);
+  }
 
   // --- Supprimer, et se raviser ---------------------------------------------------
   // Spec `donnees` — « Suppression d'une capture » et « Fenêtre d'annulation ». Un
@@ -3343,8 +3347,593 @@ try {
     revueRouverte === 1 ? 'Revue rendue, notes lisibles' : 'la Revue ne s’est pas rouverte',
   );
 
+  {
+  // --- L'agenda --------------------------------------------------------------
+  // Change `agenda-local`. Un agenda .ics est importé par le vrai champ de fichier,
+  // puis l'horloge de la page est figée pour traverser « 7 minutes avant », « 2
+  // minutes avant », « fin de réunion » et « sortie de trois heures de réunions ». Le
+  // coffre est actif à ce stade : l'agenda doit y être scellé comme les notes.
+  const minute = 60_000;
+  const T = new Date();
+  T.setHours(10, 53, 0, 0);
+  const a = (minutes) => new Date(T.getTime() + minutes * minute);
+  const ics = (...evenements) =>
+    [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//ZeNote//Verification//FR',
+      ...evenements.flatMap(({ uid, titre, debut, fin, participants = [] }) => [
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTART:${debut.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`,
+        `DTEND:${fin.toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`,
+        `SUMMARY:${titre}`,
+        ...participants.map((p) => `ATTENDEE;CN=${p}:mailto:${p.toLowerCase().replace(' ', '.')}@exemple.fr`),
+        'END:VEVENT',
+      ]),
+      'END:VCALENDAR',
+    ].join('\r\n');
+  const importer = async (texte) => {
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    await page.locator('.agenda__fichier').setInputFiles({
+      name: 'agenda.ics',
+      mimeType: 'text/calendar',
+      buffer: Buffer.from(texte, 'utf8'),
+    });
+    await page.waitForTimeout(900);
+    return page.locator('.agenda__retour').innerText().catch(() => '');
+  };
+  const ouvrir = async (onglet) => {
+    await page.locator('.nav__lien[data-onglet="capturer"]').click();
+    await page.waitForTimeout(250);
+    await page.locator(`.nav__lien[data-onglet="${onglet}"]`).click();
+    await page.waitForTimeout(800);
+  };
+  const texteDe = (selecteur) => page.locator(selecteur).first().innerText().catch(() => '');
+  const propositions = () => page.locator('.proposition__texte').allInnerTexts();
+
+  await page.clock.setFixedTime(T);
+
+  // Deux tâches acceptées, l'une courte, l'autre longue, et un plan « quand je vois Sophie ».
+  const capturesAgenda = await page.evaluate(async (poseLe) => {
+    const z = window.__zenote;
+    const ids = [];
+    for (const [texte, plan] of [
+      ['Envoyer le devis à Durand.', 'ce soir'],
+      ['Préparer le budget annuel du comité.', 'ce soir'],
+      ['Rendre le livre à Sophie.', 'quand je vois Sophie'],
+    ]) {
+      const c = await z.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', agenda: null });
+      ids.push(c.id);
+      await z.traiterFileAnalyse();
+      for (const e of await z.elementsDeCapture(c.id)) {
+        await z.majElement(e.id, { verdict: 'ACCEPTE', planDeclencheur: plan, planAction: e.texte, planPoseLe: poseLe });
+      }
+    }
+    return ids;
+  }, `${T.getFullYear()}-${String(T.getMonth() + 1).padStart(2, '0')}-${String(T.getDate()).padStart(2, '0')}T08:00`);
+
+  const aucunAgenda = await (async () => {
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    return texteDe('.agenda__etat');
+  })();
+  const retourImport = await importer(
+    ics(
+      { uid: 'point', titre: 'Point équipe', debut: a(7), fin: a(37), participants: ['Marc Dupont'] },
+      { uid: 'dej', titre: 'Déjeuner avec Sophie', debut: a(180), fin: a(240) },
+    ),
+  );
+  verifier(
+    'scénario « Import réussi » — le fichier est lu sur l’appareil, et l’écran dit ce qu’il a compris',
+    /Aucun agenda importé/.test(aucunAgenda) && /Agenda importé : 2 occurrences connues/.test(retourImport),
+    retourImport || 'aucun retour',
+  );
+  verifier(
+    'scénario « Couverture affichée » — date d’import et date jusqu’à laquelle l’agenda est connu',
+    /Importé le .* Connu jusqu’au/.test(await texteDe('.agenda__etat')),
+    await texteDe('.agenda__etat'),
+  );
+  verifier(
+    'scénario « Agenda protégé par le coffre » — aucun titre d’événement en clair dans la base',
+    !(await page.evaluate(async () => {
+      const base = await new Promise((ok) => {
+        const r = indexedDB.open('zenote');
+        r.onsuccess = () => ok(r.result);
+      });
+      const tout = await new Promise((ok) => {
+        const d = base.transaction('evenements', 'readonly').objectStore('evenements').getAll();
+        d.onsuccess = () => ok(d.result);
+      });
+      return JSON.stringify(tout, (_c, v) => (v instanceof ArrayBuffer || ArrayBuffer.isView(v) ? '[octets]' : v));
+    })).includes('Point équipe'),
+  );
+
+  await ouvrir('maintenant');
+  const creneau = await texteDe('.maintenant__contexte');
+  const dansLeCreneau = await propositions();
+  verifier(
+    'scénario « Créneau court » — à sept minutes, le court seulement, et le temps restant dit',
+    /7 minutes avant « Point équipe »/.test(creneau) &&
+      dansLeCreneau.some((t) => /devis à Durand/.test(t)) &&
+      !dansLeCreneau.some((t) => /budget annuel/.test(t)),
+    `${creneau} — ${dansLeCreneau.join(' | ')}`,
+  );
+
+  await importer(
+    ics(
+      { uid: 's1', titre: 'Comité', debut: a(-200), fin: a(-100) },
+      { uid: 's2', titre: 'Revue projet', debut: a(-95), fin: a(-40) },
+      { uid: 's3', titre: 'Client', debut: a(-40), fin: a(-10) },
+    ),
+  );
+  await ouvrir('maintenant');
+  const dense = await texteDe('.maintenant__contexte');
+  const apresSequence = await propositions();
+  verifier(
+    'scénario « Journée dense » — au sortir de plus de trois heures de réunions, le court d’abord',
+    /réunions enchaînées/.test(dense) &&
+      apresSequence.some((t) => /devis à Durand/.test(t)) &&
+      !apresSequence.some((t) => /budget annuel/.test(t)),
+    `${dense} — ${apresSequence.join(' | ')}`,
+  );
+
+  // Dépose, reprise, vidage.
+  await importer(ics({ uid: 'comite', titre: 'Comité budget', debut: a(2), fin: a(32), participants: ['Marc Dupont'] }));
+  await ouvrir('maintenant');
+  const avant = await texteDe('.moment--avant');
+  verifier('scénario « Dépose proposée » — à deux minutes, une dépose', /Comité budget/.test(avant) && /Déposer/.test(avant), avant);
+  await page.locator('.moment__deposer').click();
+  await page.waitForTimeout(800);
+  const pourDepose = await texteDe('.rattachement');
+  const etatMicro = await page.locator('.bouton-capture').getAttribute('data-etat');
+  verifier(
+    'scénario « Aucun enregistrement implicite » — la capture s’ouvre rattachée, micro au repos',
+    /Pour « Comité budget »/.test(pourDepose) && etatMicro === 'REPOS',
+    `${pourDepose} — micro ${etatMicro}`,
+  );
+  await page.getByRole('button', { name: /écrire plutôt/i }).click();
+  await page.locator('textarea').first().fill('Je reprends le devis ligne 12');
+  await page.getByRole('button', { name: /^déposer$/i }).click();
+  await page.waitForTimeout(900);
+
+  await page.clock.setFixedTime(a(37));
+  await ouvrir('maintenant');
+  const apres = await texteDe('.moment--apres');
+  const deposeRendue = await texteDe('.moment__depose-texte');
+  verifier(
+    'scénario « Reprise après réunion » — la dépose faite avant, telle quelle',
+    /« Comité budget » est terminée/.test(apres) && deposeRendue === 'Je reprends le devis ligne 12',
+    `${apres} — ${deposeRendue}`,
+  );
+  await page.locator('.moment__vider').click();
+  await page.waitForTimeout(800);
+  const pourVidage = await texteDe('.rattachement');
+  verifier(
+    'scénario « Capture post-réunion contextualisée » — la capture s’ouvre rattachée à la réunion',
+    /Pour « Comité budget » : ce que la réunion a laissé/.test(pourVidage) &&
+      (await page.locator('.bouton-capture').getAttribute('data-etat')) === 'REPOS',
+    pourVidage,
+  );
+  await page.getByRole('button', { name: /sans réunion/i }).click();
+
+  await page.clock.setFixedTime(T);
+  await importer(
+    ics(
+      { uid: 'm1', titre: 'Atelier', debut: a(-60), fin: a(-1) },
+      { uid: 'm2', titre: 'Fournisseur', debut: a(1), fin: a(30) },
+    ),
+  );
+  await ouvrir('maintenant');
+  const entreDeux = await page.locator('.moment--apres').count();
+  await page.clock.setFixedTime(a(35));
+  await ouvrir('maintenant');
+  const finEnchainement = await texteDe('.moment--apres');
+  verifier(
+    'scénario « Proposition non intrusive » — le vidage attend la fin de l’enchaînement',
+    entreDeux === 0 && /« Fournisseur » est terminée \(après « Atelier »\)/.test(finEnchainement),
+    `${entreDeux} moment(s) entre deux — ${finEnchainement}`,
+  );
+
+  // Rappels : une réunion en cours retient, sa fin livre, en retard.
+  const reprise = async (depuis, jusqua) => {
+    await page.clock.setFixedTime(depuis);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.clock.setFixedTime(jusqua);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForTimeout(900);
+  };
+  await importer(
+    ics(
+      { uid: 'longue', titre: 'Séminaire', debut: a(-10), fin: a(60) },
+      { uid: 'sophie', titre: 'Déjeuner avec Sophie', debut: a(5), fin: a(50) },
+    ),
+  );
+  await reprise(a(-40), a(20));
+  const pendant = await page.locator('.rappels__ligne', { hasText: /livre à Sophie/ }).count();
+  await reprise(a(25), a(62));
+  const aLaFin = await page.locator('.rappels__ligne', { hasText: /livre à Sophie/ });
+  verifier(
+    'scénarios « Rappel lié à une personne » et « Report à la fin de la réunion »',
+    pendant === 0 && (await aLaFin.count()) === 1 && (await aLaFin.locator('.rappels__retard').count()) === 1,
+    `pendant : ${pendant}, à la fin : ${await aLaFin.count()}`,
+  );
+  if ((await page.locator('.rappels').count()) > 0) {
+    await page.locator('.rappels').getByRole('button', { name: /plus tard/i }).click().catch(() => {});
+  }
+
+  // Durée corrigée en Revue, puis agenda périmé.
+  await ouvrir('revue');
+  // La première entrée de la file, quelle qu'elle soit : la file peut être réduite,
+  // et ce qui se vérifie ici est le formulaire, pas un élément en particulier.
+  const entreeACorriger = page.locator('.entree').first();
+  const [idACorriger, captureACorriger] = await Promise.all([
+    entreeACorriger.getAttribute('data-element'),
+    entreeACorriger.getAttribute('data-capture'),
+  ]);
+  await entreeACorriger.getByRole('button', { name: /^ajuster$/i }).click();
+  await entreeACorriger.locator('select[aria-label="Durée"]').selectOption('LONGUE');
+  await entreeACorriger.getByRole('button', { name: /enregistrer la correction/i }).click();
+  await page.waitForTimeout(800);
+  const corrige = await page.evaluate(
+    async ([capture, element]) => (await window.__zenote.elementsDeCapture(capture)).find((e) => e.id === element),
+    [captureACorriger, idACorriger],
+  );
+  verifier(
+    'scénario « Durée corrigée » — la durée choisie est fixée à la main',
+    corrige?.duree === 'LONGUE' && corrige?.dureeConfiance === 1 && corrige?.corrigeParHumain === true,
+    JSON.stringify({ duree: corrige?.duree, confiance: corrige?.dureeConfiance }),
+  );
+
+  await page.clock.setFixedTime(a(9 * 24 * 60));
+  await ouvrir('revue');
+  const perime = await texteDe('.agenda-perime');
+  verifier('scénario « Agenda périmé » — signalé une fois en Revue', /réimportez-le/.test(perime) && (await page.locator('.agenda-perime').count()) === 1, perime);
+
+  // Effacer l'agenda : tout redevient comme avant, les notes restent.
+  await page.clock.setFixedTime(T);
+  await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('.agenda__effacer').click();
+  await page.waitForTimeout(700);
+  const efface = await texteDe('.agenda__etat');
+  await ouvrir('maintenant');
+  verifier(
+    'scénario « Agenda effacé » — comme si rien n’avait été importé',
+    /Aucun agenda importé/.test(efface) && (await page.locator('.maintenant__contexte, .moment').count()) === 0,
+    efface,
+  );
+
+  await page.evaluate(async (ids) => {
+    for (const id of ids) await window.__zenote.supprimerCapture(id);
+  }, capturesAgenda);
+  await page.clock.setFixedTime(new Date());
+  }
+
+  // --- Plage de silence et rappel critique -------------------------------------
+  // Change `rappels-silence-critique`. Le réglage se pose dans « Vos données », le
+  // critique dans « Ajuster » ; la nuit retient le reste, pas le critique.
+  {
+    const S = new Date();
+    S.setHours(20, 0, 0, 0);
+    const aS = (minutes) => new Date(S.getTime() + minutes * 60_000);
+    const repriseS = async (depuis, jusqua) => {
+      await page.clock.setFixedTime(depuis);
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await page.clock.setFixedTime(jusqua);
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await page.waitForTimeout(900);
+    };
+    const refermerBande = async () => {
+      if ((await page.locator('#rappels .rappels').count()) > 0) {
+        await page.locator('#rappels .rappels').getByRole('button', { name: /plus tard/i }).click().catch(() => {});
+      }
+    };
+    await page.clock.setFixedTime(S);
+    await refermerBande();
+
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    await page.getByLabel('Début de la plage de silence').fill('22:00');
+    await page.getByLabel('Fin de la plage de silence').fill('07:00');
+    await page.waitForTimeout(400);
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(400);
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    verifier(
+      'la plage de silence se déclare dans « Vos données » et survit à un changement d’écran',
+      (await page.getByLabel('Début de la plage de silence').inputValue()) === '22:00' &&
+        (await page.getByLabel('Fin de la plage de silence').inputValue()) === '07:00',
+    );
+
+    const poseLe = `${S.getFullYear()}-${String(S.getMonth() + 1).padStart(2, '0')}-${String(S.getDate()).padStart(2, '0')}T08:00`;
+    const [livreId, fourId] = await page.evaluate(async () => {
+      const z = window.__zenote;
+      const ids = [];
+      for (const texte of ['Rendre le livre à Paul.', 'Couper le four chez maman.']) {
+        const c = await z.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', agenda: null });
+        ids.push(c.id);
+      }
+      await z.traiterFileAnalyse();
+      return ids;
+    });
+
+    // La case « Critique » d'« Ajuster », puis le four marqué critique.
+    await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+    await page.waitForTimeout(300);
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(900);
+    // La case se vérifie sur la première entrée de la file, quelle qu'elle soit : la
+    // file peut être réduite, et ce qui se vérifie ici est le formulaire.
+    const entree = page.locator('.entree').first();
+    const [idEntree, captureEntree] = await Promise.all([
+      entree.getAttribute('data-element'),
+      entree.getAttribute('data-capture'),
+    ]);
+    await entree.getByRole('button', { name: /^ajuster$/i }).click();
+    await entree.getByLabel(/critique : me le rappeler sans attendre/i).check();
+    await entree.getByRole('button', { name: /enregistrer la correction/i }).click();
+    await page.waitForTimeout(800);
+    const marque = await page.evaluate(
+      async ([capture, element]) => {
+        const e = (await window.__zenote.elementsDeCapture(capture)).find((x) => x.id === element);
+        // Rendu tel quel ensuite : ce parcours ne doit rien laisser de critique derrière lui.
+        await window.__zenote.majElement(element, { critique: false });
+        return e?.critique === true && e?.corrigeParHumain === true;
+      },
+      [captureEntree, idEntree],
+    );
+    verifier('un élément marqué critique dans « Ajuster » se relit critique, protégé de la ré-analyse', marque);
+
+    await page.evaluate(
+      async ([livre, four, pose]) => {
+        const z = window.__zenote;
+        for (const [id, critique] of [[livre, false], [four, true]]) {
+          for (const e of await z.elementsDeCapture(id)) {
+            await z.majElement(e.id, {
+              verdict: 'ACCEPTE',
+              planDeclencheur: 'quand je reprends',
+              planAction: e.texte,
+              planPoseLe: pose,
+              critique,
+            });
+          }
+        }
+      },
+      [livreId, fourId, poseLe],
+    );
+
+    await repriseS(aS(60), aS(210));
+    const nuitLignes = await page.locator('#rappels .rappels__ligne').allInnerTexts();
+    verifier(
+      'scénarios « Critique pendant la plage de silence » et « Rappel retenu pendant la nuit »',
+      nuitLignes.length === 1 && /critique/i.test(nuitLignes[0]) && /four/i.test(nuitLignes[0]),
+      nuitLignes.join(' | ').replace(/\s+/g, ' ') || 'aucune bande',
+    );
+    await refermerBande();
+
+    await repriseS(aS(220), aS(11 * 60 + 5));
+    const matin = await page.locator('#rappels .rappels__ligne').allInnerTexts();
+    verifier(
+      'scénario « Rappel présenté à la fin de la plage » — à la reprise d’après 07:00',
+      matin.some((l) => /livre à Paul/i.test(l)),
+      matin.join(' | ') || 'aucune bande',
+    );
+    await refermerBande();
+
+    await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+    await page.waitForTimeout(500);
+    await page.getByRole('button', { name: /éteindre la plage/i }).click();
+    await page.waitForTimeout(300);
+    await page.evaluate(async (ids) => {
+      for (const id of ids) await window.__zenote.supprimerCapture(id);
+    }, [livreId, fourId]);
+    await page.clock.setFixedTime(new Date());
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(500);
+  }
+
+  // --- Le compte ZeNote -----------------------------------------------------------
+  // Change `comptes-utilisateurs`. Les vraies fonctions `compte` et `analyser`, et le
+  // vrai `@simplewebauthn/server`, face à l'authentificateur virtuel qui porte déjà la
+  // clé du coffre. Le coffre est actif, protégé par l'appareil.
+  const analysesSansCompte = analyses.length;
+  if (!CIBLE) {
+    const ouvrirReglages = async () => {
+      await page.locator('.nav__lien[data-onglet="revue"]').click();
+      await page.waitForTimeout(300);
+      await page.locator('.retrait__lien[data-ecran="reglages"]').click();
+      await page.waitForTimeout(900);
+    };
+    const etatCompte = () => page.locator('.compte__etat').innerText().catch(() => '');
+    const retourCompte = () => page.locator('.compte__retour').innerText().catch(() => '');
+    const cles = async () => (await cdp.send('WebAuthn.getCredentials', { authenticatorId })).credentials;
+    const USER_COFFRE = Buffer.from('zenote').toString('base64');
+
+    await ouvrirReglages();
+    const blocAvant = await page.locator('.bloc--compte').innerText();
+    verifier(
+      'scénario « Aucune identité demandée » — ni e-mail, ni nom, ni mot de passe',
+      /Aucun compte sur cet appareil/.test(blocAvant) &&
+        (await page.locator('.bloc--compte input[type="email"], .bloc--compte input[type="password"]').count()) === 0 &&
+        !/e-mail|mot de passe|votre nom/i.test(blocAvant.replace(/Aucune adresse/, '')),
+      blocAvant.replace(/\s+/g, ' ').slice(0, 120),
+    );
+
+    // Premier compte : le code fondateur.
+    await page.getByLabel('Code d’invitation').fill(CODE_FONDATEUR);
+    await page.getByRole('button', { name: /créer mon compte/i }).click();
+    await page.waitForTimeout(2500);
+    const apresCreation = await etatCompte();
+    const faitsCompte = await page.locator('.faits').innerText();
+    verifier(
+      'scénario « Premier compte avec le code fondateur » — administrateur connecté',
+      /Connecté, administrateur/.test(apresCreation),
+      apresCreation || (await retourCompte()),
+    );
+    verifier(
+      'scénario « Ce que le serveur sait, dit à l’écran »',
+      /Un compte ZeNote existe\. Vos notes, elles, restent ici/.test(faitsCompte) &&
+        /identifiant tiré au hasard/.test(faitsCompte),
+    );
+    verifier(
+      'se connecter n’allume pas l’analyse distante',
+      /éteinte/.test(await page.locator('.analyse-distante__etat').innerText()),
+    );
+    const apresCompte = await cles();
+    verifier(
+      'la clé du compte s’ajoute à celle du coffre, sans la remplacer',
+      apresCompte.length === 2 && apresCompte.some((c) => c.userHandle === USER_COFFRE),
+      `${apresCompte.length} clé(s)`,
+    );
+
+    // Scénario « Compte créé sur un appareil au coffre protégé par l'appareil ».
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(800);
+    await page.locator('.ecran--verrou .bouton--plein').first().click();
+    await page.waitForTimeout(2000);
+    verifier(
+      'scénario « Compte créé sur un appareil au coffre protégé par l’appareil » — le coffre se rouvre',
+      (await page.locator('.ecran--revue').count()) === 1,
+    );
+
+    // Scénario « Allumage après connexion » : la session survit au rechargement.
+    await ouvrirReglages();
+    await page.getByRole('button', { name: /allumer l’analyse distante/i }).click();
+    await page.getByRole('button', { name: /^allumer$/i }).click();
+    await page.waitForTimeout(700);
+    simulation.mode = 'repondre';
+    const phraseCompte = 'Préparer le budget du client pour le comité de rentrée.';
+    const captureCompte = await page.evaluate(async (texte) => {
+      const c = await window.__zenote.capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', agenda: null });
+      await window.__zenote.traiterFileAnalyse();
+      return c.id;
+    }, phraseCompte);
+    const envoi = analyses.at(-1);
+    const origineCompte = await page.evaluate(
+      async (id) => (await window.__zenote.elementsDeCapture(id)).map((e) => e.origineAnalyse?.moteur).join(),
+      captureCompte,
+    );
+    verifier(
+      'scénario « Allumage après connexion » — une requête, avec la session, que des passages',
+      analyses.length === analysesSansCompte + 1 &&
+        Object.keys(JSON.parse(envoi?.corps || '{}')).join() === 'passages' &&
+        /TYPESAFE/.test(origineCompte),
+      `${analyses.length - analysesSansCompte} requête(s), origine ${origineCompte}`,
+    );
+    simulation.mode = 'refuser';
+
+    // Une invitation, créée par l'administrateur.
+    await ouvrirReglages();
+    await page.getByRole('button', { name: /inviter quelqu’un/i }).click();
+    await page.waitForTimeout(800);
+    const texteInvitation = await page.locator('.compte__invitation').innerText();
+    const lienInvitation = texteInvitation.match(/https?:\/\/\S+#invitation=[A-Za-z0-9_-]+/)?.[0] ?? '';
+    verifier('scénario « Invitation créée » — un lien à usage unique, montré une fois', lienInvitation !== '', texteInvitation.slice(0, 80));
+
+    // Déconnexion : l'analyse distante s'éteint avec.
+    await page.getByRole('button', { name: /se déconnecter/i }).click();
+    await page.waitForTimeout(1000);
+    verifier(
+      'scénario « Déconnexion » — déconnecté, analyse distante éteinte',
+      /Aucun compte sur cet appareil/.test(await etatCompte()) &&
+        /réservée aux comptes/.test(await page.locator('.analyse-distante__etat').innerText()),
+    );
+
+    // Connexion : avec la seule clé du coffre, refusée ; avec celle du compte, acceptée.
+    const toutes = await cles();
+    const cleCoffre = toutes.find((c) => c.userHandle === USER_COFFRE);
+    const cleCompte = toutes.find((c) => c.userHandle !== USER_COFFRE);
+    await cdp.send('WebAuthn.removeCredential', { authenticatorId, credentialId: cleCompte.credentialId });
+    await page.getByRole('button', { name: /^se connecter$/i }).click();
+    await page.waitForTimeout(1500);
+    verifier(
+      'scénario « Clé d’accès inconnue » — la clé du coffre ne connecte pas',
+      /n’est pas celle d’un compte ZeNote/.test(await retourCompte()),
+      await retourCompte(),
+    );
+    await cdp.send('WebAuthn.addCredential', { authenticatorId, credential: cleCompte });
+    await cdp.send('WebAuthn.removeCredential', { authenticatorId, credentialId: cleCoffre.credentialId });
+    await page.getByRole('button', { name: /^se connecter$/i }).click();
+    await page.waitForTimeout(1500);
+    verifier('scénario « Connexion sur un nouvel appareil »', /Connecté, administrateur/.test(await etatCompte()), await etatCompte());
+    await cdp.send('WebAuthn.addCredential', { authenticatorId, credential: cleCoffre });
+
+    // Suppression : le coffre et les notes restent.
+    await page.getByRole('button', { name: /supprimer mon compte/i }).click();
+    await page.getByRole('button', { name: /supprimer définitivement/i }).click();
+    await page.waitForTimeout(1000);
+    const restes = Object.values(fonctions.magasins).reduce((n, m) => n + [...m.brut.keys()].filter((k) => !k.startsWith('mois/')).length, 0);
+    const noteEncore = await page.evaluate(async (id) => (await window.__zenote.lireCapture(id))?.texte, captureCompte);
+    verifier(
+      'scénario « Compte supprimé » — le serveur n’en garde rien, les notes restent',
+      /Aucun compte sur cet appareil/.test(await etatCompte()) && noteEncore === phraseCompte &&
+        [...fonctions.magasins.comptes.brut.keys()].length === 0 && [...fonctions.magasins.sessions.brut.keys()].length === 0,
+      `${restes} entrée(s) restante(s) hors compteur du mois (invitations comprises)`,
+    );
+
+    // Le lien d'invitation : il ouvre « Vos données », code déjà saisi, et crée un membre.
+    await page.goto(lienInvitation, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(1200);
+    const adresseApres = page.url();
+    verifier(
+      'le lien d’invitation ouvre « Vos données », et son code quitte l’adresse',
+      /Vous avez reçu une invitation/.test(await etatCompte()) && !adresseApres.includes('invitation='),
+      adresseApres,
+    );
+    await page.getByRole('button', { name: /créer mon compte/i }).click();
+    await page.waitForTimeout(2500);
+    verifier('scénario « Compte créé avec une invitation » — membre connecté', /^Connecté\.$/.test((await etatCompte()).trim()), await etatCompte());
+    await page.getByRole('button', { name: /supprimer mon compte/i }).click();
+    await page.getByRole('button', { name: /supprimer définitivement/i }).click();
+    await page.waitForTimeout(1000);
+    await page.evaluate(async (id) => window.__zenote.supprimerCapture(id), captureCompte);
+
+    const notesDansCompte = requetesCompte.filter((r) => /budget|couvreur|notaire|planning|rentrée|four|livre/i.test(r.corps));
+    verifier(
+      'scénario « Requêtes de compte inspectées » — même origine, aucun contenu de note',
+      requetesCompte.length >= 8 && notesDansCompte.length === 0,
+      `${requetesCompte.length} requête(s) de compte, ${notesDansCompte.length} avec du texte de note`,
+    );
+    await page.locator('.nav__lien[data-onglet="revue"]').click();
+    await page.waitForTimeout(500);
+  }
+
   const minuteriesVivantes = await page.evaluate(
     () => document.querySelectorAll('.ecran').length,
+  );
+  // Le badge que l'hébergeur injecte dans les pages publiées recouvrait un bouton
+  // sur téléphone. Le serveur de vérification ne l'injecte pas : on pose son cadre
+  // tel que le script de l'hébergeur le crée, et l'on vérifie qu'il reste caché.
+  const badgeVisible = await page.evaluate(() => {
+    const cadre = document.createElement('iframe');
+    cadre.id = 'nl-badge-frame';
+    cadre.style.cssText = 'position:fixed;bottom:0;right:0;border:0;z-index:2147483645;';
+    document.body.append(cadre);
+    const visible = getComputedStyle(cadre).display !== 'none';
+    cadre.remove();
+    return visible;
+  });
+  verifier('le badge de l’hébergeur ne recouvre pas l’application', !badgeVisible);
+
+  verifier(
+    'aucune permission de localisation n’est demandée de tout le parcours',
+    (await page.evaluate(() => window.__appelsGeolocalisation ?? 0)) === 0,
   );
   verifier(
     'aucune donnée ne quitte l’appareil pendant tout le parcours',
@@ -3352,9 +3941,9 @@ try {
     sorties.slice(0, 3).join(' | ') || 'aucune requête sortante',
   );
   verifier(
-    'et, réglage éteint, plus aucune requête d’analyse n’est partie',
-    analyses.length === avantExtinction,
-    `${analyses.length - avantExtinction} de plus`,
+    'et, sans compte, aucune requête d’analyse n’est partie de tout le parcours',
+    analysesSansCompte === 0,
+    `${analysesSansCompte} requête(s)`,
   );
 
   verifier(

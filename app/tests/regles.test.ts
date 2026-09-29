@@ -174,7 +174,7 @@ describe('filtrerAncrage', () => {
 
 describe('contrat 14 — provenance', () => {
   it('le cœur parle le contrat attendu', () => {
-    expect(VERSION_CONTRAT_ATTENDUE).toBe('14');
+    expect(VERSION_CONTRAT_ATTENDUE).toBe('15');
   });
 
   it('sépare la raison d’une proposition en ce qui a été dit et ce qui est déduit', () => {
