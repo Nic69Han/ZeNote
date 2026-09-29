@@ -252,3 +252,52 @@ describe('l’origine de l’analyse voyage avec l’export', () => {
     expect(Object.keys(exporte.champs.captures)).toContain('transmissible');
   });
 });
+
+describe('la note de reprise voyage avec l’export', () => {
+  it('emporte le marquage d’une note de reprise, et rien pour une capture ordinaire', async () => {
+    const note = await capturer({
+      texte: 'reprendre au paragraphe 3 du budget',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+      reprise: true,
+    });
+    const ordinaire = await capturer({ texte: 'appeler Karim', source: 'ECRITE', etatTranscription: 'OK' });
+
+    const exporte = await construireExport();
+    const parId = new Map(exporte.captures.map((c) => [c.id, c]));
+    expect(parId.get(note.id)?.reprise).toEqual({ poseeLe: note.creeLe, reprisLe: null });
+    expect(parId.get(ordinaire.id)?.reprise).toBeNull();
+    expect(Object.keys(exporte.champs.captures)).toContain('reprise');
+  });
+
+  it('dit quand la note a été reprise, et la garde retrouvable', async () => {
+    const note = await capturer({
+      texte: 'reprendre au paragraphe 3 du budget',
+      source: 'ECRITE',
+      etatTranscription: 'OK',
+      reprise: true,
+    });
+    await majCapture(note.id, { reprise: { poseeLe: note.creeLe, reprisLe: '2026-09-29T11:20:00.000Z' } });
+
+    const exporte = JSON.parse(await exporterJson());
+    const exportee = exporte.captures.find((c: { id: string }) => c.id === note.id);
+    expect(exportee.reprise.reprisLe).toBe('2026-09-29T11:20:00.000Z');
+    expect(exportee.texte).toBe('reprendre au paragraphe 3 du budget');
+  });
+
+  it('relit une capture ancienne, sans le champ, comme une capture ordinaire', async () => {
+    await enregistrerCapture({
+      id: 'cap-ancienne',
+      creeLe: '2026-01-05T09:00:00.000Z',
+      source: 'ECRITE',
+      texte: 'note d’avant',
+      etatTranscription: 'OK',
+      dureeMs: null,
+      audio: null,
+      incomplete: false,
+      analysee: true,
+    });
+    const exporte = await construireExport();
+    expect(exporte.captures[0].reprise).toBeNull();
+  });
+});

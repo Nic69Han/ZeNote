@@ -12,7 +12,7 @@ import { chromium } from 'playwright';
 import { cheminNavigateur } from './navigateur.mjs';
 import { servir } from './servir.mjs';
 
-const PORT = 4178;
+const PORT = Number(process.env.ZENOTE_PORT) || 4178;
 
 // Par défaut la vérification porte sur le `dist/` local, servi ici même. En
 // passant ZENOTE_URL, les mêmes constats s'appliquent au site déployé : c'est
@@ -1692,6 +1692,233 @@ try {
     supprime
       ? `${apresAnnulation} capture(s) en souffrance, contre ${avantSuppression} avant`
       : 'suppression non exercée',
+  );
+
+  // =========================================================================
+  // Change `reprise-et-delestage` : reprendre après un décrochage, vider sa tête le
+  // soir, commencer par un premier geste. Un seul bloc, dans l'ordre des trois
+  // capacités. Les heures se posent sur des données datées d'hier ou sur l'horloge du
+  // navigateur (`page.clock`) : rien n'attend qu'il soit vraiment dix heures deux.
+  // =========================================================================
+
+  // --- Où j'en étais : la note de reprise -----------------------------------------
+  // Spec `reprise` — « Poser une note de reprise », « Retour après une réunion »,
+  // « Reprise marquée », « Une seule note à la fois » et « Envoyer en Revue ».
+  const hierA = (heures, minutes) => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    d.setHours(heures, minutes, 0, 0);
+    return d.toISOString();
+  };
+  /** Les captures marquées reprise, la plus récente d'abord. */
+  const notesDeReprise = () =>
+    page.evaluate(async () =>
+      (await window.__zenote.listerCaptures())
+        .filter((c) => c.reprise)
+        .map((c) => ({
+          id: c.id,
+          texte: c.texte,
+          source: c.source,
+          aAudio: c.aAudio,
+          analysee: c.analysee,
+          reprise: c.reprise,
+        })),
+    );
+  const elementsDe = (captureId) =>
+    page.evaluate(
+      async (id) => (await window.__zenote.listerElements()).filter((e) => e.captureId === id).length,
+      captureId,
+    );
+
+  // Une dictée : « Je m'arrête là », puis le bouton maintenu. Le même chemin
+  // d'écriture qu'une capture ordinaire, marqué reprise.
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(500);
+  await page.locator('.bouton--reprise').click();
+  await page.locator('.bouton-capture').focus();
+  await page.keyboard.down(' ');
+  await page.waitForTimeout(6500);
+  await page.keyboard.up(' ');
+  let confirmationDictee = '';
+  for (let essai = 0; essai < 40 && !/retrouverez/i.test(confirmationDictee); essai += 1) {
+    await page.waitForTimeout(100);
+    confirmationDictee = await page.locator('.message').innerText().catch(() => '');
+  }
+  const notesApresDictee = await notesDeReprise();
+  const dictee = notesApresDictee.find((n) => n.source === 'VOCALE');
+  verifier(
+    'une note de reprise dictée est écrite avec son audio, marquée reprise et confirmée',
+    Boolean(dictee?.aAudio) && /retrouverez/i.test(confirmationDictee),
+    confirmationDictee || 'aucune confirmation',
+  );
+  verifier(
+    'le geste « Je m’arrête là » se désarme après la capture qui l’emploie',
+    (await page.locator('.bouton--reprise').getAttribute('aria-pressed')) === 'false',
+  );
+
+  // La transcription tourne sur l'appareil ; puis l'analyse passe sur la note, et ne
+  // doit en tirer aucun élément.
+  for (let essai = 0; essai < 120; essai += 1) {
+    await page.waitForTimeout(500);
+    const etat = await page
+      .locator(`.journal__ligne[data-capture="${dictee?.id}"]`)
+      .getAttribute('data-etat', { timeout: 2000 })
+      .catch(() => null);
+    if (etat === 'transcrite' || etat === 'a-reprendre') break;
+  }
+  await page.evaluate(() => window.__zenote.traiterFileAnalyse());
+  const dicteeApres = (await notesDeReprise()).find((n) => n.id === dictee?.id);
+  verifier(
+    'la note dictée est transcrite, marquée analysée, et n’a produit aucun élément',
+    Boolean(dicteeApres?.analysee) && (await elementsDe(dictee?.id)) === 0,
+    `${dicteeApres?.texte || '(texte non reconnu)'} — ${await elementsDe(dictee?.id)} élément(s)`,
+  );
+
+  // Une note écrite : le scénario de la spec, mot pour mot.
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    window.__journal.length = 0;
+  });
+  await page.locator('.bouton--reprise').click();
+  await page.locator('.zone-ecrite').fill('reprendre au paragraphe 3 du budget, sinon le chantier est bloqué');
+  await page.locator('.bloc-ecrit .bouton--plein').click();
+  let confirmationNote = '';
+  for (let essai = 0; essai < 40 && !/retrouverez/i.test(confirmationNote); essai += 1) {
+    await page.waitForTimeout(100);
+    confirmationNote = await page.locator('.message').innerText().catch(() => '');
+  }
+  const journalReprise = await page.evaluate(() => window.__journal);
+  const rangEcrite = journalReprise.findIndex((e) => e.quoi === 'capture-durable');
+  const rangConfirmee = journalReprise.findIndex((e) => e.quoi === 'confirmation');
+  verifier(
+    'la note de reprise est confirmée comme une capture : écrite d’abord, confirmée ensuite',
+    /retrouverez/i.test(confirmationNote) &&
+      rangEcrite !== -1 &&
+      rangConfirmee !== -1 &&
+      rangEcrite < rangConfirmee,
+    `${confirmationNote} — écriture n°${rangEcrite}, confirmation n°${rangConfirmee}`,
+  );
+
+  await page.evaluate(() => window.__zenote.traiterFileAnalyse());
+  const noteEcrite = (await notesDeReprise()).find((n) => /paragraphe 3/.test(n.texte));
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  await page.waitForTimeout(1200);
+  const entreesDeLaNote = await page.locator('.entree', { hasText: /paragraphe 3/i }).count();
+  verifier(
+    'aucun élément n’est tiré de la note de reprise pour la Revue',
+    Boolean(noteEcrite?.analysee) && entreesDeLaNote === 0 && (await elementsDe(noteEcrite?.id)) === 0,
+    `${entreesDeLaNote} entrée(s) en Revue, note analysée : ${noteEcrite?.analysee}`,
+  );
+
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(800);
+  verifier(
+    'juste après l’avoir posée, la note ne s’affiche pas : on n’est pas revenu',
+    (await page.locator('.reprise').count()) === 0,
+  );
+
+  // Le retour : la note date d'hier, l'application est rouverte. La plus récente seule
+  // s'affiche, l'autre reste une capture ordinaire.
+  await page.evaluate(
+    async ([idEcrite, idDictee, ecrite, dictee]) => {
+      await window.__zenote.majCapture(idEcrite, { reprise: { poseeLe: ecrite, reprisLe: null } });
+      await window.__zenote.majCapture(idDictee, { reprise: { poseeLe: dictee, reprisLe: null } });
+    },
+    [noteEcrite?.id, dictee?.id, hierA(10, 2), hierA(9, 30)],
+  );
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(900);
+
+  const cartesReprise = await page.locator('.reprise').count();
+  const carte = page.locator('.reprise').first();
+  const texteCarte = cartesReprise > 0 ? await carte.innerText() : '';
+  verifier(
+    'au retour, Maintenant affiche « Où vous en étiez » avec la note citée et son heure de pose',
+    cartesReprise === 1 &&
+      /Où vous en étiez/.test(texteCarte) &&
+      texteCarte.includes('« reprendre au paragraphe 3 du budget, sinon le chantier est bloqué »') &&
+      /posée hier à 10 h 02/.test(texteCarte),
+    texteCarte.replace(/\s+/g, ' ').slice(0, 160) || 'aucune carte',
+  );
+  verifier(
+    'et seule la plus récente des deux notes est affichée',
+    cartesReprise === 1 && !/couvreur/i.test(texteCarte),
+    `${cartesReprise} carte(s)`,
+  );
+  const enTete = await page.evaluate(() => {
+    const carte = document.querySelector('.reprise');
+    const suivante = document.querySelector('.proposition, .creneau');
+    return carte && suivante
+      ? Boolean(carte.compareDocumentPosition(suivante) & Node.DOCUMENT_POSITION_FOLLOWING)
+      : Boolean(carte);
+  });
+  verifier('la carte est en tête de Maintenant', enTete);
+
+  // « C'est reparti » : la carte disparaît, la note reste retrouvable.
+  await carte.locator('.reprise__reparti').click();
+  await page.waitForTimeout(700);
+  verifier('« C’est reparti » retire la carte', (await page.locator('.reprise').count()) === 0);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(800);
+  verifier(
+    'et elle ne revient pas, ni ne fait ressortir la note plus ancienne',
+    (await page.locator('.reprise').count()) === 0,
+  );
+  await page.locator('.retrait__lien[data-ecran="recherche"]').click();
+  await page.waitForTimeout(400);
+  await page.locator('.quete--mots .quete__champ').fill('paragraphe budget');
+  await page.locator('.quete--mots button[type="submit"]').click();
+  await page.waitForTimeout(800);
+  verifier(
+    'la note reprise reste retrouvable par la recherche',
+    (await page.locator(`.citation[data-capture="${noteEcrite?.id}"]`).count()) === 1,
+    (await page.locator('.citation__extrait').allInnerTexts()).join(' | ') || 'aucune citation',
+  );
+
+  // « Garder pour la Revue » : une note avec audio (posée comme la dictée la pose),
+  // dont la carte offre l'enregistrement, devient une capture ordinaire.
+  const idNoteGardee = await page.evaluate(async (poseeLe) => {
+    const capture = await window.__zenote.capturer({
+      texte: 'Relancer le géomètre pour le bornage avant ce soir, sinon le chantier est bloqué.',
+      source: 'VOCALE',
+      etatTranscription: 'OK',
+      audio: new Blob([new Uint8Array([26, 69, 223, 163])], { type: 'audio/webm' }),
+      reprise: true,
+    });
+    await window.__zenote.majCapture(capture.id, { reprise: { poseeLe, reprisLe: null } });
+    await window.__zenote.traiterFileAnalyse();
+    return capture.id;
+  }, hierA(11, 0));
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+  await page.locator('.nav__lien[data-onglet="maintenant"]').click();
+  await page.waitForTimeout(900);
+  const carteAudio = page.locator('.reprise');
+  verifier(
+    'la carte offre l’audio de la note quand il existe',
+    (await carteAudio.count()) === 1 && (await carteAudio.locator('audio').count()) === 1,
+  );
+  await carteAudio.locator('.reprise__revue').click();
+  await page.waitForTimeout(1500);
+  verifier('« Garder pour la Revue » retire la carte', (await page.locator('.reprise').count()) === 0);
+  await page.locator('.nav__lien[data-onglet="revue"]').click();
+  const entreeGardee = await page
+    .locator('.entree', { hasText: /géomètre/i })
+    .first()
+    .waitFor({ state: 'visible', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  verifier(
+    'et ses éléments apparaissent en Revue, comme ceux d’une capture ordinaire',
+    entreeGardee && (await elementsDe(idNoteGardee)) >= 1,
+    `${await elementsDe(idNoteGardee)} élément(s)`,
   );
 
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------

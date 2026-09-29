@@ -205,6 +205,26 @@ export interface Capture {
    * Absent quand rien n'a été tenté. La Revue le signale, une seule fois.
    */
   repliAnalyse?: boolean;
+  /**
+   * Présent quand la capture est une note de reprise — « je m'arrête là ».
+   *
+   * Spec `reprise` — « Note de reprise ». Une capture comme les autres (écrite
+   * d'abord, scellée, transcrite si dictée), à ceci près que l'analyse la marque
+   * analysée sans en tirer d'élément : c'est un marque-page, pas une liste de tâches.
+   * Absent sur toute capture ordinaire, et sur toute capture d'avant ce champ.
+   */
+  reprise?: NoteDeReprise;
+}
+
+/**
+ * Le marquage d'une note de reprise.
+ *
+ * `poseeLe` est l'horodatage ISO de la pose ; `reprisLe` celui du geste « C'est
+ * reparti », `null` ou absent tant que la note attend son retour.
+ */
+export interface NoteDeReprise {
+  poseeLe: string;
+  reprisLe?: string | null;
 }
 
 /**
@@ -510,7 +530,9 @@ export function capturesATranscrire(): Promise<Capture[]> {
  */
 export function capturesEnSouffrance(): Promise<Capture[]> {
   return capturesRetenues(
-    (c) => !c.analysee && !analysable(c) && !aTranscrire(c),
+    // Une note de reprise n'est jamais « à reprendre » en Revue : elle n'en produit
+    // rien (spec `reprise`), et sa carte offre l'audio à qui veut la réécouter.
+    (c) => !c.reprise && !c.analysee && !analysable(c) && !aTranscrire(c),
     plusRecentesDAbord,
     true,
   );

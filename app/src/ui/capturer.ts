@@ -32,6 +32,12 @@ import { annoncer, el, vider } from './dom.ts';
 
 type Etat = 'REPOS' | 'ENREGISTRE' | 'ECRITURE' | 'CONFIRME' | 'ECHEC';
 
+/** Ce que la prochaine capture doit être : ordinaire, ou une note de reprise. */
+type Intention = 'ORDINAIRE' | 'REPRISE';
+
+/** La confirmation d'une note de reprise : écrite, et promise pour le retour. */
+const CONFIRMATION_REPRISE = 'Noté. Vous le retrouverez à votre retour.';
+
 /**
  * Monte l'écran Capturer et rend de quoi le démonter proprement.
  *
@@ -48,6 +54,12 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
   let debutMs = 0;
   let chrono: number | undefined;
   let modeEcrit = false;
+  /**
+   * Ce que la prochaine capture est, au-delà d'une capture : une note de reprise
+   * (« Je m'arrête là »). Armé par un geste, désarmé par la capture qui l'emploie —
+   * jamais reporté sur la suivante.
+   */
+  let intention: Intention = 'ORDINAIRE';
 
   const minuterie = el('span', { class: 'minuterie chiffres', texte: '0:00' });
   const etiquette = el('span', { class: 'bouton-capture__texte', texte: 'Maintenir' });
@@ -200,6 +212,52 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     'aria-expanded': 'false',
   });
 
+  // ------------------------------------------------- « Je m'arrête là »
+  //
+  // Spec `reprise` — « Note de reprise ». Se préparer dans les secondes qui précèdent
+  // une interruption fait reprendre plus vite ensuite. Le geste ne crée pas un
+  // chemin d'écriture de plus : il arme la capture qui suit — dictée (le bouton
+  // maintenu) ou écrite —, qui garde toute sa garantie « écrit d'abord, confirmé
+  // ensuite ». Seul le marquage `reprise` change.
+  const boutonReprise = el('button', {
+    class: 'bouton bouton--discret bouton--reprise',
+    type: 'button',
+    texte: 'Je m’arrête là',
+    'aria-pressed': 'false',
+  });
+  const consigneReprise = el(
+    'div',
+    { class: 'consigne consigne--reprise', role: 'status', hidden: true },
+    el('p', {
+      class: 'consigne__texte',
+      texte: 'Où en êtes-vous ? Dites ou écrivez par quoi reprendre : vous le retrouverez à votre retour.',
+    }),
+    el('button', {
+      class: 'bouton bouton--discret consigne__annuler',
+      type: 'button',
+      texte: 'Annuler',
+      onclick: () => armer('ORDINAIRE'),
+    }),
+  );
+
+  /** Arme (ou désarme) la note de reprise ; l'écriture s'ouvre, le bouton reste maintenable. */
+  function armer(nouvelle: Intention): void {
+    intention = nouvelle;
+    const reprise = intention === 'REPRISE';
+    boutonReprise.setAttribute('aria-pressed', String(reprise));
+    consigneReprise.hidden = !reprise;
+    zoneEcrite.placeholder = reprise ? 'Où j’en étais…' : 'Écrire au lieu de parler…';
+    deposer.textContent = reprise ? 'Poser la note' : 'Déposer';
+    if (reprise) {
+      modeEcrit = true;
+      blocEcrit.hidden = false;
+      basculeEcrite.setAttribute('aria-expanded', 'true');
+      basculeEcrite.textContent = 'Parler plutôt';
+      zoneEcrite.focus();
+      annoncer('Note de reprise : dites ou écrivez où vous en êtes.');
+    }
+  }
+
   // ---------------------------------------------------------------- rendu
 
   function afficherEtat(nouvel: Etat, texte = ''): void {
@@ -345,6 +403,7 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     if (etat !== 'ENREGISTRE') return;
     arreterChrono();
     afficherEtat('ECRITURE', 'Écriture…');
+    const pourReprise = intention === 'REPRISE';
 
     const audio = await enregistreur.arreter();
 
@@ -362,13 +421,15 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
         etatTranscription: 'ABSENTE',
         audio: audio.blob,
         dureeMs: audio.dureeMs,
+        reprise: pourReprise,
       });
       // « Tu peux oublier » se tient ici parce que la chaîne qui suit ne perd rien :
       // l'audio est en base ; la transcription tourne sur l'appareil dans les secondes
       // qui viennent ; et si elle ne reconnaît rien, la capture remonte en tête de la
       // Revue avec son audio, à reprendre. Aucun chemin ne mène au silence.
       retourEcrite(reglages.sonConfirmation);
-      afficherEtat('CONFIRME', "C'est à moi. Tu peux oublier.");
+      afficherEtat('CONFIRME', pourReprise ? CONFIRMATION_REPRISE : "C'est à moi. Tu peux oublier.");
+      if (pourReprise) armer('ORDINAIRE');
       apercu.textContent = '';
       await rafraichirJournal();
       transcrireEnArrierePlan();
@@ -468,11 +529,13 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     const texte = zoneEcrite.value.trim();
     if (!texte) return;
     afficherEtat('ECRITURE', 'Écriture…');
+    const pourReprise = intention === 'REPRISE';
     try {
-      await capturer({ texte, source: 'ECRITE', etatTranscription: 'OK' });
+      await capturer({ texte, source: 'ECRITE', etatTranscription: 'OK', reprise: pourReprise });
       retourEcrite(reglages.sonConfirmation);
       zoneEcrite.value = '';
-      afficherEtat('CONFIRME', "C'est à moi. Tu peux oublier.");
+      afficherEtat('CONFIRME', pourReprise ? CONFIRMATION_REPRISE : "C'est à moi. Tu peux oublier.");
+      if (pourReprise) armer('ORDINAIRE');
       await rafraichirJournal();
       void traiterFileAnalyse();
       // Après l'écriture, jamais pendant : la capture ne doit rien attendre, et
@@ -594,6 +657,8 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
     })();
   });
 
+  boutonReprise.addEventListener('click', () => armer(intention === 'REPRISE' ? 'ORDINAIRE' : 'REPRISE'));
+
   basculeEcrite.addEventListener('click', () => {
     modeEcrit = !modeEcrit;
     blocEcrit.hidden = !modeEcrit;
@@ -649,7 +714,8 @@ export function montrerCapturer(racine: HTMLElement, reglages: Reglages): () => 
       secours,
       ...avertissements,
       rappelPasse,
-      el('div', { class: 'actions' }, basculeEcrite, boutonReunion, basculeImport),
+      el('div', { class: 'actions' }, boutonReprise, basculeEcrite, boutonReunion, basculeImport),
+      consigneReprise,
       blocEcrit,
       blocImport,
       el('h2', { class: 'titre-section', texte: 'Dernières captures' }),

@@ -26,6 +26,7 @@ import {
 } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import { carteReprise, noteARendre } from './reprise.ts';
 
 /**
  * Les éléments écartés le sont pour la session en cours seulement : écarter n'est ni
@@ -96,6 +97,9 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
         }),
     );
 
+    // Lue avant de vider l'écran : aucune attente entre `vider` et l'ajout du contenu.
+    const noteReprise = await noteARendre();
+
     vider(racine);
     const section = el(
       'section',
@@ -103,6 +107,10 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
       el('h1', { id: 'titre-maintenant', class: 'ecran__titre', texte: 'Maintenant' }),
       el('p', { class: 'ecran__sous-titre', texte: 'Trois choses. Pas une de plus.' }),
     );
+
+    // Spec `reprise` — « Retour après une réunion » : la note posée avant de
+    // s'arrêter passe en tête, avant même le créneau.
+    if (noteReprise) section.append(carteReprise(noteReprise, lecteurs, () => void rendre()));
 
     if (protege) {
       section.append(carteCreneau(protege, sources.get(protege.captureId)));

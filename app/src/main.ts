@@ -40,6 +40,8 @@ import {
   aQuelqueChose,
   rappelsDuPointDeRupture,
 } from './services/rappels.ts';
+import { observerReprise } from './services/reprise.ts';
+import { listerCaptures, listerElements } from './stockage/depot.ts';
 
 type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'personnes' | 'reglages';
 
@@ -191,6 +193,11 @@ async function demarrer(): Promise<void> {
 
   window.addEventListener('hashchange', () => void afficher());
 
+  // L'ouverture est aussi le moment où la note « Où vous en étiez » se rend (spec
+  // `reprise`) : notée avant le premier écran, pour que Maintenant, s'il s'ouvre en
+  // premier, la montre.
+  observerReprise();
+
   // Fermeture de l'onglet ou passage en arrière-plan : on tente la même sortie propre.
   // L'écriture est asynchrone et rien ne garantit qu'elle aboutisse ici — mais tenter
   // vaut mieux que laisser le micro ouvert et l'enregistrement par terre.
@@ -231,7 +238,13 @@ async function demarrer(): Promise<void> {
       verrouEnAttente = undefined;
       const absence = quitteeA === undefined ? 0 : Date.now() - quitteeA;
       quitteeA = undefined;
-      if (absence >= ABSENCE_AVANT_REPRISE_MS) void presenterRappels();
+      if (absence >= ABSENCE_AVANT_REPRISE_MS) {
+        void presenterRappels();
+        // Le même point de rupture rend la note de reprise ; si Maintenant est sous
+        // les yeux, il se redessine pour la montrer.
+        observerReprise();
+        if (location.hash === '#maintenant') void afficher();
+      }
       return;
     }
     quitteeA = Date.now();
@@ -281,6 +294,9 @@ declare global {
   }
 }
 window.__zenote = { capturer, traiterFileAnalyse, toutEffacer, majCapture, ecrireReglage, supprimerCapture };
+// Lectures pour les vérifications de la change `reprise-et-delestage` : voir ce que le
+// dépôt contient sans passer par l'écran, ni ouvrir la base à la main.
+Object.assign(window.__zenote, { listerCaptures, listerElements, lireReglages });
 
 registerSW({ immediate: true });
 void demarrer();
