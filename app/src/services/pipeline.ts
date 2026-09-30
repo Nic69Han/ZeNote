@@ -60,6 +60,13 @@ export interface NouvelleCapture {
   audio?: Blob | null;
   dureeMs?: number | null;
   incomplete?: boolean;
+  /** Vrai pour l'enregistrement d'une réunion ou un compte rendu importé. */
+  reunion?: boolean;
+  /**
+   * Vrai pour une note de reprise (« Je m'arrête là »). La capture porte alors son
+   * marquage, et l'analyse n'en tirera aucun élément — spec `reprise`.
+   */
+  reprise?: boolean;
   /**
    * La réunion à laquelle rattacher la capture. Absent : un rattachement préparé par
    * Maintenant s'il y en a un, sinon d'office selon l'agenda. `null` : aucun.
@@ -83,13 +90,16 @@ export async function capturer(entree: NouvelleCapture): Promise<Capture> {
     audio: entree.audio ?? null,
     incomplete: entree.incomplete ?? false,
     analysee: false,
+    ...(entree.reunion ? { reunion: true } : {}),
   };
+  if (entree.reprise) capture.reprise = { poseeLe: capture.creeLe, reprisLe: null };
   const preparee = entree.agenda === undefined ? consommerRattachement() : entree.agenda;
   if (preparee) capture.agenda = preparee;
   const ecrite = await enregistrerCapture(capture);
   // Le rattachement d'office attend l'écriture : la capture est déjà confirmée quand
-  // on regarde l'agenda (change `agenda-local`, décision 7).
-  if (entree.agenda === undefined && !preparee) void rattacherDOffice(ecrite);
+  // on regarde l'agenda (change `agenda-local`, décision 7). Une note de reprise n'est
+  // pas une dépose : c'est un marque-page, elle ne se rattache pas d'office à une réunion.
+  if (entree.agenda === undefined && !preparee && !entree.reprise) void rattacherDOffice(ecrite);
   return ecrite;
 }
 
@@ -114,6 +124,14 @@ export async function analyserCapture(
   distant: AnalyseDistante = analyserADistance,
   connecte: () => boolean = compteConnecte,
 ): Promise<number> {
+  // Spec `reprise` — « Poser une note de reprise ». Un marque-page n'est pas une liste
+  // de tâches : le doubler en Revue ferait lire deux fois la même chose. Elle sort de
+  // la file, analysée, sans élément et sans rien envoyer à l'analyse distante.
+  if (capture.reprise) {
+    await majCapture(capture.id, { analysee: true });
+    return 0;
+  }
+
   let proposes = candidats(capture.texte, capture.id, jour, capture.dureeMs);
   let repliAnalyse: boolean | undefined;
 

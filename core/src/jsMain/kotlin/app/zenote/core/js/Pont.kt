@@ -32,6 +32,15 @@ object ZeNoteRegles {
     fun transcriptionLisible(brut: String): String = Regles.transcriptionLisible(brut)
 
     /**
+     * Omissions : texte de la capture + `[ElementJson]` → `[OmissionElementJson]`.
+     *
+     * Ce que chaque élément a perdu de la phrase dont il a été découpé — une
+     * négation, un nombre, un nom. Les éléments qui n'ont rien perdu n'y figurent pas.
+     */
+    fun omissions(texteCapture: String, elementsJson: String): String =
+        Regles.omissions(texteCapture, elementsJson)
+
+    /**
      * Ancrage : texte source + `[ElementJson]` → `AncrageJson`.
      *
      * `passagesIncertainsJson` est un `[PassageIncertainJson]` — les morceaux que la
@@ -168,9 +177,10 @@ object ZeNoteRegles {
      * Version du contrat, pour que la surface puisse vérifier qu'elle parle au bon cœur.
      *
      * Passée à « 14 » avec l'agenda (`maintenantAvecContexte`, `rappelsAvecAgenda`,
-     * `momentsDeReunion`). Une surface qui attend cette version et en trouve une plus
-     * ancienne parle à un cœur sans ces fonctions, et doit le dire au lieu de planter à
-     * l'appel.
+     * `momentsDeReunion`), puis à « 15 » avec les omissions (`omissions`) et la raison
+     * d'une proposition séparée en `raisonDite` / `raisonDeduite`. Une surface qui
+     * attend cette version et en trouve une plus ancienne parle à un cœur sans ces
+     * fonctions, et doit le dire au lieu de planter à l'appel.
      */
-    val version: String = "14"
+    val version: String = "15"
 }

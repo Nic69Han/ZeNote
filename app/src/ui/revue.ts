@@ -22,6 +22,7 @@ import {
   type IssueRevoir,
   type ResolutionJson,
   type EntreeRevueJson,
+  type OmissionElementJson,
   type RelanceJson,
 } from '../core/regles.ts';
 import {
@@ -50,6 +51,7 @@ import {
 } from '../services/pipeline.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import { zonePremierGeste } from './premier-geste.ts';
 import { identifiant } from '../analyse/index.ts';
 import { avisRepli, completerRevue, origineLisible } from '../analyse/origine.ts';
 import { compteConnecte } from '../compte/compte.ts';
@@ -57,6 +59,12 @@ import { normaliser } from '../analyse/dates.ts';
 import { agendaPerime, etatAgenda, lireEvenements } from '../stockage/agenda.ts';
 import { apprendre } from '../services/lexique.ts';
 import { echosDe } from '../services/echos.ts';
+import {
+  presenterMaintenant,
+  signalerIgnoree,
+  signalerUtilisee,
+} from '../services/retenue.ts';
+import { ligneInvitationSemaine } from './invitationSemaine.ts';
 import {
   FENETRE_ANNULATION_MS,
   supprimerAvecAnnulation,
@@ -69,6 +77,18 @@ import {
   replanifier,
   type RappelsDuMoment,
 } from '../services/rappels.ts';
+import {
+  ajustementPhraseEntiere,
+  elementsANegationPerdue,
+  negationsPerdues,
+  omissionsDesElements,
+} from '../services/omissions.ts';
+import {
+  dit,
+  deduitDe,
+  marqueDeduit,
+  passageExact,
+} from './provenance.ts';
 
 const LIBELLE_TYPE: Record<ElementJson['type'], string> = {
   TACHE: 'Tâche',
@@ -152,6 +172,23 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
   /** Les captures et éléments du moment, pour chercher à quoi une note renvoie. */
   let capturesConnues: CaptureJson[] = [];
   let elementsConnus: ElementJson[] = [];
+  /**
+   * Les pistes d'échange que la retenue a laissé passer (`false`) ou présenté (`true`),
+   * par capture. La décision se prend une fois : refaire le tirage à chaque rendu
+   * ferait apparaître et disparaître la carte au fil des gestes.
+   */
+  const decisionsPistes = new Map<string, boolean>();
+  /** Les captures dont les pistes sont à l'écran, sans piste choisie ni carte décidée. */
+  const pistesPresentees = new Set<string>();
+  /** Ce que chaque élément en attente a perdu de sa phrase. Refait à chaque rendu. */
+  let omissions = new Map<string, OmissionElementJson>();
+  /**
+   * Les éléments dont une négation perdue attend encore une confirmation.
+   *
+   * Calculé depuis les éléments stockés : ceux que la file rend ont traversé le cœur, qui
+   * ne connaît pas `omissionLevee` et l'a perdu en route.
+   */
+  let negationsAConfirmer = new Set<string>();
   /** Les réunions des sept prochains jours, pour proposer des signaux d'agenda. */
   let evenementsAVenir: EvenementJson[] = [];
 
@@ -280,7 +317,12 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const sphere = (await lireReglages()).filtreSphere;
     const tous = await listerElements();
     const elements = filtrerParSphere(tous, sphere);
-    const file = completerRevue(revueObjets(elements, jour), elements);
+    const captures = await listerCaptures();
+    // Spec `provenance` — « Omissions signalées » : ce que chaque élément a perdu de
+    // la phrase dont il a été découpé. Une négation perdue fait confirmer l'élément.
+    omissions = omissionsDesElements(captures, elements);
+    negationsAConfirmer = elementsANegationPerdue(omissions, elements);
+    const file = completerRevue(revueObjets(elements, jour), elements, negationsAConfirmer);
     evenementsAVenir = await lireEvenements(
       maintenantLocal(),
       maintenantLocal(new Date(Date.now() + 7 * 24 * 3600_000)),
@@ -289,7 +331,6 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     // Ce que la mémoire sait des références de ces éléments. Reconstruite à chaque
     // rendu depuis les captures et les éléments : c'est une couche dérivée, elle n'a
     // ni stockage ni migration, et elle ne peut pas contredire les notes.
-    const captures = await listerCaptures();
     capturesConnues = captures.map((c) => ({
       id: c.id,
       texte: c.texte,
@@ -387,6 +428,11 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       );
     }
 
+    // Spec `retour-semaine` — « Invitation hebdomadaire discrète » : une ligne, au plus
+    // une fois par semaine, qui disparaît une fois l'écran de la semaine ouvert.
+    const invitationSemaine = await ligneInvitationSemaine(captures, jour);
+    if (invitationSemaine) section.append(invitationSemaine);
+
     if (aRevoir.length > 0) section.append(blocARevoir(aRevoir, parElementStocke));
 
     if (moment.escalades.length > 0) section.append(blocEscalades(moment));
@@ -437,6 +483,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       (await lireReglages()).analyseDistante && compteConnecte(),
     );
     if (repli) section.append(el('p', { class: 'avis-repli', role: 'status', texte: repli }));
+
+    await preparerPistes(file.groupes.map((g) => g.captureId), captures, tous);
 
     for (const groupe of file.groupes) {
       section.append(await rendreGroupe(groupe.captureId, groupe.entrees));
@@ -1294,6 +1342,40 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
    * Les pistes sont proposées, jamais retenues d'office. Rattacher à la mauvaise
    * conversation fabrique un souvenir faux, que plus rien ne vient corriger.
    */
+  /**
+   * Décide, pour chaque carte affichée, si ses pistes se présentent, et compte celles
+   * qui se sont refermées sans piste choisie.
+   *
+   * Spec `suggestions-proactives` — « Retenue après suggestions ignorées ». Les pistes
+   * sont une question, pas une interruption : la retenue n'espace que la proposition,
+   * et ne cache jamais une piste déjà choisie (`captureLiee`, traitée avant tout).
+   * Utilisée = une piste choisie ; ignorée = la carte décidée sans en choisir.
+   */
+  async function preparerPistes(
+    affichees: string[],
+    captures: Capture[],
+    tous: ElementStocke[],
+  ): Promise<void> {
+    for (const id of [...pistesPresentees]) {
+      const capture = captures.find((c) => c.id === id);
+      const encoreADecider = tous.some((e) => e.captureId === id && e.verdict === 'EN_ATTENTE');
+      if (capture && encoreADecider) continue;
+      pistesPresentees.delete(id);
+      if (!capture?.captureLiee) await signalerIgnoree('PISTES_ECHANGE');
+    }
+
+    for (const id of affichees) {
+      if (decisionsPistes.has(id)) continue;
+      const capture = captures.find((c) => c.id === id);
+      if (!capture || capture.captureLiee) continue;
+      const pistes = echosDe(capture.texte, capture.id, capturesConnues, elementsConnus, jour);
+      if (pistes.length === 0) continue;
+      const presenter = await presenterMaintenant('PISTES_ECHANGE');
+      decisionsPistes.set(id, presenter);
+      if (presenter) pistesPresentees.add(id);
+    }
+  }
+
   function renvoiAUnEchange(capture: Capture): HTMLElement | null {
     if (capture.captureLiee) {
       const liee = capturesConnues.find((c) => c.id === capture.captureLiee);
@@ -1313,6 +1395,9 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       jour,
     );
     if (pistes.length === 0) return null;
+    // La retenue a laissé passer cette occasion : la note reste rattachable, mais la
+    // question ne se pose pas (spec `suggestions-proactives`).
+    if (decisionsPistes.get(capture.id) === false) return null;
 
     const bloc = el(
       'div',
@@ -1335,6 +1420,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
             texte: piste.extrait.slice(0, 70),
             onclick: () => {
               void (async () => {
+                pistesPresentees.delete(capture.id);
+                await signalerUtilisee('PISTES_ECHANGE');
                 await majCapture(capture.id, { captureLiee: piste.captureId });
                 annoncer('Rattaché.');
                 await rendre();
@@ -1356,52 +1443,86 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const e = entree.element;
     const ligne = el('li', { class: 'entree', 'data-type': e.type, 'data-element': e.id, 'data-capture': e.captureId });
 
+    // Spec `provenance` — « Élément en Revue » : chaque attribut déduit porte la
+    // mention « déduit ». Un élément corrigé à la main n'en porte plus : ce que
+    // l'utilisateur a réglé n'est plus une déduction.
+    const deduits = !e.corrigeParHumain;
+    const badge = (classe: string, libelle: string): HTMLElement =>
+      el('span', { class: classe }, libelle, deduits ? ' ' : null, deduits ? marqueDeduit() : null);
+
     const badges = el(
       'div',
       { class: 'badges' },
-      el('span', { class: 'badge badge--type', texte: LIBELLE_TYPE[e.type] }),
+      badge('badge badge--type', LIBELLE_TYPE[e.type]),
       e.poids
-        ? el('span', {
-            class: `badge badge--poids badge--poids-${e.poids.toLowerCase()}`,
-            texte: LIBELLE_POIDS[e.poids],
-          })
+        ? badge(
+            `badge badge--poids badge--poids-${e.poids.toLowerCase()}`,
+            LIBELLE_POIDS[e.poids],
+          )
         : null,
       e.echeance
-        ? el('span', {
-            class: 'badge badge--echeance chiffres',
-            texte: `${dateLisible(e.echeance)} · ${LIBELLE_URGENCE[entree.urgence] ?? ''}`,
-          })
+        ? badge(
+            'badge badge--echeance chiffres',
+            `${dateLisible(e.echeance)} · ${LIBELLE_URGENCE[entree.urgence] ?? ''}`,
+          )
         : null,
       // Spec `extraction` — « Expression floue ». Un horizon n'est pas une date, et
       // ne doit pas lui ressembler : pas de chiffres, pas d'urgence, et le mot
       // « sans date ferme » écrit en toutes lettres. Une date inventée passerait
       // pour une échéance promise, et le produit la dirait en retard.
       !e.echeance && e.horizon
-        ? el('span', {
-            class: 'badge badge--horizon',
-            texte: `sans date ferme · ${LIBELLE_HORIZON[e.horizon]}`,
-          })
+        ? badge('badge badge--horizon', `sans date ferme · ${LIBELLE_HORIZON[e.horizon]}`)
         : null,
-      e.interlocuteur ? el('span', { class: 'badge', texte: e.interlocuteur }) : null,
+      e.interlocuteur ? badge('badge', e.interlocuteur) : null,
       entree.aConfirmer
         ? el('span', { class: 'badge badge--doute', texte: 'à confirmer' })
         : null,
     );
 
+    // Spec `provenance` — « Déduction accompagnée de sa source » : le passage exact
+    // est dans la carte, en citation, sans dépliage. Le texte de l'élément n'est que
+    // ce passage remis en forme ; ce qui a été dit, c'est la capture.
+    const passage = passageExact(e, capture?.texte);
+    const intro = e.issuDeReunion ? 'le compte rendu dit' : undefined;
+
     // Spec `extraction` — « Expression relative » : l'expression d'origine reste
     // visible sur l'élément. La date est une déduction ; « avant vendredi » est ce
     // qui a été dit, et c'est lui qui permet de voir d'un coup d'œil qu'elle est
-    // juste — ou qu'elle ne l'est pas.
+    // juste — ou qu'elle ne l'est pas. Elle est citée si elle figure dans le passage,
+    // et présentée comme un libellé du système sinon.
     const origine = origineLisible(e);
-    const raisons = [
-      e.poidsIndice ? `Poids : ${e.poidsIndice}.` : '',
-      e.echeanceIndice ? `Échéance : « ${e.echeanceIndice} ».` : '',
-      origine ? `Origine : ${origine}.` : '',
-    ].filter((r) => r !== '');
-    const justification = el('p', {
-      class: 'entree__indice',
-      texte: raisons.join(' '),
-    });
+    const raisons: (HTMLElement | string)[] = [];
+    if (e.poidsIndice) {
+      raisons.push(
+        deduits
+          ? deduitDe('Poids', e.poidsIndice, passage, { intro })
+          : `Poids : ${e.poidsIndice}.`,
+      );
+    }
+    if (e.echeanceIndice) {
+      raisons.push(
+        deduits
+          ? deduitDe('Échéance', e.echeanceIndice, passage, { intro })
+          : `Échéance : ${e.echeanceIndice}.`,
+      );
+    }
+    if (origine) raisons.push(`Origine : ${origine}.`);
+    const justification = el(
+      'p',
+      { class: 'entree__indice' },
+      raisons.flatMap((r, i) => (i === 0 ? [r] : [' ', r])),
+    );
+
+    // Spec `provenance` — « Omissions signalées ». Une négation perdue au découpage
+    // inverse la phrase : le passage est présenté à confirmer, avec la phrase entière.
+    // Un nombre ou un nom perdu est seulement signalé.
+    const omission = omissions.get(e.id);
+    const negationBloquante = negationsAConfirmer.has(e.id);
+    const blocOmission = omission
+      ? negationBloquante
+        ? blocNegationPerdue(e, omission)
+        : noteOmission(omission)
+      : null;
 
     const zoneActions = el('div', { class: 'entree__actions' });
     const zonePlan = el('div', { class: 'plan', hidden: true });
@@ -1409,9 +1530,22 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
 
     zoneActions.append(
       bouton('Accepter', 'bouton--accepter', () => {
+        // Une négation perdue ne s'accepte pas sans avoir lu la phrase entière : on
+        // renvoie à la confirmation, on ne pose ni plan ni verdict. Aucun rappel ne
+        // peut donc naître d'un passage dont le sens est peut-être inversé.
+        if (negationBloquante) {
+          annoncer('Une négation manque à ce passage. Lisez la phrase entière, puis confirmez-la.');
+          (blocOmission?.querySelector('.omission__confirmer') as HTMLButtonElement | null)?.focus();
+          return;
+        }
         if (actionnable(e.type) && !e.planDeclencheur) {
           zonePlan.hidden = false;
-          (zonePlan.querySelector('button') as HTMLButtonElement | null)?.focus();
+          // Le champ du premier geste quand il est demandé, sinon le premier déclencheur.
+          (
+            zonePlan.querySelector('.geste__etiquette:not([hidden]) input, .bouton--plan') as
+              | HTMLElement
+              | null
+          )?.focus();
         } else {
           void decider(e, { verdict: 'ACCEPTE' }, 'Accepté.');
         }
@@ -1431,21 +1565,26 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       }),
     );
 
+    // Spec `premier-geste` — « Premier geste demandé pour une tâche floue » : le champ
+    // vient avant les déclencheurs, et laissé vide le plan reste le texte de la tâche.
+    const geste = zonePremierGeste(e);
+
     zonePlan.append(
       el('p', {
         class: 'plan__question',
         texte: 'Quand, ou à quel signal ? Une tâche sans plan reste une charge.',
       }),
+      geste.noeud,
       ...declencheurs(e, capture).map(({ libelle, valeur }) =>
         bouton(libelle, 'bouton--plan', () => {
           void decider(
             e,
-            { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte, planPoseLe: maintenantLocal() },
+            { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: geste.action(), planPoseLe: maintenantLocal() },
             `Accepté — ${valeur}.`,
           );
         }),
       ),
-      champLibrePlan(e),
+      champLibrePlan(e, geste.action),
     );
 
     zoneAjustement.append(formulaireAjustement(e));
@@ -1454,7 +1593,8 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     const question = questionDeReference(e);
     ligne.append(
       badges,
-      el('p', { class: 'entree__texte', texte: e.texte }),
+      el('p', { class: 'entree__texte' }, dit(passage, { intro })),
+      ...(blocOmission ? [blocOmission] : []),
       justification,
       ...(question ? [question] : []),
       ...(ecouter ? [ecouter] : []),
@@ -1463,6 +1603,85 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
       zoneAjustement,
     );
     return ligne;
+  }
+
+  /**
+   * Une négation perdue au découpage : la phrase entière, les mots manquants en évidence.
+   *
+   * Spec `provenance` — « Négation perdue au découpage ». « Il ne faut surtout pas, et
+   * j'insiste, envoyer le devis » donne le passage « j'insiste, envoyer le devis » :
+   * fidèle à la capture, et contraire à ce qui a été dit. Le passage seul ne permet pas
+   * de le voir, alors la phrase est là, dans la carte, avec « ne … pas » surlignés.
+   *
+   * Deux sorties, aucune n'accepte : confirmer que le passage est bien ce qu'on veut
+   * garder, ou reprendre la phrase entière. C'est seulement ensuite que « Accepter »
+   * ouvre le plan — donc que le moindre rappel devient possible.
+   */
+  function blocNegationPerdue(e: ElementJson, omission: OmissionElementJson): HTMLElement {
+    const manquantes = negationsPerdues(omission).map((m) => m.mots);
+    const plages = omission.manques.map((m) => ({
+      debut: m.debutCar - omission.debutPhrase,
+      fin: m.finCar - omission.debutPhrase,
+    }));
+
+    return el(
+      'div',
+      { class: 'omission omission--negation', role: 'group', 'aria-label': 'Négation perdue' },
+      el('p', {
+        class: 'omission__titre',
+        texte:
+          'Ce passage a perdu une négation : sans elle, il peut dire le contraire de ce ' +
+          'que vous avez dit. Voici la phrase entière.',
+      }),
+      el(
+        'p',
+        { class: 'omission__phrase' },
+        dit(omission.phrase, {
+          surligner: plages,
+          intro: e.issuDeReunion ? 'le compte rendu dit' : undefined,
+        }),
+      ),
+      el(
+        'p',
+        { class: 'omission__manque' },
+        'Il manque : ',
+        el('strong', { class: 'omission__mots', texte: manquantes.join(' … ') }),
+        '.',
+      ),
+      el(
+        'div',
+        { class: 'omission__actions' },
+        bouton('C’est bien cela', 'bouton--plein omission__confirmer', () => {
+          void (async () => {
+            // L'état d'avant porte explicitement « pas encore lu » : l'élément qui a
+            // traversé le cœur ne connaît pas ce champ, et « Annuler » ne le rendrait
+            // pas à sa confirmation.
+            await appliquer({ ...e, omissionLevee: false } as ElementStocke, {
+              omissionLevee: true,
+            });
+            annoncer('Phrase confirmée.');
+            await rendre();
+          })();
+        }),
+        bouton('Reprendre la phrase entière', 'bouton--ajuster omission__reprendre', () => {
+          void decider(e, ajustementPhraseEntiere(e, omission), 'Phrase entière reprise.');
+        }),
+      ),
+    );
+  }
+
+  /**
+   * Ce que la phrase d'origine dit en plus : un nombre, un nom, ou une négation déjà
+   * confirmée. Un simple signalement — l'élément reste décidable sans rien de plus.
+   */
+  function noteOmission(omission: OmissionElementJson): HTMLElement {
+    const mots = [...new Set(omission.manques.map((m) => m.mots))];
+    return el(
+      'p',
+      { class: 'entree__omission', role: 'note' },
+      dit(mots, { intro: 'La phrase d’origine dit aussi' }),
+      '.',
+    );
   }
 
   /**
@@ -1600,7 +1819,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
     return d.toLocaleString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
   }
 
-  function champLibrePlan(e: ElementJson): HTMLElement {
+  function champLibrePlan(e: ElementJson, action: () => string = () => e.texte): HTMLElement {
     const champ = el('input', {
       class: 'champ',
       type: 'text',
@@ -1616,7 +1835,7 @@ export async function montrerRevue(racine: HTMLElement): Promise<() => void> {
         if (!valeur) return;
         void decider(
           e,
-          { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: e.texte, planPoseLe: maintenantLocal() },
+          { verdict: 'ACCEPTE', planDeclencheur: valeur, planAction: action(), planPoseLe: maintenantLocal() },
           `Accepté — ${valeur}.`,
         );
       },

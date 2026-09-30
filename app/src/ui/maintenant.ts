@@ -32,6 +32,9 @@ import {
 } from '../stockage/depot.ts';
 import { annoncer, el, vider } from './dom.ts';
 import { duree, lecteurAudio, type Lecteur } from './lecteur.ts';
+import { deduit, deduitDe, dit, marqueDeduit, passageExact } from './provenance.ts';
+import { gesteDeProposition } from './premier-geste.ts';
+import { carteReprise, noteARendre } from './reprise.ts';
 
 /**
  * Les éléments écartés le sont pour la session en cours seulement : écarter n'est ni
@@ -117,6 +120,9 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
         }),
     );
 
+    // Lue avant de vider l'écran : aucune attente entre `vider` et l'ajout du contenu.
+    const noteReprise = await noteARendre();
+
     if (demonte) return;
     vider(racine);
     const section = el(
@@ -126,6 +132,9 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
       el('p', { class: 'ecran__sous-titre', texte: 'Trois choses. Pas une de plus.' }),
     );
 
+    // Spec `reprise` — « Retour après une réunion » : la note posée avant de
+    // s'arrêter passe en tête, avant même le créneau.
+    if (noteReprise) section.append(carteReprise(noteReprise, lecteurs, () => void rendre()));
     for (const moment of moments) section.append(carteMoment(moment));
 
     // Un filtre qu'on ne voit pas ferait croire que la liste est tout ce qu'il y a.
@@ -420,20 +429,35 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
     element: ElementStocke | undefined,
     capture: Capture | undefined,
   ): HTMLElement {
+    // Spec `provenance` — « Raison d'une proposition ». Ce qui a été dit et ce que le
+    // système en a tiré ne se collent plus dans une même phrase : le passage est cité,
+    // et chaque morceau de la raison dit d'où il vient.
+    const dedans = element ?? { texte: p.texte, debutCar: 0, finCar: 0 };
+    const passage = passageExact(dedans, capture?.texte);
+    const intro = element?.issuDeReunion ? 'le compte rendu dit' : undefined;
+    const fixeALaMain = element?.corrigeParHumain === true;
+
+    // Spec `premier-geste` — « Premier geste affiché au moment d'agir » : le geste est la
+    // chose à faire, la tâche reste dessous.
+    const geste = gesteDeProposition(element, () => void rendre());
     return el(
       'li',
       { class: 'proposition', 'data-poids': p.poidsEffectif },
       el(
         'div',
         { class: 'proposition__entete' },
-        el('span', {
-          class: `badge badge--poids badge--poids-${p.poidsEffectif.toLowerCase()}`,
-          texte: LIBELLE_POIDS[p.poidsEffectif] ?? p.poidsEffectif,
-        }),
+        el(
+          'span',
+          { class: `badge badge--poids badge--poids-${p.poidsEffectif.toLowerCase()}` },
+          LIBELLE_POIDS[p.poidsEffectif] ?? p.poidsEffectif,
+          fixeALaMain ? null : ' ',
+          fixeALaMain ? null : marqueDeduit(),
+        ),
       ),
-      el('p', { class: 'proposition__texte', texte: p.texte }),
+      geste.commencerPar,
+      el('p', { class: 'proposition__texte' }, dit(passage, { intro })),
       // La raison dit ce qui se passe si ce n'est pas fait, jamais un score.
-      el('p', { class: 'proposition__raison', texte: p.raison }),
+      el('p', { class: 'proposition__raison' }, raisonEnDeuxMorceaux(p, passage, fixeALaMain, intro)),
       source(element, capture),
       el(
         'div',
@@ -444,6 +468,7 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
           texte: "C'est fait",
           onclick: () => void marquerFait(p),
         }),
+        geste.boutonFait,
         el('button', {
           class: 'bouton bouton--discret',
           type: 'button',
@@ -465,7 +490,35 @@ export async function montrerMaintenant(racine: HTMLElement): Promise<() => void
           },
         }),
       ),
+      geste.suite,
     );
+  }
+
+  /**
+   * La raison d'une proposition, en deux morceaux qui n'ont pas la même origine.
+   *
+   * Le poids vient de l'analyse de ce que l'utilisateur a dit : l'indice est cité s'il
+   * figure mot pour mot dans le passage, présenté comme un libellé déduit sinon. Le
+   * poids qu'il a fixé lui-même n'est pas une déduction. L'urgence, elle, est tirée de
+   * l'échéance : toujours déduite, jamais entre guillemets.
+   */
+  function raisonEnDeuxMorceaux(
+    p: PropositionJson,
+    passage: string,
+    fixeALaMain: boolean,
+    intro: string | undefined,
+  ): (HTMLElement | string)[] {
+    let poids: HTMLElement | string;
+    if (p.raisonDite === null) {
+      // Aucun indice : le système le dit lui-même, ce n'est pas une parole.
+      const repli = ` — ${p.raisonDeduite}`;
+      poids = p.raison.endsWith(repli) ? p.raison.slice(0, -repli.length) : p.raison;
+    } else if (fixeALaMain) {
+      poids = p.raisonDite;
+    } else {
+      poids = deduitDe('Poids', p.raisonDite, passage, { intro });
+    }
+    return [poids, ' — ', deduit(p.raisonDeduite)];
   }
 
   /**

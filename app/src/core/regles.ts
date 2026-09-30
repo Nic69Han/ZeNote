@@ -257,8 +257,43 @@ export interface PropositionJson {
   elementId: string;
   texte: string;
   raison: string;
+  /**
+   * L'indice de poids, quand il en existe un ; `null` sinon.
+   *
+   * La moitié de la raison qui vient de l'analyse de la phrase de l'utilisateur. Ce
+   * n'est pas nécessairement une citation : l'analyse locale écrit ses indices
+   * (« annoncé comme urgent »). L'écran ne le met entre guillemets que s'il figure mot
+   * pour mot dans le passage.
+   */
+  raisonDite: string | null;
+  /** L'urgence tirée de l'échéance (« échéance demain ») : calculée, jamais dite. */
+  raisonDeduite: string;
   poidsEffectif: string;
   urgence: string;
+}
+
+/** Une marque de la phrase d'origine que l'élément n'a pas reprise. */
+export interface ManqueJson {
+  nature: 'NEGATION' | 'NOMBRE' | 'NOM';
+  mots: string;
+  /** Positions dans le texte de la capture, pas dans celui de l'élément. */
+  debutCar: number;
+  finCar: number;
+}
+
+/**
+ * Ce qu'un élément a perdu de la phrase dont il a été découpé.
+ *
+ * Absent de la réponse du cœur quand rien n'a été perdu : le silence est la bonne
+ * réponse.
+ */
+export interface OmissionElementJson {
+  elementId: string;
+  /** La phrase entière de la capture, telle qu'elle a été dite. */
+  phrase: string;
+  debutPhrase: number;
+  finPhrase: number;
+  manques: ManqueJson[];
 }
 
 export interface EntreeRevueJson {
@@ -428,6 +463,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
   maintenant(elementsJson: string, aujourdhui: string): string;
   revue(elementsJson: string, aujourdhui: string): string;
   transcriptionLisible(brut: string): string;
+  omissions(texteCapture: string, elementsJson: string): string;
   filtrerAncrage(
     texteSource: string,
     elementsJson: string,
@@ -488,7 +524,7 @@ const Regles = (coeur as any).app.zenote.core.js.ZeNoteRegles as {
 };
 
 /** Version du contrat portée par le cœur : elle doit valoir celle attendue ici. */
-export const VERSION_CONTRAT_ATTENDUE = '14';
+export const VERSION_CONTRAT_ATTENDUE = '15';
 
 if (Regles.version !== VERSION_CONTRAT_ATTENDUE) {
   throw new Error(
@@ -523,6 +559,17 @@ export function revue(elementsJson: string, aujourdhui: string): string {
  */
 export function transcriptionLisible(brut: string): string {
   return Regles.transcriptionLisible(brut);
+}
+
+/**
+ * Omissions : texte de la capture + `ElementJson[]` → `OmissionElementJson[]`.
+ *
+ * Ce que chaque élément a perdu de la phrase dont il a été découpé : une négation, un
+ * nombre, un nom. `texteCapture` est le brut — celui des positions `debutCar` et
+ * `finCar` —, jamais la version lisible.
+ */
+export function omissions(texteCapture: string, elementsJson: string): string {
+  return Regles.omissions(texteCapture, elementsJson);
 }
 
 /**
@@ -605,6 +652,13 @@ export function maintenantObjets(elements: ElementJson[], aujourdhui: string): P
 
 export function revueObjets(elements: ElementJson[], aujourdhui: string): RevueJson {
   return JSON.parse(revue(JSON.stringify(elements), aujourdhui)) as RevueJson;
+}
+
+export function omissionsObjets(
+  texteCapture: string,
+  elements: ElementJson[],
+): OmissionElementJson[] {
+  return JSON.parse(omissions(texteCapture, JSON.stringify(elements))) as OmissionElementJson[];
 }
 
 export function filtrerAncrageObjets(

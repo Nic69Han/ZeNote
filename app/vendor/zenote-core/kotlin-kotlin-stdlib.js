@@ -795,6 +795,15 @@ if (typeof String.prototype.startsWith === 'undefined') {
     return Companion_instance_9.w(_this__u8e3s4, to, -1);
   }
   function coerceIn_0(_this__u8e3s4, minimumValue, maximumValue) {
+    if (minimumValue > maximumValue)
+      throw IllegalArgumentException_init_$Create$_0('Cannot coerce value to an empty range: maximum ' + maximumValue + ' is less than minimum ' + minimumValue + '.');
+    if (_this__u8e3s4 < minimumValue)
+      return minimumValue;
+    if (_this__u8e3s4 > maximumValue)
+      return maximumValue;
+    return _this__u8e3s4;
+  }
+  function coerceIn_1(_this__u8e3s4, minimumValue, maximumValue) {
     if (minimumValue.z(maximumValue) > 0)
       throw IllegalArgumentException_init_$Create$_0('Cannot coerce value to an empty range: maximum ' + maximumValue.toString() + ' is less than minimum ' + minimumValue.toString() + '.');
     if (_this__u8e3s4.z(minimumValue) < 0)
@@ -805,15 +814,6 @@ if (typeof String.prototype.startsWith === 'undefined') {
   }
   function coerceAtMost(_this__u8e3s4, maximumValue) {
     return _this__u8e3s4 > maximumValue ? maximumValue : _this__u8e3s4;
-  }
-  function coerceIn_1(_this__u8e3s4, minimumValue, maximumValue) {
-    if (minimumValue > maximumValue)
-      throw IllegalArgumentException_init_$Create$_0('Cannot coerce value to an empty range: maximum ' + maximumValue + ' is less than minimum ' + minimumValue + '.');
-    if (_this__u8e3s4 < minimumValue)
-      return minimumValue;
-    if (_this__u8e3s4 > maximumValue)
-      return maximumValue;
-    return _this__u8e3s4;
   }
   function contains_1(_this__u8e3s4, value) {
     // Inline function 'kotlin.let' call
@@ -6445,6 +6445,9 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function listOfNotNull_0(element) {
     return !(element == null) ? listOf(element) : emptyList();
   }
+  function get_lastIndex_2(_this__u8e3s4) {
+    return _this__u8e3s4.l() - 1 | 0;
+  }
   function EmptyList() {
     EmptyList_instance = this;
     this.yb_1 = new Long(-1478467534, -1720727600);
@@ -6565,9 +6568,6 @@ if (typeof String.prototype.startsWith === 'undefined') {
       throw IndexOutOfBoundsException_init_$Create$_0('fromIndex (' + fromIndex + ') is less than zero.');
     else if (toIndex > size)
       throw IndexOutOfBoundsException_init_$Create$_0('toIndex (' + toIndex + ') is greater than size (' + size + ').');
-  }
-  function get_lastIndex_2(_this__u8e3s4) {
-    return _this__u8e3s4.l() - 1 | 0;
   }
   function optimizeReadOnlyList(_this__u8e3s4) {
     switch (_this__u8e3s4.l()) {
@@ -7736,7 +7736,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
   function DelimitedRangesSequence$iterator$1(this$0) {
     this.vd_1 = this$0;
     this.qd_1 = -1;
-    this.rd_1 = coerceIn_1(this$0.xd_1, 0, charSequenceLength(this$0.wd_1));
+    this.rd_1 = coerceIn_0(this$0.xd_1, 0, charSequenceLength(this$0.wd_1));
     this.sd_1 = this.rd_1;
     this.td_1 = null;
     this.ud_1 = 0;
@@ -8009,7 +8009,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
       var otherNanoRemainder = otherNanos.n2(millisToNanos(otherMillis));
       tmp = durationOfNanos(millisToNanos(resultMillis).m2(otherNanoRemainder));
     } else {
-      tmp = durationOfMillis(coerceIn_0(resultMillis, new Long(1, -1073741824), new Long(-1, 1073741823)));
+      tmp = durationOfMillis(coerceIn_1(resultMillis, new Long(1, -1073741824), new Long(-1, 1073741823)));
     }
     return tmp;
   }
@@ -8084,7 +8084,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
       return durationOfNanos(convertDurationUnitOverflow(_this__u8e3s4, unit, DurationUnit_NANOSECONDS_getInstance()));
     } else {
       var millis = convertDurationUnit_0(_this__u8e3s4, unit, DurationUnit_MILLISECONDS_getInstance());
-      return durationOfMillis(coerceIn_0(millis, new Long(1, -1073741824), new Long(-1, 1073741823)));
+      return durationOfMillis(coerceIn_1(millis, new Long(1, -1073741824), new Long(-1, 1073741823)));
     }
   }
   function toDuration_1(_this__u8e3s4, unit) {
@@ -8124,7 +8124,7 @@ if (typeof String.prototype.startsWith === 'undefined') {
     if ((new Long(1108857478, -1074)).z(millis) <= 0 ? millis.z(new Long(-1108857478, 1073)) <= 0 : false) {
       tmp = durationOfNanos(millisToNanos(millis));
     } else {
-      tmp = durationOfMillis(coerceIn_0(millis, new Long(1, -1073741824), new Long(-1, 1073741823)));
+      tmp = durationOfMillis(coerceIn_1(millis, new Long(1, -1073741824), new Long(-1, 1073741823)));
     }
     return tmp;
   }
@@ -8596,77 +8596,78 @@ if (typeof String.prototype.startsWith === 'undefined') {
   _.$_$.g6 = coerceAtLeast;
   _.$_$.h6 = coerceAtMost;
   _.$_$.i6 = coerceIn;
-  _.$_$.j6 = contains_1;
-  _.$_$.k6 = step;
-  _.$_$.l6 = until;
-  _.$_$.m6 = KClass;
-  _.$_$.n6 = KMutableProperty0;
-  _.$_$.o6 = KMutableProperty1;
-  _.$_$.p6 = KProperty0;
-  _.$_$.q6 = KProperty1;
-  _.$_$.r6 = filter;
-  _.$_$.s6 = mapNotNull;
-  _.$_$.t6 = sortedWith_0;
-  _.$_$.u6 = toList_0;
-  _.$_$.v6 = contains_3;
-  _.$_$.w6 = contains_2;
-  _.$_$.x6 = equals_0;
-  _.$_$.y6 = firstOrNull_0;
-  _.$_$.z6 = indexOf_2;
-  _.$_$.a7 = indexOf_1;
-  _.$_$.b7 = isBlank;
-  _.$_$.c7 = isDigit;
-  _.$_$.d7 = isLetterOrDigit;
-  _.$_$.e7 = isUpperCase;
-  _.$_$.f7 = isWhitespace;
-  _.$_$.g7 = get_lastIndex_3;
-  _.$_$.h7 = lastIndexOf;
-  _.$_$.i7 = lastOrNull_0;
-  _.$_$.j7 = padStart;
-  _.$_$.k7 = removePrefix;
-  _.$_$.l7 = removeSuffix;
-  _.$_$.m7 = repeat;
-  _.$_$.n7 = replace;
-  _.$_$.o7 = split;
-  _.$_$.p7 = split_0;
-  _.$_$.q7 = startsWith;
-  _.$_$.r7 = startsWith_1;
-  _.$_$.s7 = substringAfter_0;
-  _.$_$.t7 = substringAfter;
-  _.$_$.u7 = substringBefore;
-  _.$_$.v7 = take_0;
-  _.$_$.w7 = toDouble;
-  _.$_$.x7 = toIntOrNull;
-  _.$_$.y7 = toInt;
-  _.$_$.z7 = trimEnd;
-  _.$_$.a8 = trim;
-  _.$_$.b8 = toDuration_1;
-  _.$_$.c8 = toDuration;
-  _.$_$.d8 = ArithmeticException;
-  _.$_$.e8 = Char;
-  _.$_$.f8 = Comparable;
-  _.$_$.g8 = Comparator;
-  _.$_$.h8 = DeepRecursiveFunction;
-  _.$_$.i8 = DeepRecursiveScope;
-  _.$_$.j8 = Enum;
-  _.$_$.k8 = Exception;
-  _.$_$.l8 = IllegalArgumentException;
-  _.$_$.m8 = Long;
-  _.$_$.n8 = RuntimeException;
-  _.$_$.o8 = THROW_CCE;
-  _.$_$.p8 = THROW_IAE;
-  _.$_$.q8 = Unit;
-  _.$_$.r8 = countTrailingZeroBits;
-  _.$_$.s8 = createFailure;
-  _.$_$.t8 = ensureNotNull;
-  _.$_$.u8 = invoke;
-  _.$_$.v8 = isFinite;
-  _.$_$.w8 = lazy;
-  _.$_$.x8 = lazy_0;
-  _.$_$.y8 = noWhenBranchMatchedException;
-  _.$_$.z8 = plus_2;
-  _.$_$.a9 = toString_0;
-  _.$_$.b9 = to;
+  _.$_$.j6 = coerceIn_0;
+  _.$_$.k6 = contains_1;
+  _.$_$.l6 = step;
+  _.$_$.m6 = until;
+  _.$_$.n6 = KClass;
+  _.$_$.o6 = KMutableProperty0;
+  _.$_$.p6 = KMutableProperty1;
+  _.$_$.q6 = KProperty0;
+  _.$_$.r6 = KProperty1;
+  _.$_$.s6 = filter;
+  _.$_$.t6 = mapNotNull;
+  _.$_$.u6 = sortedWith_0;
+  _.$_$.v6 = toList_0;
+  _.$_$.w6 = contains_3;
+  _.$_$.x6 = contains_2;
+  _.$_$.y6 = equals_0;
+  _.$_$.z6 = firstOrNull_0;
+  _.$_$.a7 = indexOf_2;
+  _.$_$.b7 = indexOf_1;
+  _.$_$.c7 = isBlank;
+  _.$_$.d7 = isDigit;
+  _.$_$.e7 = isLetterOrDigit;
+  _.$_$.f7 = isUpperCase;
+  _.$_$.g7 = isWhitespace;
+  _.$_$.h7 = get_lastIndex_3;
+  _.$_$.i7 = lastIndexOf;
+  _.$_$.j7 = lastOrNull_0;
+  _.$_$.k7 = padStart;
+  _.$_$.l7 = removePrefix;
+  _.$_$.m7 = removeSuffix;
+  _.$_$.n7 = repeat;
+  _.$_$.o7 = replace;
+  _.$_$.p7 = split;
+  _.$_$.q7 = split_0;
+  _.$_$.r7 = startsWith;
+  _.$_$.s7 = startsWith_1;
+  _.$_$.t7 = substringAfter_0;
+  _.$_$.u7 = substringAfter;
+  _.$_$.v7 = substringBefore;
+  _.$_$.w7 = take_0;
+  _.$_$.x7 = toDouble;
+  _.$_$.y7 = toIntOrNull;
+  _.$_$.z7 = toInt;
+  _.$_$.a8 = trimEnd;
+  _.$_$.b8 = trim;
+  _.$_$.c8 = toDuration_1;
+  _.$_$.d8 = toDuration;
+  _.$_$.e8 = ArithmeticException;
+  _.$_$.f8 = Char;
+  _.$_$.g8 = Comparable;
+  _.$_$.h8 = Comparator;
+  _.$_$.i8 = DeepRecursiveFunction;
+  _.$_$.j8 = DeepRecursiveScope;
+  _.$_$.k8 = Enum;
+  _.$_$.l8 = Exception;
+  _.$_$.m8 = IllegalArgumentException;
+  _.$_$.n8 = Long;
+  _.$_$.o8 = RuntimeException;
+  _.$_$.p8 = THROW_CCE;
+  _.$_$.q8 = THROW_IAE;
+  _.$_$.r8 = Unit;
+  _.$_$.s8 = countTrailingZeroBits;
+  _.$_$.t8 = createFailure;
+  _.$_$.u8 = ensureNotNull;
+  _.$_$.v8 = invoke;
+  _.$_$.w8 = isFinite;
+  _.$_$.x8 = lazy;
+  _.$_$.y8 = lazy_0;
+  _.$_$.z8 = noWhenBranchMatchedException;
+  _.$_$.a9 = plus_2;
+  _.$_$.b9 = toString_0;
+  _.$_$.c9 = to;
   //endregion
   return _;
 }));

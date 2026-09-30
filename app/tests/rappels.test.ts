@@ -13,7 +13,9 @@
 
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { analyser } from '../src/analyse/index.ts';
 import type { ElementJson } from '../src/core/regles.ts';
+import { negationAConfirmer, omissionsDesElements } from '../src/services/omissions.ts';
 import {
   abandonner,
   deleguer,
@@ -189,5 +191,73 @@ describe('les trois sorties d’un rappel qui ne passe plus', () => {
     const moment = await rappelsDuPointDeRupture(SOIR);
     expect(moment.rappels).toEqual([]);
     expect(moment.escalades).toEqual([]);
+  });
+});
+
+/**
+ * Spec `provenance` — « Négation perdue au découpage » : aucun rappel n'est planifié
+ * pour un élément dont l'omission n'est pas levée.
+ *
+ * Ce que la planification fait réellement : le cœur ne rappelle que les éléments
+ * **acceptés** qui portent un plan. Un élément qui a perdu une négation reste en
+ * attente tant que la Revue n'a pas fait lire la phrase entière (« Accepter » ne
+ * pose ni verdict ni plan avant cela) : il n'entre donc jamais dans la file des
+ * rappels. Ces tests vérifient cette chaîne de bout en bout sur le vrai découpage,
+ * et non une règle ajoutée à côté.
+ */
+describe('un élément qui a perdu une négation', () => {
+  const CAPTURE = "Il ne faut surtout pas, et j'insiste, envoyer le devis";
+
+  /** L'élément que l'analyse tire réellement de cette phrase, tel que la Revue le reçoit. */
+  async function elementEnAttente(): Promise<ElementStocke> {
+    const { elements } = analyser(CAPTURE, 'c-neg', '2026-09-21');
+    const perdu = elements.find((e) => e.texte.toLowerCase().startsWith("j'insiste"));
+    if (!perdu) throw new Error('Le découpage ne produit plus l’élément attendu.');
+    await enregistrerElement({ ...perdu, id: 'e-neg' });
+    return relire('e-neg');
+  }
+
+  it('reste en attente, donc sans rappel, même si un signal et un plan existent déjà', async () => {
+    await elementEnAttente();
+    // Un plan posé par une autre voie que la Revue ne suffit pas : sans acceptation,
+    // le cœur ne le rappelle pas.
+    await majElement('e-neg', {
+      planDeclencheur: 'ce soir',
+      planAction: 'envoyer le devis',
+      planPoseLe: MATIN,
+    });
+
+    const element = await relire('e-neg');
+    expect(element.verdict).toBe('EN_ATTENTE');
+    expect((await rappelsDuPointDeRupture(SOIR)).rappels).toEqual([]);
+  });
+
+  it('est bien signalé à confirmer, tant que la phrase entière n’est pas levée', async () => {
+    const element = await elementEnAttente();
+    const omissions = omissionsDesElements([{ id: 'c-neg', texte: CAPTURE }], [element]);
+
+    expect(negationAConfirmer(omissions.get(element.id), element)).toBe(true);
+    expect(negationAConfirmer(omissions.get(element.id), { ...element, omissionLevee: true })).toBe(
+      false,
+    );
+  });
+
+  it('n’est rappelé qu’une fois accepté explicitement, avec son plan', async () => {
+    await elementEnAttente();
+    expect((await rappelsDuPointDeRupture(SOIR)).rappels).toEqual([]);
+
+    // Ce que fait la Revue après la confirmation de la phrase entière puis le choix
+    // d'un plan : le verdict, le plan et la levée arrivent ensemble.
+    await majElement('e-neg', {
+      verdict: 'ACCEPTE',
+      omissionLevee: true,
+      planDeclencheur: 'ce soir',
+      planAction: 'envoyer le devis',
+      planPoseLe: MATIN,
+    });
+
+    const [rappel] = (await rappelsDuPointDeRupture(SOIR)).rappels;
+    expect(rappel.elementId).toBe('e-neg');
+    expect(rappel.declencheur).toBe('ce soir');
   });
 });

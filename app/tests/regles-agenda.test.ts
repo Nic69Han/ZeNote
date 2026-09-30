@@ -49,8 +49,8 @@ const comite: EvenementJson = {
 };
 
 describe('contrat d’agenda du cœur', () => {
-  it('parle la version 14', () => {
-    expect(VERSION_CONTRAT_ATTENDUE).toBe('14');
+  it('parle la version 15', () => {
+    expect(VERSION_CONTRAT_ATTENDUE).toBe('15');
   });
 
   it('garde la durée à travers l’ancrage', () => {

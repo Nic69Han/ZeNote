@@ -106,10 +106,55 @@ data class PassageIncertainJson(
 data class PropositionJson(
     val elementId: String,
     val texte: String,
-    /** Ce qui se passe si ce n'est pas fait, puis l'échéance. Jamais un score. */
+    /**
+     * Ce qui se passe si ce n'est pas fait, puis l'échéance. Jamais un score.
+     *
+     * Les deux moitiés de cette phrase n'ont pas la même origine ; [raisonDite] et
+     * [raisonDeduite] les rendent séparément, pour que l'écran ne les colle pas.
+     */
     val raison: String,
+    /**
+     * L'indice de poids, quand il en existe un ; `null` sinon.
+     *
+     * C'est la moitié de la raison qui vient de l'analyse de la phrase de
+     * l'utilisateur. Ce n'est pas nécessairement une citation : l'analyse locale écrit
+     * ses indices (« annoncé comme urgent »). La surface ne le cite donc entre
+     * guillemets que s'il figure mot pour mot dans le passage.
+     */
+    val raisonDite: String? = null,
+    /** L'urgence tirée de l'échéance (« échéance demain ») : calculée, jamais dite. */
+    val raisonDeduite: String = "",
     val poidsEffectif: String,
     val urgence: String,
+)
+
+/**
+ * Une marque de la phrase d'origine qu'un élément n'a pas reprise.
+ *
+ * [debutCar] et [finCar] sont des positions dans le texte de la capture.
+ */
+@Serializable
+data class ManqueJson(
+    /** NEGATION, NOMBRE ou NOM. */
+    val nature: String,
+    val mots: String,
+    val debutCar: Int,
+    val finCar: Int,
+)
+
+/**
+ * Ce qu'un élément a perdu de la phrase dont il a été découpé.
+ *
+ * Absent de la réponse quand rien n'a été perdu : le silence est la bonne réponse.
+ */
+@Serializable
+data class OmissionElementJson(
+    val elementId: String,
+    /** La phrase entière de la capture, telle qu'elle a été dite. */
+    val phrase: String,
+    val debutPhrase: Int,
+    val finPhrase: Int,
+    val manques: List<ManqueJson>,
 )
 
 /**

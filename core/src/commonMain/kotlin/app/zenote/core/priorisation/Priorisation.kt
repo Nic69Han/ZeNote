@@ -52,10 +52,16 @@ data class ContexteMaintenant(val aujourdhui: LocalDate)
  * Un élément proposé, avec la raison en une ligne pour laquelle il l'est.
  *
  * @param raison dit ce qui se passe si ce n'est pas fait — jamais seulement la date.
+ * @param raisonDite l'indice de poids, quand il existe : la moitié de la raison qui
+ *   vient de la phrase de l'utilisateur. `null` quand aucun indice n'a été relevé —
+ *   [raison] dit alors « poids non déterminé », ce qui est une phrase du système.
+ * @param raisonDeduite l'urgence tirée de l'échéance, calculée et non dite.
  */
 data class Proposition(
     val element: ElementResolu,
     val raison: String,
+    val raisonDite: String?,
+    val raisonDeduite: String,
     val poidsEffectif: Poids,
     val urgence: Urgence,
 )
@@ -112,6 +118,8 @@ object Priorisation {
             Proposition(
                 element = element,
                 raison = raison(element, urgence),
+                raisonDite = element.indicePoids,
+                raisonDeduite = urgence.libelle,
                 poidsEffectif = effectif,
                 urgence = urgence,
             )

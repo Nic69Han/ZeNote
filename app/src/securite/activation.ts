@@ -27,12 +27,14 @@ import {
 import {
   ecrireCaptureEnClair,
   ecrireElementEnClair,
+  ecrireRecherchesEnClair,
   enregistrerElement,
   identifiantsDesCaptures,
   lireCapture,
   listerElements,
   majCapture,
   reecrireLexique,
+  reecrireRecherches,
 } from '../stockage/depot.ts';
 import { reecrireAgenda } from '../stockage/agenda.ts';
 
@@ -71,6 +73,9 @@ async function reecrireTout(): Promise<Reprise> {
 
   // L'agenda porte des noms et des lieux : il suit le même chemin (change `agenda-local`).
   await reecrireAgenda();
+  // Les questions déjà posées aussi : « licenciement de Karim » se lit en clair comme
+  // n'importe quelle phrase dictée (spec `recherches-passees` — « Chiffrement »).
+  await reecrireRecherches();
 
   return { captures, elements: elements.length };
 }
@@ -114,6 +119,10 @@ export async function desactiverChiffrement(): Promise<Reprise> {
   for (const element of elements) await ecrireElementEnClair(element);
   // En clair avant de supprimer le coffre : après, il ne s'ouvrirait plus.
   await reecrireAgenda(true);
+
+  // Avant de supprimer le coffre : scellées pour un coffre qui n'existe plus, les
+  // questions retenues seraient perdues sans un mot.
+  await ecrireRecherchesEnClair();
 
   await supprimerCoffre();
   return { captures, elements: elements.length };

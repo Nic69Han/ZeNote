@@ -174,7 +174,7 @@ describe('la montée de la base', () => {
     });
 
     reinitialiserOuverture();
-    expect(VERSION_BASE).toBe(4);
+    expect(VERSION_BASE).toBe(5);
     expect((await lireCapture('ancienne'))?.texte).toBe('une note d’avant l’agenda');
     expect(await lireEvenements()).toEqual([]);
     await importerAgenda(lecture([COMITE]));

@@ -30,6 +30,7 @@
  */
 
 import type { ElementJson, PassageIncertain } from '../core/regles.ts';
+import type { EtatRetenue } from '../services/retenue.ts';
 import {
   assurerCoffreCharge,
   ouvrirScelle,
@@ -44,6 +45,7 @@ import {
   MAGASIN_EVENEMENTS,
   MAGASIN_LEXIQUE,
   MAGASIN_MORCEAUX,
+  MAGASIN_RECHERCHES,
   MAGASIN_REGLAGES,
   demander,
   transaction,
@@ -96,6 +98,25 @@ export interface ElementStocke extends ElementJson {
    * semaines et traité hier ».
    */
   vuLe?: string | null;
+  /**
+   * `true` quand l'utilisateur a lu la phrase entière d'un élément qui avait perdu une
+   * négation, et l'a gardé tel quel.
+   *
+   * Spec `provenance` — « Omissions signalées ». Tant qu'une négation manque et que ce
+   * champ n'est pas posé, l'élément reste « à confirmer » en Revue : ni plan ni rappel
+   * ne lui est posé. Jamais passé aux règles : le cœur recalcule l'omission depuis la
+   * capture, c'est la surface qui retient qu'elle a été vue.
+   */
+  omissionLevee?: boolean;
+  /**
+   * Les premiers gestes que l'utilisateur a marqués faits dans Maintenant, dans l'ordre.
+   *
+   * Spec `premier-geste` — « Premier geste affiché au moment d'agir ». Marquer un geste
+   * fait ne clôt pas la tâche : le geste passe ici et l'action du plan redevient la
+   * tâche, sans quoi la carte continuerait de dire « Commencer par » un geste déjà fait.
+   * Ce champ n'est jamais passé aux règles.
+   */
+  gestesFaits?: string[];
   /**
    * Le nom que portait `interlocuteur` avant une fusion de fiches, ou absent.
    *
@@ -215,11 +236,41 @@ export interface Capture {
    */
   repliAnalyse?: boolean;
   /**
+   * `true` quand cette capture est l'enregistrement d'une réunion ou un compte rendu
+   * importé.
+   *
+   * Spec `reperes-temporels` — « Repères personnels ». Une réunion est le repère dont
+   * on se souvient le mieux, et rien d'autre dans la capture ne la distingue d'une
+   * note dictée en marchant. Posé au dépôt par le geste lui-même (« Enregistrer une
+   * réunion », « Importer un compte rendu »), jamais deviné.
+   */
+  reunion?: boolean;
+  /**
+   * Présent quand la capture est une note de reprise — « je m'arrête là ».
+   *
+   * Spec `reprise` — « Note de reprise ». Une capture comme les autres (écrite
+   * d'abord, scellée, transcrite si dictée), à ceci près que l'analyse la marque
+   * analysée sans en tirer d'élément : c'est un marque-page, pas une liste de tâches.
+   * Absent sur toute capture ordinaire, et sur toute capture d'avant ce champ.
+   */
+  reprise?: NoteDeReprise;
+  /**
    * La réunion à laquelle cette capture se rattache, quand l'agenda en connaît une :
    * faite pendant, juste après, ou proposée avant (une dépose). Change `agenda-local`.
    * Elle survit à l'effacement de l'agenda : c'est un fait sur la capture.
    */
   agenda?: AgendaDeCapture | null;
+}
+
+/**
+ * Le marquage d'une note de reprise.
+ *
+ * `poseeLe` est l'horodatage ISO de la pose ; `reprisLe` celui du geste « C'est
+ * reparti », `null` ou absent tant que la note attend son retour.
+ */
+export interface NoteDeReprise {
+  poseeLe: string;
+  reprisLe?: string | null;
 }
 
 /** Ce qu'une capture retient de la réunion à laquelle elle se rattache. */
@@ -288,6 +339,51 @@ export interface Reglages {
    */
   spheresExclues: ('PROFESSIONNEL' | 'PERSONNEL')[];
   /**
+   * La retenue des suggestions non demandées : combien de présentations ignorées
+   * d'affilée, par sorte. Des compteurs seulement, jamais un mot d'une note — c'est ce
+   * qui permet de les garder ici, dans un magasin non scellé.
+   *
+   * Spec `suggestions-proactives` — « Retenue après suggestions ignorées ».
+   */
+  retenue: EtatRetenue;
+  /**
+   * Le jour où l'écran « La semaine » a été ouvert pour la dernière fois, ou `null`.
+   * Sert à n'inviter qu'une fois par semaine, jamais davantage.
+   *
+   * Spec `retour-semaine` — « Invitation hebdomadaire discrète ».
+   */
+  semaineVueLe: string | null;
+  /**
+   * La vitesse à laquelle on réécoute un enregistrement : 1×, 1,5× ou 2×.
+   *
+   * Spec `ecoute-acceleree` — « Vitesse de lecture ». Une préférence d'écoute, pas un
+   * contenu de note : elle a sa place ici, en clair, comme le thème.
+   */
+  vitesseEcoute: 1 | 1.5 | 2;
+  /**
+   * Sauter les pauses de plus de 700 ms à la lecture. Voir `audio/silences.ts`.
+   *
+   * Comme la vitesse, c'est un réglage d'écoute. Les questions cherchées, elles, ne
+   * sont jamais ici : ce magasin n'est pas scellé.
+   */
+  raccourcirSilences: boolean;
+  /**
+   * « Vider sa tête le soir » : l'invite du soir sur l'écran de capture. Éteinte par
+   * défaut — un rituel qu'on n'a pas demandé est une insistance de plus.
+   *
+   * Spec `delestage-du-soir` — « Invite du soir facultative ». Ni ce réglage ni les
+   * deux suivants ne portent de texte de note : ce magasin n'est pas scellé.
+   */
+  delestageSoir: boolean;
+  /** L'heure de début de la soirée, en `HH:MM`. */
+  delestageHeure: string;
+  /**
+   * Le jour de référence de la dernière soirée où l'invite a été utilisée ou écartée.
+   * Le jour où la soirée a commencé, pas celui de l'instant : passé minuit, c'est
+   * toujours la même soirée, donc la même invite (voir `services/delestage.ts`).
+   */
+  delestageVuLe: string | null;
+  /**
    * La plage de silence quotidienne, en `HH:MM`, ou `null` pour l'éteindre.
    *
    * Change `rappels-silence-critique`. Elle peut passer minuit (22:00–07:00). Pendant
@@ -306,6 +402,18 @@ export const REGLAGES_PAR_DEFAUT: Reglages = {
   monNom: '',
   analyseDistante: false,
   spheresExclues: [],
+  // Le même état que `retenueInitiale()`, écrit à plat : ce fichier n'importe que le
+  // type de `services/retenue.ts`, qui importe lui-même le dépôt.
+  retenue: {
+    PASSE_PERTINENT: { ignoreesDAffilee: 0, presentationsSautees: 0 },
+    PISTES_ECHANGE: { ignoreesDAffilee: 0, presentationsSautees: 0 },
+  },
+  semaineVueLe: null,
+  vitesseEcoute: 1,
+  raccourcirSilences: false,
+  delestageSoir: false,
+  delestageHeure: '21:00',
+  delestageVuLe: null,
   silence: null,
 };
 
@@ -542,7 +650,9 @@ export function capturesATranscrire(): Promise<Capture[]> {
  */
 export function capturesEnSouffrance(): Promise<Capture[]> {
   return capturesRetenues(
-    (c) => !c.analysee && !analysable(c) && !aTranscrire(c),
+    // Une note de reprise n'est jamais « à reprendre » en Revue : elle n'en produit
+    // rien (spec `reprise`), et sa carte offre l'audio à qui veut la réécouter.
+    (c) => !c.reprise && !c.analysee && !analysable(c) && !aTranscrire(c),
     plusRecentesDAbord,
     true,
   );
@@ -842,14 +952,23 @@ export async function ecrireReglage<C extends keyof Reglages>(
 /** Efface toutes les données locales. Utilisé par les tests et par l'export/purge. */
 export async function toutEffacer(): Promise<void> {
   await transaction(
-    [MAGASIN_CAPTURES, MAGASIN_ELEMENTS, MAGASIN_REGLAGES, MAGASIN_MORCEAUX, MAGASIN_LEXIQUE, MAGASIN_EVENEMENTS],
+    [
+      MAGASIN_CAPTURES,
+      MAGASIN_ELEMENTS,
+      MAGASIN_REGLAGES,
+      MAGASIN_MORCEAUX,
+      MAGASIN_LEXIQUE,
+      MAGASIN_EVENEMENTS,
+      MAGASIN_RECHERCHES,
+    ],
     'readwrite',
-    ([captures, elements, reglages, morceaux, lexique, evenements]) => {
+    ([captures, elements, reglages, morceaux, lexique, evenements, recherches]) => {
       captures.clear();
       elements.clear();
       reglages.clear();
       morceaux.clear();
       lexique.clear();
+      recherches.clear();
       evenements.clear();
     },
   );
@@ -947,4 +1066,104 @@ export async function retenirCorrections(nouvelles: Correction[]): Promise<Corre
  */
 export async function reecrireLexique(): Promise<void> {
   await retenirCorrections([]);
+}
+
+// ------------------------------------------------------- les recherches passées
+
+/**
+ * Une question retenue : ce qui a été cherché, et comment.
+ *
+ * Spec `recherches-passees` — « Questions retenues ». Jusqu'à 40 % des requêtes servent
+ * à retrouver quelque chose de déjà vu (Teevan et al., 2007) : ZeNote s'en souvient.
+ */
+export interface RechercheRetenue {
+  requete: string;
+  /** Par mots (ou moment), ou par personne : les deux entrées de l'écran Recherche. */
+  mode: 'MOTS' | 'PERSONNE';
+  /** Horodatage ISO de la dernière fois que la question a été posée. */
+  derniereFois: string;
+  /** Combien de fois elle l'a été. */
+  fois: number;
+}
+
+/** L'unique ligne du magasin, comme le lexique : toutes les questions tiennent dedans. */
+const CLE_RECHERCHES = 'recherches';
+
+interface RecherchesBrut {
+  id: string;
+  recherches?: RechercheRetenue[];
+  scelle?: Scelle;
+}
+
+/**
+ * Les questions retenues, de la plus récente à la plus ancienne.
+ *
+ * Par défaut, coffre fermé ou ligne illisible, rend vide : afficher des suggestions
+ * n'est jamais assez important pour bloquer un écran. Une écriture qui relit d'abord
+ * doit en revanche savoir qu'elle n'a rien lu — sinon elle écraserait tout l'historique
+ * par la seule question du moment. D'où `strict`, qui lève au lieu de rendre vide.
+ */
+export async function lireRecherches(strict = false): Promise<RechercheRetenue[]> {
+  const brut = await transaction([MAGASIN_RECHERCHES], 'readonly', ([recherches]) =>
+    demander<RecherchesBrut | undefined>(recherches.get(CLE_RECHERCHES)),
+  );
+  if (!brut) return [];
+  if (!brut.scelle) return brut.recherches ?? [];
+  try {
+    return await ouvrirValeur<RechercheRetenue[]>(brut.scelle);
+  } catch (erreur) {
+    if (strict) throw erreur;
+    return [];
+  }
+}
+
+/**
+ * Remplace toutes les questions retenues, scellées si un coffre existe.
+ *
+ * Une liste vide retire la ligne : « Tout oublier » ne doit laisser en base ni
+ * question ni scellé qui en aurait porté.
+ */
+export async function ecrireRecherches(liste: RechercheRetenue[]): Promise<void> {
+  if (liste.length === 0) {
+    await transaction([MAGASIN_RECHERCHES], 'readwrite', ([recherches]) => {
+      recherches.delete(CLE_RECHERCHES);
+    });
+    return;
+  }
+  const brut: RecherchesBrut = { id: CLE_RECHERCHES };
+  if (await chiffre()) {
+    brut.scelle = await scellerValeur(liste);
+  } else {
+    brut.recherches = liste;
+  }
+  await transaction([MAGASIN_RECHERCHES], 'readwrite', ([recherches]) => {
+    recherches.put(brut);
+  });
+}
+
+/**
+ * Réécrit les questions retenues telles que le dépôt les écrit maintenant : scellées,
+ * ou en clair.
+ *
+ * Sert à la reprise qui suit l'activation ou la levée du chiffrement, exactement comme
+ * [reecrireLexique] : les questions retenues portent des noms de personnes et de
+ * dossiers, et les laisser en clair rouvrirait dans la base le trou que le coffre ferme.
+ */
+export async function reecrireRecherches(): Promise<void> {
+  await ecrireRecherches(await lireRecherches(true));
+}
+
+/**
+ * Remet les questions retenues en clair, coffre ou pas.
+ *
+ * Réservé à la désactivation du chiffrement, comme [ecrireCaptureEnClair] : le coffre
+ * n'est supprimé qu'une fois cette ligne réécrite, faute de quoi elle resterait scellée
+ * pour un coffre qui n'existe plus, et l'historique serait perdu sans un mot.
+ */
+export async function ecrireRecherchesEnClair(): Promise<void> {
+  const liste = await lireRecherches(true);
+  if (liste.length === 0) return;
+  await transaction([MAGASIN_RECHERCHES], 'readwrite', ([recherches]) => {
+    recherches.put({ id: CLE_RECHERCHES, recherches: liste } satisfies RecherchesBrut);
+  });
 }

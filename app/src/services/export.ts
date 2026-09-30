@@ -12,12 +12,15 @@
 
 import { aujourdhui } from './pipeline.ts';
 import {
+  lireRecherches,
   lireReglages,
   listerCaptures,
   listerElements,
   type AgendaDeCapture,
   type Capture,
   type ElementStocke,
+  type RechercheRetenue,
+  type NoteDeReprise,
   type Reglages,
 } from '../stockage/depot.ts';
 
@@ -75,6 +78,8 @@ export interface CaptureExportee {
   essaisTranscription: number;
   /** `false` si l'utilisateur a demandé de garder cette capture sur l'appareil. */
   transmissible: boolean;
+  /** Le marquage d'une note de reprise, ou `null` pour une capture ordinaire. */
+  reprise: NoteDeReprise | null;
   /** La réunion à laquelle la capture se rattache, ou `null`. */
   agenda: AgendaDeCapture | null;
   audio: AudioNonInclus;
@@ -88,10 +93,16 @@ export interface ExportZeNote {
   lisezMoi: string[];
   totaux: { captures: number; elements: number };
   audio: ResumeAudio;
-  champs: { captures: Record<string, string>; elements: Record<string, string> };
+  champs: {
+    captures: Record<string, string>;
+    elements: Record<string, string>;
+    recherches: Record<string, string>;
+  };
   reglages: Reglages;
   captures: CaptureExportee[];
   elements: ElementStocke[];
+  /** Les questions retenues par la recherche, de la plus récente à la plus ancienne. */
+  recherches: RechercheRetenue[];
 }
 
 /** Le mode d'emploi, en français, dans le fichier. Il ne suppose rien de connu. */
@@ -110,6 +121,8 @@ const LISEZ_MOI: string[] = [
   'L’objet « champs » ci-dessous décrit chaque champ des deux listes, un par un.',
   'L’audio des captures dictées n’est PAS dans ce fichier ; l’objet « audio » dit ' +
     'précisément ce qui manque et pourquoi.',
+  'La liste « recherches » garde les dernières questions posées à la recherche, de la ' +
+    'plus récente à la plus ancienne ; l’objet « champs » en décrit les champs.',
   'L’agenda importé n’est PAS dans ce fichier non plus : c’est une copie d’un agenda que ' +
     'vous tenez ailleurs, et il se réimporte depuis sa source. Seul le rattachement d’une ' +
     'capture à une réunion y figure, dans le champ « agenda » de la capture.',
@@ -141,6 +154,12 @@ const CHAMPS_CAPTURES: Record<string, string> = {
     'Faux si l’utilisateur a demandé que cette capture ne soit jamais envoyée à une ' +
     'analyse distante. Vrai sinon — ce qui n’implique pas qu’elle l’ait été : cela dépend ' +
     'aussi du réglage « analyseDistante ».',
+  reprise:
+    'Non nul si la capture est une note de reprise (« Je m’arrête là »), posée avant un ' +
+    'décrochage pour retrouver où l’on en était. « poseeLe » est l’instant de la pose ' +
+    '(ISO 8601, UTC), « reprisLe » celui du geste « C’est reparti », ou null tant que la ' +
+    'note attend. Une note de reprise n’a produit aucun élément, sauf si l’utilisateur l’a ' +
+    'gardée pour la Revue — le marquage disparaît alors. Nul pour toute autre capture.',
   audio:
     'Ce que devient le son : « inclus » vaut toujours faux dans ce format. ' +
     '« presentSurLAppareil » dit si un enregistrement existe bien, « octets » sa taille et ' +
@@ -182,12 +201,27 @@ const CHAMPS_ELEMENTS: Record<string, string> = {
     '(service distant, qui ne juge que le type et la sphère), « modele » le modèle distant ' +
     'utilisé, ou null. Absent sur les éléments antérieurs à ce champ.',
   planDeclencheur: 'Le déclencheur choisi : « quand X », plutôt qu’une heure.',
-  planAction: 'L’action à faire à ce déclencheur.',
+  planAction:
+    'L’action à faire à ce déclencheur : le premier geste noté par l’utilisateur (deux ' +
+    'minutes, dans ses mots), ou le texte de l’élément s’il n’en a pas noté.',
+  gestesFaits:
+    'Les premiers gestes que l’utilisateur a marqués faits, dans l’ordre. La tâche, elle, ' +
+    'n’est close que par « faitLe ».',
   verdict:
     'EN_ATTENTE : pas encore passé en Revue. ACCEPTE : retenu. UN_JOUR : gardé sans date. ' +
     'REJETE : écarté par l’utilisateur.',
   corrigeParHumain: 'Vrai si l’utilisateur a corrigé cet élément à la main.',
   faitLe: 'Date et heure auxquelles l’élément a été marqué fait, ou absent s’il ne l’est pas.',
+  omissionLevee:
+    'Vrai si l’utilisateur a lu la phrase entière d’un élément qui avait perdu une négation ' +
+    'au découpage, et l’a gardé tel quel. Absent sinon.',
+};
+
+const CHAMPS_RECHERCHES: Record<string, string> = {
+  requete: 'La question, telle qu’elle a été tapée la dernière fois.',
+  mode: 'MOTS si elle a été posée par mots ou par moment, PERSONNE si elle l’a été par personne.',
+  derniereFois: 'Date et heure de la dernière fois que la question a été posée (ISO 8601, UTC).',
+  fois: 'Combien de fois la question a été posée.',
 };
 
 /** Ce que l'export dit du son qu'il n'emporte pas. */
@@ -217,6 +251,9 @@ function exporterCapture(capture: Capture): CaptureExportee {
     analysee: capture.analysee,
     essaisTranscription: capture.essaisTranscription ?? 0,
     transmissible: capture.transmissible !== false,
+    reprise: capture.reprise
+      ? { poseeLe: capture.reprise.poseeLe, reprisLe: capture.reprise.reprisLe ?? null }
+      : null,
     agenda: capture.agenda ?? null,
     audio: {
       inclus: false,
@@ -235,10 +272,11 @@ function exporterCapture(capture: Capture): CaptureExportee {
  * format sans avoir besoin de données.
  */
 export async function construireExport(maintenant: Date = new Date()): Promise<ExportZeNote> {
-  const [captures, elements, reglages] = await Promise.all([
+  const [captures, elements, reglages, recherches] = await Promise.all([
     listerCaptures(),
     listerElements(),
     lireReglages(),
+    lireRecherches(),
   ]);
 
   // Les éléments sont regroupés par capture puis remis dans l'ordre du texte source :
@@ -254,10 +292,11 @@ export async function construireExport(maintenant: Date = new Date()): Promise<E
     lisezMoi: LISEZ_MOI,
     totaux: { captures: captures.length, elements: ordonnes.length },
     audio: resumerAudio(captures),
-    champs: { captures: CHAMPS_CAPTURES, elements: CHAMPS_ELEMENTS },
+    champs: { captures: CHAMPS_CAPTURES, elements: CHAMPS_ELEMENTS, recherches: CHAMPS_RECHERCHES },
     reglages,
     captures: captures.map(exporterCapture),
     elements: ordonnes,
+    recherches,
   };
 }
 

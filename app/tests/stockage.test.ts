@@ -9,7 +9,17 @@ import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { ElementJson } from '../src/core/regles.ts';
 import {
+  MAGASIN_RECHERCHES,
+  NOM_BASE,
+  VERSION_BASE,
+  ouvrir,
+  reinitialiserOuverture,
+} from '../src/stockage/base.ts';
+import { retenir } from '../src/services/recherches.ts';
+import {
   capturesAAnalyser,
+  lireLexique,
+  lireRecherches,
   capturesEnSouffrance,
   elementsDeCapture,
   lireCapture,
@@ -316,5 +326,99 @@ describe('suppression d’une capture', () => {
     await supprimerCapture(jetee.id);
 
     expect((await listerCaptures()).map((c) => c.id)).toEqual([gardee.id]);
+  });
+});
+
+describe('montée de version 3 → 5', () => {
+  /** Supprime la base, connexion ouverte comprise : le test repart d'un appareil vierge. */
+  async function repartirDeZero(): Promise<void> {
+    (await ouvrir()).close();
+    reinitialiserOuverture();
+    await new Promise<void>((resoudre, rejeter) => {
+      const requete = indexedDB.deleteDatabase(NOM_BASE);
+      requete.onsuccess = () => resoudre();
+      requete.onerror = () => rejeter(requete.error);
+    });
+  }
+
+  /** Une base telle que la version 3 de ZeNote la laissait, avec des données dedans. */
+  async function baseVersion3(): Promise<void> {
+    const base = await new Promise<IDBDatabase>((resoudre, rejeter) => {
+      const requete = indexedDB.open(NOM_BASE, 3);
+      requete.onupgradeneeded = () => {
+        const b = requete.result;
+        const captures = b.createObjectStore('captures', { keyPath: 'id' });
+        captures.createIndex('creeLe', 'creeLe');
+        captures.createIndex('analysee', 'analysee');
+        const elements = b.createObjectStore('elements', { keyPath: 'id' });
+        elements.createIndex('captureId', 'captureId');
+        elements.createIndex('verdict', 'verdict');
+        b.createObjectStore('reglages', { keyPath: 'cle' });
+        b.createObjectStore('lexique', { keyPath: 'id' });
+        b.createObjectStore('morceaux', { keyPath: 'id' }).createIndex(
+          'enregistrementId',
+          'enregistrementId',
+        );
+      };
+      requete.onsuccess = () => resoudre(requete.result);
+      requete.onerror = () => rejeter(requete.error);
+    });
+    await new Promise<void>((resoudre, rejeter) => {
+      const t = base.transaction(['captures', 'elements', 'reglages', 'lexique'], 'readwrite');
+      t.objectStore('captures').put({
+        id: 'cap-v3',
+        creeLe: '2026-09-01T09:00:00.000Z',
+        source: 'ECRITE',
+        texte: 'Rappeler le couvreur pour le devis.',
+        etatTranscription: 'OK',
+        dureeMs: null,
+        audio: null,
+        incomplete: false,
+        analysee: true,
+      });
+      t.objectStore('elements').put(elementDe({ id: 'el-v3', captureId: 'cap-v3' }));
+      t.objectStore('reglages').put({ cle: 'theme', valeur: 'sombre' });
+      t.objectStore('lexique').put({
+        id: 'lexique',
+        corrections: [{ malEntendu: 'carreleur', correction: 'couvreur', fois: 2 }],
+      });
+      t.oncomplete = () => resoudre();
+      t.onerror = () => rejeter(t.error);
+    });
+    base.close();
+  }
+
+  it('passe la base en version 5', () => {
+    expect(VERSION_BASE).toBe(5);
+  });
+
+  it('crée les magasins des recherches et de l’agenda, et garde tout ce qui existait', async () => {
+    await repartirDeZero();
+    await baseVersion3();
+
+    const base = await ouvrir();
+    expect(base.version).toBe(5);
+    expect([...base.objectStoreNames]).toContain(MAGASIN_RECHERCHES);
+    expect([...base.objectStoreNames]).toContain('evenements');
+    // Rien n'a été recréé : les magasins d'avant sont ceux d'avant.
+    for (const magasin of ['captures', 'elements', 'reglages', 'lexique', 'morceaux']) {
+      expect([...base.objectStoreNames]).toContain(magasin);
+    }
+
+    // Les données de la version 3 se relisent par le dépôt, telles quelles.
+    expect((await lireCapture('cap-v3'))?.texte).toBe('Rappeler le couvreur pour le devis.');
+    expect((await listerElements()).map((e) => e.id)).toEqual(['el-v3']);
+    expect((await lireReglages()).theme).toBe('sombre');
+    expect(await lireLexique()).toEqual([{ malEntendu: 'carreleur', correction: 'couvreur', fois: 2 }]);
+
+    // Et le nouveau magasin est immédiatement utilisable.
+    expect(await lireRecherches()).toEqual([]);
+    await retenir('devis fournisseur', 'MOTS');
+    expect((await lireRecherches()).map((r) => r.requete)).toEqual(['devis fournisseur']);
+
+    // Rouvrir une base déjà en version 5 ne remonte rien et ne perd rien.
+    reinitialiserOuverture();
+    expect((await lireCapture('cap-v3'))?.id).toBe('cap-v3');
+    expect((await lireRecherches()).map((r) => r.requete)).toEqual(['devis fournisseur']);
   });
 });

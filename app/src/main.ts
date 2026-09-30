@@ -22,6 +22,8 @@ import {
   elementsDeCapture,
   lireCapture,
   lireReglages,
+  listerCaptures,
+  listerElements,
   majCapture,
   majElement,
   supprimerCapture,
@@ -33,6 +35,7 @@ import { surEnregistrement } from './audio/enregistreur.ts';
 import { montrerCapturer } from './ui/capturer.ts';
 import { montrerMaintenant } from './ui/maintenant.ts';
 import { montrerRevue } from './ui/revue.ts';
+import { montrerSemaine } from './ui/semaine.ts';
 import { montrerRecherche } from './ui/recherche.ts';
 import { montrerPersonnes } from './ui/personnes.ts';
 import { montrerReglages } from './ui/reglages.ts';
@@ -45,10 +48,18 @@ import {
   rappelsDuPointDeRupture,
   reunionQuiSeTermine,
 } from './services/rappels.ts';
+import { observerReprise } from './services/reprise.ts';
 import { maintenantLocal } from './services/pipeline.ts';
 import { lireInvitationDeLAdresse, rafraichirCompte } from './compte/compte.ts';
 
-type Onglet = 'capturer' | 'revue' | 'maintenant' | 'recherche' | 'personnes' | 'reglages';
+type Onglet =
+  | 'capturer'
+  | 'revue'
+  | 'maintenant'
+  | 'recherche'
+  | 'personnes'
+  | 'semaine'
+  | 'reglages';
 
 /** Les trois surfaces de la barre du bas : celles d'une journée de travail. */
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
@@ -61,6 +72,7 @@ const ONGLETS: { cle: Onglet; libelle: string }[] = [
 const ECRANS_RETRAIT: { cle: Onglet; libelle: string }[] = [
   { cle: 'recherche', libelle: 'Rechercher' },
   { cle: 'personnes', libelle: 'Les gens' },
+  { cle: 'semaine', libelle: 'La semaine' },
   { cle: 'reglages', libelle: 'Vos données' },
 ];
 
@@ -171,6 +183,7 @@ async function demarrer(): Promise<void> {
     else if (valide === 'maintenant') demonterEcran = await montrerMaintenant(vue);
     else if (valide === 'recherche') demonterEcran = await montrerRecherche(vue);
     else if (valide === 'personnes') demonterEcran = await montrerPersonnes(vue);
+    else if (valide === 'semaine') await montrerSemaine(vue);
     else await montrerReglages(vue);
   }
 
@@ -204,6 +217,11 @@ async function demarrer(): Promise<void> {
     lireInvitationDeLAdresse();
     void afficher();
   });
+
+  // L'ouverture est aussi le moment où la note « Où vous en étiez » se rend (spec
+  // `reprise`) : notée avant le premier écran, pour que Maintenant, s'il s'ouvre en
+  // premier, la montre.
+  observerReprise();
 
   // Fermeture de l'onglet ou passage en arrière-plan : on tente la même sortie propre.
   // L'écriture est asynchrone et rien ne garantit qu'elle aboutisse ici — mais tenter
@@ -270,7 +288,13 @@ async function demarrer(): Promise<void> {
       verrouEnAttente = undefined;
       const absence = quitteeA === undefined ? 0 : Date.now() - quitteeA;
       quitteeA = undefined;
-      if (absence >= ABSENCE_AVANT_REPRISE_MS) void presenterRappels();
+      if (absence >= ABSENCE_AVANT_REPRISE_MS) {
+        void presenterRappels();
+        // Le même point de rupture rend la note de reprise ; si Maintenant est sous
+        // les yeux, il se redessine pour la montrer.
+        observerReprise();
+        if (location.hash === '#maintenant') void afficher();
+      }
       return;
     }
     quitteeA = Date.now();
@@ -320,6 +344,13 @@ declare global {
       elementsDeCapture: typeof elementsDeCapture;
       majElement: typeof majElement;
       lireCapture: typeof lireCapture;
+      /**
+       * Poser une date de fait ou un verdict sur un élément, et relire éléments et
+       * réglages : de quoi composer une semaine passée sans attendre sept jours.
+       */
+      listerElements: typeof listerElements;
+      listerCaptures: typeof listerCaptures;
+      lireReglages: typeof lireReglages;
     };
   }
 }
@@ -333,6 +364,9 @@ window.__zenote = {
   elementsDeCapture,
   majElement,
   lireCapture,
+  listerElements,
+  listerCaptures,
+  lireReglages,
 };
 
 registerSW({ immediate: true });

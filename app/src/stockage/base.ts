@@ -38,7 +38,16 @@ export const NOM_BASE = 'zenote';
  * et les participants sont scellés quand le coffre existe. La montée depuis la
  * version 3 ne fait qu'ajouter ce magasin.
  */
-export const VERSION_BASE = 4;
+/**
+ * Version 5 : les recherches passées.
+ *
+ * Les questions déjà posées se reposent souvent, et se posent souvent mal la seconde
+ * fois : les retenir épargne de chercher ce qu'on avait déjà trouvé. Elles suivent
+ * le même chemin que le lexique — une seule ligne, scellée en entier — parce qu'une
+ * question est aussi parlante qu'une note : « licenciement de Karim » se lit en clair
+ * comme n'importe quelle phrase dictée.
+ */
+export const VERSION_BASE = 5;
 
 export const MAGASIN_CAPTURES = 'captures';
 export const MAGASIN_ELEMENTS = 'elements';
@@ -46,6 +55,7 @@ export const MAGASIN_REGLAGES = 'reglages';
 export const MAGASIN_MORCEAUX = 'morceaux';
 export const MAGASIN_LEXIQUE = 'lexique';
 export const MAGASIN_EVENEMENTS = 'evenements';
+export const MAGASIN_RECHERCHES = 'recherches';
 
 let ouverture: Promise<IDBDatabase> | null = null;
 
@@ -76,6 +86,10 @@ export function ouvrir(): Promise<IDBDatabase> {
         if (!base.objectStoreNames.contains(MAGASIN_EVENEMENTS)) {
           const evenements = base.createObjectStore(MAGASIN_EVENEMENTS, { keyPath: 'id' });
           evenements.createIndex('debut', 'debut');
+        }
+        if (!base.objectStoreNames.contains(MAGASIN_RECHERCHES)) {
+          // Une seule ligne, dont la valeur est scellée : voir [VERSION_BASE].
+          base.createObjectStore(MAGASIN_RECHERCHES, { keyPath: 'id' });
         }
         if (!base.objectStoreNames.contains(MAGASIN_MORCEAUX)) {
           const morceaux = base.createObjectStore(MAGASIN_MORCEAUX, { keyPath: 'id' });
