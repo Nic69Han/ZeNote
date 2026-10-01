@@ -27,6 +27,7 @@ import {
 import {
   ecrireCaptureEnClair,
   ecrireElementEnClair,
+  ecrireLexiqueEnClair,
   ecrireRecherchesEnClair,
   enregistrerElement,
   identifiantsDesCaptures,
@@ -123,6 +124,8 @@ export async function desactiverChiffrement(): Promise<Reprise> {
   // Avant de supprimer le coffre : scellées pour un coffre qui n'existe plus, les
   // questions retenues seraient perdues sans un mot.
   await ecrireRecherchesEnClair();
+  // Le lexique pareil : ses corrections sont des noms de personnes et de dossiers.
+  await ecrireLexiqueEnClair();
 
   await supprimerCoffre();
   return { captures, elements: elements.length };

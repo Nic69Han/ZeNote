@@ -1068,6 +1068,22 @@ export async function reecrireLexique(): Promise<void> {
   await retenirCorrections([]);
 }
 
+/**
+ * Remet le lexique en clair, coffre ou pas.
+ *
+ * Réservé à la désactivation du chiffrement, comme [ecrireRecherchesEnClair] : le coffre
+ * n'est supprimé qu'une fois cette ligne réécrite, faute de quoi elle resterait scellée
+ * pour un coffre qui n'existe plus, et les corrections apprises seraient perdues sans un
+ * mot — [lireLexique] rend alors une liste vide, comme pour une base neuve.
+ */
+export async function ecrireLexiqueEnClair(): Promise<void> {
+  const corrections = await lireLexique();
+  if (corrections.length === 0) return;
+  await transaction([MAGASIN_LEXIQUE], 'readwrite', ([lexique]) => {
+    lexique.put({ id: CLE_LEXIQUE, corrections } satisfies LexiqueBrut);
+  });
+}
+
 // ------------------------------------------------------- les recherches passées
 
 /**

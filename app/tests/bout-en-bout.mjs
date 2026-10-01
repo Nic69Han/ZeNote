@@ -1519,8 +1519,24 @@ try {
     `${voyantAilleurs} voyant(s) sur un autre écran`,
   );
 
-  await page.locator('.nav__lien[data-onglet="capturer"]').click();
+  // Le voyant ramène à l'arrêt : un lien, pas seulement un témoin. Sans lui, il faut
+  // savoir que « Arrêter » se trouve sur l'écran de capture.
+  const lienRetour = page.locator('.voyant-enregistrement a');
+  const lienVu = await lienRetour.isVisible();
+  const cibleRetour = lienVu ? await lienRetour.getAttribute('href') : null;
+  verifier(
+    'le voyant offre un retour vers la capture, d’où l’on arrête',
+    lienVu && cibleRetour === '#capturer',
+    lienVu ? `lien vers ${cibleRetour}` : 'aucun lien visible sur un autre écran',
+  );
+  await lienRetour.click();
   await page.waitForTimeout(500);
+  const lienSurCapture = await page.locator('.voyant-enregistrement a:visible').count();
+  verifier(
+    'sur l’écran de capture, le lien est inutile et disparaît',
+    lienSurCapture === 0,
+    `${lienSurCapture} lien(s) sur l’écran de capture`,
+  );
   await page.getByRole('button', { name: /arrêter l’enregistrement/i }).click();
   await page.waitForTimeout(1500);
   const voyantApres = await page.locator('.voyant-enregistrement:visible').count();
@@ -3204,6 +3220,17 @@ try {
   await page.waitForTimeout(700);
   const [elementClos] = await elementsParTexte(/budget 2027/);
   verifier('la tâche n’est close que par « C’est fait »', Boolean(elementClos?.faitLe));
+
+  // Rangé derrière soi : « devis du parking » a reçu le plan « ce soir » et resterait actif.
+  // Les parcours suivants simulent une soirée à heure fixe (plage de silence) : cette tâche
+  // y deviendrait un rappel échu, et leur résultat dépendrait de l'heure où la suite tourne.
+  const [devisParking] = await elementsParTexte(/devis du parking/);
+  if (devisParking) {
+    await page.evaluate(
+      (id) => window.__zenote.majElement(id, { faitLe: new Date().toISOString() }),
+      devisParking.id,
+    );
+  }
 
   // --- Chiffrer : un appareil perdu ne livre rien ----------------------------
   // Spec `donnees` — « Appareil perdu ». Tout ce qui précède a produit de vraies

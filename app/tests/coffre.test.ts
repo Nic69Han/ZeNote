@@ -28,12 +28,20 @@ import {
   verrouiller,
 } from '../src/securite/coffre.ts';
 import { capturer } from '../src/services/pipeline.ts';
-import { MAGASIN_CAPTURES, MAGASIN_ELEMENTS, demander, transaction } from '../src/stockage/base.ts';
+import {
+  MAGASIN_CAPTURES,
+  MAGASIN_ELEMENTS,
+  MAGASIN_LEXIQUE,
+  demander,
+  transaction,
+} from '../src/stockage/base.ts';
 import {
   enregistrerElement,
   lireCapture,
   listerCaptures,
+  lireLexique,
   listerElements,
+  retenirCorrections,
   toutEffacer,
 } from '../src/stockage/depot.ts';
 
@@ -78,6 +86,18 @@ async function brutSurLeDisque(): Promise<string> {
     if (ArrayBuffer.isView(valeur)) {
       return new TextDecoder().decode(valeur.buffer as ArrayBuffer);
     }
+    return valeur;
+  });
+}
+
+/** La ligne du lexique telle qu'elle est écrite, sans passer par le dépôt. */
+async function lexiqueSurLeDisque(): Promise<string> {
+  const lignes = await transaction([MAGASIN_LEXIQUE], 'readonly', ([m]) =>
+    demander<unknown[]>(m.getAll()),
+  );
+  return JSON.stringify(lignes, (_cle, valeur: unknown) => {
+    if (valeur instanceof ArrayBuffer) return new TextDecoder().decode(valeur);
+    if (ArrayBuffer.isView(valeur)) return new TextDecoder().decode(valeur.buffer as ArrayBuffer);
     return valeur;
   });
 }
@@ -225,6 +245,19 @@ describe('activation sur des notes déjà là', () => {
     expect(etatCoffre()).toBe('ABSENT');
     expect(await brutSurLeDisque()).toContain('couvreur');
     expect((await listerCaptures())[0].texte).toBe('rappeler le couvreur');
+  });
+
+  it('remet le lexique en clair quand on retire le chiffrement, faute de quoi il serait perdu', async () => {
+    // Les corrections retenues sont des noms de personnes et de dossiers : scellées avec
+    // le coffre, elles ne se relisent plus une fois le coffre supprimé.
+    await retenirCorrections([{ malEntendu: 'carreleur', correction: 'couvreur', fois: 2 }]);
+    await activerChiffrement('PHRASE', PHRASE);
+    expect(await lexiqueSurLeDisque()).not.toContain('couvreur');
+
+    await desactiverChiffrement();
+
+    expect(await lexiqueSurLeDisque()).toContain('couvreur');
+    expect(await lireLexique()).toEqual([{ malEntendu: 'carreleur', correction: 'couvreur', fois: 2 }]);
   });
 
   it('refuse de retirer le chiffrement coffre fermé : ce serait tout perdre', async () => {
