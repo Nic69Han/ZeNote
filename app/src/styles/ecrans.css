@@ -1214,6 +1214,19 @@
   margin-inline-end: 0.4rem;
 }
 
+/* Le chemin du retour vers l'arrêt. Inutile, donc masqué, sur l'écran de capture lui-même. */
+.voyant-enregistrement__retour {
+  margin-inline-start: 0.8rem;
+  color: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+:root[data-ecran='capturer'] .voyant-enregistrement__retour {
+  display: none;
+}
+
 .bouton--enregistre {
   border-color: #b3261e;
   color: #b3261e;

@@ -107,12 +107,19 @@ async function demarrer(): Promise<void> {
   // quand on change d'écran, et un voyant qui disparaît avec l'écran laisserait le
   // micro tourner sans que rien ne le dise. C'est exactement ce que l'exigence
   // interdit, et ce serait invisible depuis l'écran de capture.
-  const voyant = el('div', {
-    class: 'voyant-enregistrement',
-    role: 'status',
-    hidden: true,
-    texte: 'Enregistrement en cours',
-  });
+  // Le voyant dit ce qui se passe ; le lien, lui, ramène à l'endroit où l'on arrête. Une
+  // réunion dure une heure et on consulte d'autres écrans pendant ce temps : sans lien,
+  // il fallait deviner que l'arrêt se trouve sur l'écran de capture.
+  const voyant = el(
+    'div',
+    { class: 'voyant-enregistrement', role: 'status', hidden: true },
+    'Enregistrement en cours',
+    el('a', {
+      class: 'voyant-enregistrement__retour',
+      href: '#capturer',
+      texte: 'Revenir à la capture',
+    }),
+  );
   document.body.prepend(voyant);
   surEnregistrement((enCours) => {
     voyant.hidden = enCours === null;
